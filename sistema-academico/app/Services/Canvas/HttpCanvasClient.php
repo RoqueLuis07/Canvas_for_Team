@@ -68,4 +68,17 @@ class HttpCanvasClient implements CanvasClient
                 ->throw();
         }
     }
+
+    public function createPage(string $canvasCourseId, string $title, string $body): string
+    {
+        $response = $this->client()->post("/courses/{$canvasCourseId}/pages", [
+            'wiki_page' => [
+                'title' => $title,
+                'body' => $body,
+                'published' => true,
+            ],
+        ])->throw();
+
+        return (string) $response->json('page_id');
+    }
 }

@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\CursoResource\Pages;
 use App\Models\Curso;
+use App\Models\Persona;
 use App\Services\CursoService;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -76,6 +77,10 @@ class CursoResource extends Resource
                     ->label('Teams')
                     ->boolean()
                     ->getStateUsing(fn (Curso $record) => $record->estaCreadoEnTeams()),
+                Tables\Columns\TextColumn::make('docente.nombre_completo')
+                    ->label('Docente')
+                    ->placeholder('Sin asignar')
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('cupo_maximo')
                     ->label('Cupo')
                     ->getStateUsing(fn (Curso $record) => $record->cupo_maximo === null
@@ -112,6 +117,26 @@ class CursoResource extends Resource
                             Notification::make()->title('Equipo creado en Teams')->success()->send();
                         } catch (\Throwable $e) {
                             Notification::make()->title('Error al crear en Teams')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
+                Tables\Actions\Action::make('asignarDocente')
+                    ->label('Asignar docente')
+                    ->icon('heroicon-o-user-plus')
+                    ->color('success')
+                    ->visible(fn (Curso $record) => $record->estaCreadoEnCanvas() && $record->estaCreadoEnTeams())
+                    ->form([
+                        Forms\Components\Select::make('docente_persona_id')
+                            ->label('Docente')
+                            ->options(fn () => Persona::query()->where('tipo', 'docente')->pluck('nombre_completo', 'id'))
+                            ->searchable()
+                            ->required(),
+                    ])
+                    ->action(function (Curso $record, array $data) {
+                        try {
+                            app(CursoService::class)->asignarDocente($record, Persona::findOrFail($data['docente_persona_id']));
+                            Notification::make()->title('Docente asignado en Canvas y Teams')->success()->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()->title('Error al asignar docente')->body($e->getMessage())->danger()->send();
                         }
                     }),
                 Tables\Actions\EditAction::make(),

@@ -41,6 +41,7 @@ class FilamentResourcesSmokeTest extends TestCase
             'matriculas' => ['/admin/matriculas'],
             'cursos' => ['/admin/cursos'],
             'inscripcion-materias' => ['/admin/inscripcion-materias'],
+            'materials' => ['/admin/materials'],
         ];
     }
 }

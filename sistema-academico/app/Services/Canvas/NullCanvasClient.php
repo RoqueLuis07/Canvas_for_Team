@@ -14,6 +14,8 @@ class NullCanvasClient implements CanvasClient
 {
     protected static int $nextCourseId = 1000;
 
+    protected static int $nextPageId = 5000;
+
     public function createCourse(string $name, string $sisCourseId): string
     {
         Log::info("[Canvas simulado] Curso creado: {$name} ({$sisCourseId})");
@@ -29,5 +31,12 @@ class NullCanvasClient implements CanvasClient
     public function unenrollUser(string $canvasCourseId, string $canvasUserId): void
     {
         Log::info("[Canvas simulado] Usuario {$canvasUserId} dado de baja del curso {$canvasCourseId}");
+    }
+
+    public function createPage(string $canvasCourseId, string $title, string $body): string
+    {
+        Log::info("[Canvas simulado] Página \"{$title}\" publicada en curso {$canvasCourseId}");
+
+        return (string) self::$nextPageId++;
     }
 }

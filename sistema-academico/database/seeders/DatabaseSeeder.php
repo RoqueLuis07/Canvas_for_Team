@@ -6,6 +6,7 @@ use App\Contracts\CanvasClient;
 use App\Contracts\TeamsClient;
 use App\Models\Curso;
 use App\Models\Materia;
+use App\Models\Material;
 use App\Models\Matricula;
 use App\Models\PeriodoAcademico;
 use App\Models\Persona;
@@ -15,6 +16,7 @@ use App\Models\Programa;
 use App\Models\User;
 use App\Services\CursoService;
 use App\Services\InscripcionMateriaService;
+use App\Services\MaterialService;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -80,6 +82,7 @@ class DatabaseSeeder extends Seeder
         //    y Teams — paso obligatorio antes de poder matricular. ────────
         $cursoService = new CursoService(app(CanvasClient::class), app(TeamsClient::class));
         $inscripciones = new InscripcionMateriaService(app(CanvasClient::class), app(TeamsClient::class));
+        $materiales = new MaterialService(app(CanvasClient::class));
 
         $cursoMatematica = Curso::factory()->create(['materia_id' => $matematicaI->id, 'periodo_academico_id' => $periodo->id, 'cupo_maximo' => null]);
         $cursoIntroProgramacion = Curso::factory()->create(['materia_id' => $introProgramacion->id, 'periodo_academico_id' => $periodo->id, 'cupo_maximo' => null]);
@@ -89,6 +92,24 @@ class DatabaseSeeder extends Seeder
             $cursoService->crearEnCanvas($curso);
             $cursoService->crearEnTeams($curso);
         }
+
+        // ── Docente titular de Matemática I: se da de alta como profesor en
+        //    Canvas y como propietario del equipo en Teams, y publica el
+        //    primer material del curso. ───────────────────────────────────
+        $docente = Persona::factory()->docente()->create([
+            'nombre_completo' => 'Prof. Lucía Fernández',
+            'canvas_user_id' => 'canvas-lucia',
+            'azure_user_id' => 'azure-lucia',
+        ]);
+        $cursoService->asignarDocente($cursoMatematica, $docente);
+
+        $materiales->publicarEnCanvas(Material::factory()->create([
+            'curso_id' => $cursoMatematica->id,
+            'titulo' => 'Programa de la materia y bibliografía',
+            'tipo' => 'documento',
+            'descripcion' => 'Programa analítico, cronograma de clases y bibliografía obligatoria de Matemática I.',
+            'orden' => 1,
+        ]));
 
         // ── Caso 1: alumno nuevo — postulación admitida, cursos del primer
         //    semestre predefinidos automáticamente por el Departamento. ───

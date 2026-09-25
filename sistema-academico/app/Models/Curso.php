@@ -16,11 +16,22 @@ class Curso extends Model
     protected $fillable = [
         'materia_id',
         'periodo_academico_id',
+        'docente_persona_id',
         'cupo_maximo',
         'canvas_course_id',
         'teams_group_id',
+        'docente_canvas_at',
+        'docente_teams_at',
         'estado',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'docente_canvas_at' => 'datetime',
+            'docente_teams_at' => 'datetime',
+        ];
+    }
 
     public function materia(): BelongsTo
     {
@@ -32,9 +43,19 @@ class Curso extends Model
         return $this->belongsTo(PeriodoAcademico::class, 'periodo_academico_id');
     }
 
+    public function docente(): BelongsTo
+    {
+        return $this->belongsTo(Persona::class, 'docente_persona_id');
+    }
+
     public function inscripciones(): HasMany
     {
         return $this->hasMany(InscripcionMateria::class);
+    }
+
+    public function materiales(): HasMany
+    {
+        return $this->hasMany(Material::class);
     }
 
     public function estaCreadoEnCanvas(): bool
@@ -45,6 +66,21 @@ class Curso extends Model
     public function estaCreadoEnTeams(): bool
     {
         return $this->teams_group_id !== null;
+    }
+
+    public function tieneDocenteAsignado(): bool
+    {
+        return $this->docente_persona_id !== null;
+    }
+
+    public function docenteEstaAlDiaEnCanvas(): bool
+    {
+        return $this->docente_canvas_at !== null;
+    }
+
+    public function docenteEstaAlDiaEnTeams(): bool
+    {
+        return $this->docente_teams_at !== null;
     }
 
     /**
