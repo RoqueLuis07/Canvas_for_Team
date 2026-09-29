@@ -36,6 +36,7 @@ class InscripcionMateriaService
     public function __construct(
         protected CanvasClient $canvas,
         protected TeamsClient $teams,
+        protected SincronizacionService $sincronizacion,
     ) {}
 
     /**
@@ -218,15 +219,20 @@ class InscripcionMateriaService
             );
         }
 
-        if (! $inscripcion->estaAlDiaEnCanvas()) {
-            $this->canvas->enrollUser($curso->canvas_course_id, $persona->canvas_user_id);
-            $inscripcion->update(['canvas_enrollment_at' => now()]);
-        }
+        $this->sincronizacion->ejecutar(
+            'matricula', 'inscripcion_alta_plataformas', "InscripcionMateria#{$inscripcion->id}",
+            function () use ($curso, $persona, $inscripcion) {
+                if (! $inscripcion->estaAlDiaEnCanvas()) {
+                    $this->canvas->enrollUser($curso->canvas_course_id, $persona->canvas_user_id);
+                    $inscripcion->update(['canvas_enrollment_at' => now()]);
+                }
 
-        if (! $inscripcion->estaAlDiaEnTeams()) {
-            $this->teams->addMember($curso->teams_group_id, $persona->azure_user_id);
-            $inscripcion->update(['teams_enrollment_at' => now()]);
-        }
+                if (! $inscripcion->estaAlDiaEnTeams()) {
+                    $this->teams->addMember($curso->teams_group_id, $persona->azure_user_id);
+                    $inscripcion->update(['teams_enrollment_at' => now()]);
+                }
+            },
+        );
     }
 
     protected function bajaEnPlataformas(InscripcionMateria $inscripcion): void
@@ -234,14 +240,19 @@ class InscripcionMateriaService
         $curso = $inscripcion->curso;
         $persona = $inscripcion->matricula->persona;
 
-        if ($inscripcion->estaAlDiaEnCanvas() && $persona->canvas_user_id) {
-            $this->canvas->unenrollUser($curso->canvas_course_id, $persona->canvas_user_id);
-        }
+        $this->sincronizacion->ejecutar(
+            'baja', 'inscripcion_baja_plataformas', "InscripcionMateria#{$inscripcion->id}",
+            function () use ($curso, $persona, $inscripcion) {
+                if ($inscripcion->estaAlDiaEnCanvas() && $persona->canvas_user_id) {
+                    $this->canvas->unenrollUser($curso->canvas_course_id, $persona->canvas_user_id);
+                }
 
-        if ($inscripcion->estaAlDiaEnTeams() && $persona->azure_user_id) {
-            $this->teams->removeMember($curso->teams_group_id, $persona->azure_user_id);
-        }
+                if ($inscripcion->estaAlDiaEnTeams() && $persona->azure_user_id) {
+                    $this->teams->removeMember($curso->teams_group_id, $persona->azure_user_id);
+                }
 
-        $inscripcion->update(['canvas_enrollment_at' => null, 'teams_enrollment_at' => null]);
+                $inscripcion->update(['canvas_enrollment_at' => null, 'teams_enrollment_at' => null]);
+            },
+        );
     }
 }

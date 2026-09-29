@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Contracts\CanvasClient;
-use App\Contracts\TeamsClient;
 use App\Models\Curso;
 use App\Models\Materia;
 use App\Models\Material;
@@ -80,8 +79,8 @@ class DatabaseSeeder extends Seeder
         // ── Asignación de curso: el Departamento Académico crea el Curso
         //    (oferta de la materia en este período) y lo publica en Canvas
         //    y Teams — paso obligatorio antes de poder matricular. ────────
-        $cursoService = new CursoService(app(CanvasClient::class), app(TeamsClient::class));
-        $inscripciones = new InscripcionMateriaService(app(CanvasClient::class), app(TeamsClient::class));
+        $cursoService = app(CursoService::class);
+        $inscripciones = app(InscripcionMateriaService::class);
         $materiales = new MaterialService(app(CanvasClient::class));
 
         $cursoMatematica = Curso::factory()->create(['materia_id' => $matematicaI->id, 'periodo_academico_id' => $periodo->id, 'cupo_maximo' => null]);

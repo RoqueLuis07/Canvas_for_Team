@@ -19,6 +19,7 @@ class CursoService
     public function __construct(
         protected CanvasClient $canvas,
         protected TeamsClient $teams,
+        protected SincronizacionService $sincronizacion,
     ) {}
 
     /**
@@ -33,15 +34,20 @@ class CursoService
         $materia = $curso->materia;
         $sisCourseId = "{$materia->codigo}-{$curso->periodo_academico_id}";
 
-        try {
-            $canvasCourseId = $this->canvas->createCourse($materia->nombre, $sisCourseId);
-        } catch (\Throwable $e) {
-            throw new CursoException("No se pudo crear el curso en Canvas: {$e->getMessage()}", previous: $e);
-        }
+        return $this->sincronizacion->ejecutar(
+            'crear_curso', 'curso_creado_canvas', "Curso#{$curso->id}",
+            function () use ($curso, $materia, $sisCourseId) {
+                try {
+                    $canvasCourseId = $this->canvas->createCourse($materia->nombre, $sisCourseId);
+                } catch (\Throwable $e) {
+                    throw new CursoException("No se pudo crear el curso en Canvas: {$e->getMessage()}", previous: $e);
+                }
 
-        $curso->update(['canvas_course_id' => $canvasCourseId]);
+                $curso->update(['canvas_course_id' => $canvasCourseId]);
 
-        return $curso->refresh();
+                return $curso->refresh();
+            },
+        );
     }
 
     /**
@@ -53,15 +59,20 @@ class CursoService
             return $curso;
         }
 
-        try {
-            $teamsGroupId = $this->teams->createTeam($curso->materia->nombre);
-        } catch (\Throwable $e) {
-            throw new CursoException("No se pudo crear el equipo en Teams: {$e->getMessage()}", previous: $e);
-        }
+        return $this->sincronizacion->ejecutar(
+            'crear_team', 'team_creado_teams', "Curso#{$curso->id}",
+            function () use ($curso) {
+                try {
+                    $teamsGroupId = $this->teams->createTeam($curso->materia->nombre);
+                } catch (\Throwable $e) {
+                    throw new CursoException("No se pudo crear el equipo en Teams: {$e->getMessage()}", previous: $e);
+                }
 
-        $curso->update(['teams_group_id' => $teamsGroupId]);
+                $curso->update(['teams_group_id' => $teamsGroupId]);
 
-        return $curso->refresh();
+                return $curso->refresh();
+            },
+        );
     }
 
     /**
@@ -87,19 +98,24 @@ class CursoService
             throw new CursoException("{$docente->nombre_completo} todavía no tiene cuenta institucional (Canvas/Teams) creada.");
         }
 
-        try {
-            $this->canvas->enrollUser($curso->canvas_course_id, $docente->canvas_user_id, 'TeacherEnrollment');
-            $this->teams->addMember($curso->teams_group_id, $docente->azure_user_id, 'Owner');
-        } catch (\Throwable $e) {
-            throw new CursoException("No se pudo asignar al docente en Canvas/Teams: {$e->getMessage()}", previous: $e);
-        }
+        return $this->sincronizacion->ejecutar(
+            'alta_usuario', 'docente_asignado', "Curso#{$curso->id}",
+            function () use ($curso, $docente) {
+                try {
+                    $this->canvas->enrollUser($curso->canvas_course_id, $docente->canvas_user_id, 'TeacherEnrollment');
+                    $this->teams->addMember($curso->teams_group_id, $docente->azure_user_id, 'Owner');
+                } catch (\Throwable $e) {
+                    throw new CursoException("No se pudo asignar al docente en Canvas/Teams: {$e->getMessage()}", previous: $e);
+                }
 
-        $curso->update([
-            'docente_persona_id' => $docente->id,
-            'docente_canvas_at' => now(),
-            'docente_teams_at' => now(),
-        ]);
+                $curso->update([
+                    'docente_persona_id' => $docente->id,
+                    'docente_canvas_at' => now(),
+                    'docente_teams_at' => now(),
+                ]);
 
-        return $curso->refresh();
+                return $curso->refresh();
+            },
+        );
     }
 }
