@@ -35,13 +35,15 @@ _BASE_CC = ["comercialcredenciales@usil.edu.py", "resteche@usil.edu.py"]
 
 # CC adicional según el tipo de programa, replicando "Envio Credenciales"
 # (grado) vs "Envio Credenciales UBS" (diplomados) de la planilla de referencia.
-# "mba" usa el mismo CC que "diplomado" — mismo área (UBS), confirmado con
-# el correo real que TI UBS venía enviando a mano para MBA.
 _PROGRAM_CC: dict[str, list[str]] = {
     "diplomado": ["ubs@usil.edu.py", "glezcano@usil.edu.py"],
-    "mba": ["ubs@usil.edu.py", "glezcano@usil.edu.py"],
     "grado": ["gradocredenciales@usil.edu.py"],
 }
+
+# CC exclusivo de MBA: a diferencia de los demás programas, NO lleva
+# resteche@usil.edu.py (que sí forma parte de _BASE_CC) — reemplaza por
+# completo el CC genérico en vez de sumarse a él, ver `default_cc_for_program`.
+_MBA_CC = ["ubs@usil.edu.py", "comercialcredenciales@usil.edu.py", "glezcano@usil.edu.py"]
 
 # Instructivos que el proceso manual anterior adjuntaba a los correos de
 # Diplomados (referencias_excel/alumnos para crear.xlsm, hoja "Envio
@@ -88,7 +90,10 @@ _MBA_SLA = "Hasta 24 horas hábiles."
 
 
 def default_cc_for_program(program_type: str | None) -> list[str]:
-    extra = _PROGRAM_CC.get((program_type or "").strip().lower(), [])
+    program_type_norm = (program_type or "").strip().lower()
+    if program_type_norm == "mba":
+        return list(_MBA_CC)
+    extra = _PROGRAM_CC.get(program_type_norm, [])
     return [*extra, *_BASE_CC]
 
 
