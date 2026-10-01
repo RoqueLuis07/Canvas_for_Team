@@ -35,8 +35,11 @@ _BASE_CC = ["comercialcredenciales@usil.edu.py", "resteche@usil.edu.py"]
 
 # CC adicional según el tipo de programa, replicando "Envio Credenciales"
 # (grado) vs "Envio Credenciales UBS" (diplomados) de la planilla de referencia.
+# "mba" usa el mismo CC que "diplomado" — mismo área (UBS), confirmado con
+# el correo real que TI UBS venía enviando a mano para MBA.
 _PROGRAM_CC: dict[str, list[str]] = {
     "diplomado": ["ubs@usil.edu.py", "glezcano@usil.edu.py"],
+    "mba": ["ubs@usil.edu.py", "glezcano@usil.edu.py"],
     "grado": ["gradocredenciales@usil.edu.py"],
 }
 
@@ -68,6 +71,21 @@ _DIPLOMADO_CONTACT_EMAILS = ["glezcano@usil.edu.py", "resteche@usil.edu.py"]
 _DIPLOMADO_WHATSAPP = "0991 856 488"
 _DIPLOMADO_TEAMS_LINK = "https://teams.cloud.microsoft/"
 
+# Instructivos de MBA (referencia: correo real "Accesos MBA | UBS Business
+# School" enviado a mano por TI UBS, con estos mismos dos adjuntos).
+_MBA_ATTACHMENTS_DIR = _BACKEND_DIR / "Archivos para los correos" / "MBA (UBS - USIL Business School)"
+_MBA_ATTACHMENTS = [
+    _MBA_ATTACHMENTS_DIR / "Tutorial de uso de Microsoft Teams.pdf",
+    _MBA_ATTACHMENTS_DIR / "Tutorial_Canvas_MBA_USIL_v2.pdf",
+]
+
+# Contacto de soporte y SLA tal como figuran en ese mismo correo real.
+_MBA_CONTACT_EMAILS = ["glezcano@usil.edu.py", "resteche@usil.edu.py"]
+_MBA_WHATSAPP = "0991 856 488"
+_MBA_TEAMS_LINK = "https://teams.cloud.microsoft/"
+_MBA_SCHEDULE = "Lunes a viernes de 08:00 a 20:00 horas."
+_MBA_SLA = "Hasta 24 horas hábiles."
+
 
 def default_cc_for_program(program_type: str | None) -> list[str]:
     extra = _PROGRAM_CC.get((program_type or "").strip().lower(), [])
@@ -80,6 +98,8 @@ def attachments_for_program(program_type: str | None) -> list[Path]:
     program_type_norm = (program_type or "").strip().lower()
     if program_type_norm == "diplomado":
         return [p for p in _DIPLOMADO_ATTACHMENTS if p.is_file()]
+    if program_type_norm == "mba":
+        return [p for p in _MBA_ATTACHMENTS if p.is_file()]
     if program_type_norm == "grado":
         return [_GRADO_ATTACHMENT_ZIP] if _GRADO_ATTACHMENT_ZIP.is_file() else []
     return []
@@ -171,6 +191,131 @@ def _build_diplomado_message(
       Correo: {contact_inline}<br>
       WhatsApp corporativo: {_DIPLOMADO_WHATSAPP}</p>
     </div>
+    """
+    return subject, html
+
+
+def _build_mba_message(
+    *, full_name: str, login_id: str, password: str, program_name: str = "",
+) -> tuple[str, str]:
+    """Correo de bienvenida para alumnos de MBA (USIL Business School).
+
+    Mismo lenguaje visual de tarjetas/"ticket" que `_build_student_credentials_message`
+    y `_build_erp_docente_message` (compatible con Outlook vía tablas), pero
+    con el copy y los datos de contacto exactos del correo real que TI UBS
+    venía enviando a mano ("Accesos MBA | UBS Business School"), y con botón
+    de acceso a **ambas** plataformas: Microsoft Teams y Canvas LMS — a
+    diferencia de `_build_diplomado_message`, que solo da acceso a Teams.
+    """
+    program_label = program_name or "MBA"
+    subject = f"Accesos {program_label} | UBS Business School"
+
+    platforms = [
+        ("Microsoft Teams", _MBA_TEAMS_LINK, "Acceder a Microsoft Teams"),
+        ("Canvas LMS", _erp_docente_canvas_link(), "Acceder a Canvas LMS"),
+    ]
+    platform_cards = "".join(
+        f"""
+        <tr>
+          <td style="padding:0 32px 16px 32px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="background:#eaf2fb; border-left:4px solid #1f2a5c; border-radius:6px;">
+              <tr>
+                <td style="padding:14px 18px;">
+                  <p style="margin:0 0 8px; font-size:14px; color:#1f2a5c; font-weight:bold;">{p_name}</p>
+                  <p style="margin:0; font-size:13.5px; color:#333333;">Usuario: {login_id}</p>
+                  <p style="margin:0 0 12px; font-size:13.5px; color:#333333;">Contraseña: {password}</p>
+                  <a href="{p_link}"
+                     style="display:inline-block; background:#1f2a5c; color:#ffffff; text-decoration:none;
+                            font-weight:bold; font-size:13px; padding:10px 20px; border-radius:6px;">
+                    {p_cta}
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        """
+        for p_name, p_link, p_cta in platforms
+    )
+
+    contact_rows = "".join(
+        f'<p style="margin:2px 0; font-size:13.5px;"><a href="mailto:{addr}" style="color:#1f2a5c; text-decoration:none;">{addr}</a></p>'
+        for addr in _MBA_CONTACT_EMAILS
+    )
+
+    html = f"""
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="background:#eef1f6; padding:24px 0; font-family: Arial, Helvetica, sans-serif;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="580" cellpadding="0" cellspacing="0" border="0"
+                 style="background:#ffffff; border-radius:10px; overflow:hidden; border:1px solid #dfe3ea;">
+            <tr>
+              <td style="background:#1f2a5c; padding:22px 32px;">
+                <span style="color:#ffffff; font-size:18px; font-weight:bold; letter-spacing:0.3px;">USIL Business School</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px 32px 8px 32px;">
+                <p style="margin:0 0 14px; font-size:19px; color:#1f2a5c; font-weight:bold;">Bienvenido al programa {program_label}</p>
+                <p style="margin:0 0 12px; font-size:14px; color:#222222; line-height:1.55;">Estimado/a <strong>{full_name}</strong>,</p>
+                <p style="margin:0 0 12px; font-size:14px; color:#222222; line-height:1.55;">
+                  Nos complace darle la bienvenida al inicio de sus actividades académicas en <strong>{program_label}</strong>,
+                  perteneciente a la USIL Business School (UBS).
+                </p>
+                <p style="margin:0 0 12px; font-size:14px; color:#222222; line-height:1.55;">
+                  Este programa ha sido diseñado para potenciar sus capacidades de liderazgo, fortalecer su visión
+                  estratégica y acompañar su desarrollo profesional en entornos altamente exigentes.
+                </p>
+                <p style="margin:0 0 16px; font-size:14px; color:#222222; line-height:1.55;">
+                  A continuación encontrará sus credenciales de acceso a las plataformas institucionales que serán
+                  utilizadas durante el desarrollo del programa:
+                </p>
+              </td>
+            </tr>
+            <tr><td><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">{platform_cards}</table></td></tr>
+            <tr>
+              <td style="padding:0 32px 20px 32px; font-size:13.5px; color:#5b6472; line-height:1.5;">
+                <p style="margin:0;">Le recomendamos verificar el acceso a ambas plataformas antes del inicio de clases,
+                a fin de garantizar una experiencia académica fluida desde el primer día.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 32px 24px 32px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                       style="background:#f5f7fa; border-radius:8px;">
+                  <tr>
+                    <td style="padding:16px 18px;">
+                      <p style="margin:0 0 10px; font-size:13.5px; color:#1f2a5c; font-weight:bold;">Soporte Técnico - Área de Tecnología</p>
+                      <p style="margin:0 0 10px; font-size:13px; color:#333333; line-height:1.5;">
+                        Si presenta inconvenientes con el acceso o funcionamiento de las plataformas institucionales,
+                        puede comunicarse a través de los siguientes canales oficiales:
+                      </p>
+                      <p style="margin:0 0 2px; font-size:12.5px; color:#5b6472; font-weight:bold;">Correo electrónico:</p>
+                      {contact_rows}
+                      <p style="margin:10px 0 2px; font-size:12.5px; color:#5b6472; font-weight:bold;">WhatsApp corporativo:</p>
+                      <p style="margin:0; font-size:13.5px; color:#333333;">{_MBA_WHATSAPP}</p>
+                      <p style="margin:10px 0 2px; font-size:12.5px; color:#5b6472; font-weight:bold;">Horario de atención:</p>
+                      <p style="margin:0; font-size:13.5px; color:#333333;">{_MBA_SCHEDULE}</p>
+                      <p style="margin:10px 0 2px; font-size:12.5px; color:#5b6472; font-weight:bold;">Tiempo estimado de respuesta (SLA):</p>
+                      <p style="margin:0; font-size:13.5px; color:#333333;">{_MBA_SLA}</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px; background:#f5f7fa; border-top:1px solid #e3e7ee;">
+                <p style="margin:0 0 2px; font-size:12.5px; color:#1f2a5c; font-weight:bold;">Departamento de Tecnología</p>
+                <p style="margin:0; font-size:12px; color:#6b7280;">Universidad San Ignacio de Loyola — Paraguay</p>
+              </td>
+            </tr>
+          </table>
+          <p style="margin:12px 0 0; font-size:11px; color:#9aa1ad;">Este mensaje fue creado por el Departamento de Tecnología de USIL Paraguay.</p>
+        </td>
+      </tr>
+    </table>
     """
     return subject, html
 
@@ -585,9 +730,10 @@ async def send_credentials_email(
         raise ValueError("Correo personal inválido o vacío.")
 
     program_type_norm = (program_type or "").strip().lower()
-    is_diplomado = program_type_norm == "diplomado"
-    if is_diplomado:
+    if program_type_norm == "diplomado":
         builder = _build_diplomado_message
+    elif program_type_norm == "mba":
+        builder = _build_mba_message
     elif program_type_norm == "grado":
         builder = _build_student_credentials_message
     else:
@@ -602,12 +748,13 @@ async def send_credentials_email(
     total_attachment_size = sum(len(content) for _, content, _ in attachments)
 
     try:
-        if len(attachments) == 1 and total_attachment_size > _SMALL_ATTACHMENT_LIMIT:
-            name, content, content_type = attachments[0]
-            await graph.send_mail_with_large_attachment(
+        if attachments and total_attachment_size > _SMALL_ATTACHMENT_LIMIT:
+            # Uno o más adjuntos grandes (o varios cuya suma supera el límite
+            # de sendMail "simple", p. ej. los dos instructivos de MBA):
+            # flujo de borrador + upload session, ver `send_mail_with_attachments`.
+            await graph.send_mail_with_attachments(
                 mailbox=settings.smtp_from, subject=subject, html_body=html,
-                to_email=to_email, attachment_name=name, attachment_bytes=content,
-                attachment_content_type=content_type, cc=cc,
+                to_email=to_email, attachments=attachments, cc=cc,
             )
         else:
             await graph.send_mail(

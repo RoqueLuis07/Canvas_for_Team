@@ -40,6 +40,10 @@ logger = logging.getLogger(__name__)
 # Propietarios que deben agregarse a todo Team de Diplomados nuevo, sin excepción.
 _DIPLOMADO_DEFAULT_OWNERS = ["ldure@usil.edu.py", "jfleitas@usil.edu.py", "ralvarez@usil.edu.py"]
 
+# Propietario adicional exclusivo de los Teams de MBA (se suma a los de
+# arriba, no los reemplaza).
+_MBA_EXTRA_OWNER = "amichelena@usil.edu.py"
+
 # Límites de seguridad
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 MAX_ROWS = 10000
@@ -975,6 +979,7 @@ class SendCredentialsPreviewResponse(BaseModel):
     already_sent_count: int = 0
     no_account_count: int = 0
     no_email_count: int = 0
+    program_type: str = "diplomado"
 
 def _encode_share_url(url: str) -> str:
     import base64
@@ -1273,6 +1278,13 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
         global_team_id = ""
         title_val = _find_row1_title(ws)
         global_team_name = title_val
+
+        # Mismo criterio que en los endpoints de envío de credenciales: la
+        # pestaña/hora de MBA se identifica por su nombre o por el título de
+        # la fila 1 — se usa para sumar al propietario adicional de MBA en
+        # cualquier Team que se cree desde esta pestaña.
+        is_mba = "mba" in req.sheet_name.lower() or "mba" in (title_val or "").lower()
+        team_owner_ids = list(_DIPLOMADO_DEFAULT_OWNERS) + ([_MBA_EXTRA_OWNER] if is_mba else [])
         if global_team_name and col_usuario:
             team_id_from_header = str(ws.cell(row=1, column=col_usuario).value or "").strip()
             if _UUID_RE.match(team_id_from_header):
@@ -1285,7 +1297,7 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                     else:
                         nickname = _safe_mail_nickname(global_team_name)
 
-                        owner_ids = list(_DIPLOMADO_DEFAULT_OWNERS)
+                        owner_ids = list(team_owner_ids)
                         try:
                             admin_user = await graph.get(f"/users/resteche@usil.edu.py", params={"$select": "id"})
                             if admin_user and admin_user.get("id"):
@@ -1406,10 +1418,10 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                                 mail_nickname=nickname,
                                 description=f"Grupo para {curso_nombre}",
                                 visibility="Private",
-                                owner_ids=list(_DIPLOMADO_DEFAULT_OWNERS)
+                                owner_ids=list(team_owner_ids)
                             )
                             target_equipo = new_team.get("id")
-                            
+
                     if target_equipo:
                         if col_equipo and target_equipo != id_equipo:
                             ws.cell(row=r_idx, column=col_equipo, value=target_equipo)
@@ -1581,6 +1593,9 @@ async def preview_send_diplomados_credentials(req: DiplomadosUrlRequest) -> Send
     col_correo_enviado = get_col_idx("correo enviado", "credenciales enviadas")
     col_enviado_legacy = headers.get("enviado")
 
+    title_val = _find_row1_title(ws)
+    is_mba = "mba" in req.sheet_name.lower() or "mba" in (title_val or "").lower()
+
     def _looks_sent(raw: str) -> bool:
         v = raw.strip().lower()
         return bool(v) and ("✅" in raw or v in ("si", "yes", "true", "enviado"))
@@ -1613,6 +1628,7 @@ async def preview_send_diplomados_credentials(req: DiplomadosUrlRequest) -> Send
     return SendCredentialsPreviewResponse(
         pending=pending, already_sent_count=already_sent,
         no_account_count=no_account, no_email_count=no_email,
+        program_type="mba" if is_mba else "diplomado",
     )
 
 
@@ -1684,6 +1700,13 @@ async def send_diplomados_credentials(req: DiplomadosUrlRequest) -> BulkResult:
 
     title_val = _find_row1_title(ws)
 
+    # El mismo enlace de "Diplomados" se usa también para MBA (pestaña/hora
+    # distinta del mismo Excel) — se distingue por el nombre de la pestaña o
+    # el título de la fila 1 ("MBA DUAL 2026", "MBA 2026-01", etc.) para
+    # elegir la plantilla de correo correcta (ver email_service._build_mba_message).
+    is_mba = "mba" in req.sheet_name.lower() or "mba" in (title_val or "").lower()
+    program_type = "mba" if is_mba else "diplomado"
+
     col_cc = get_col_idx("cc", "copia")
     sheet_cc_list: list[str] = []
     if col_cc:
@@ -1735,7 +1758,7 @@ async def send_diplomados_credentials(req: DiplomadosUrlRequest) -> BulkResult:
                 full_name=nombre or usuario_val,
                 login_id=usuario_val,
                 password=contra_val,
-                program_type="diplomado",
+                program_type=program_type,
                 program_name=curso_nombre or title_val,
                 extra_cc=sheet_cc_list,
             )
@@ -4455,7 +4478,10 @@ async def import_diplomados_json(req: JsonDataRequest):
         nombre = str(row.get("nombre") or "").strip()
         cedula = _clean_cedula(str(row.get("cedula") or "").strip())
         curso_nombre = str(row.get("curso_nombre") or "").strip()
-        
+        row_team_owner_ids = list(_DIPLOMADO_DEFAULT_OWNERS) + (
+            [_MBA_EXTRA_OWNER] if "mba" in curso_nombre.lower() else []
+        )
+
         if not nombre or not cedula:
             continue
             
@@ -4512,7 +4538,7 @@ async def import_diplomados_json(req: JsonDataRequest):
                             mail_nickname=nickname,
                             description=f"Grupo para {curso_nombre}",
                             visibility="Private",
-                            owner_ids=list(_DIPLOMADO_DEFAULT_OWNERS)
+                            owner_ids=row_team_owner_ids
                         )
                         target_equipo = new_team.get("id")
                 
