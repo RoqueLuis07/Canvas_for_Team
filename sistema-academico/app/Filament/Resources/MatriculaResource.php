@@ -14,7 +14,9 @@ class MatriculaResource extends Resource
 {
     protected static ?string $model = Matricula::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-user-plus';
+
+    protected static ?string $navigationGroup = 'Matriculación';
 
     public static function form(Form $form): Form
     {

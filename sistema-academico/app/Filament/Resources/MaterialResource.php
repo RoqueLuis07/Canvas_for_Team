@@ -21,6 +21,8 @@ class MaterialResource extends Resource
 
     protected static ?string $navigationLabel = 'Materiales';
 
+    protected static ?string $navigationGroup = 'Canvas ↔ Teams';
+
     public static function form(Form $form): Form
     {
         return $form

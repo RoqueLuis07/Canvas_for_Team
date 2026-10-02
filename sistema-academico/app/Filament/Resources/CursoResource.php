@@ -17,9 +17,11 @@ class CursoResource extends Resource
 {
     protected static ?string $model = Curso::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-video-camera';
 
     protected static ?string $navigationLabel = 'Cursos (Canvas/Teams)';
+
+    protected static ?string $navigationGroup = 'Canvas ↔ Teams';
 
     public static function form(Form $form): Form
     {

@@ -29,7 +29,16 @@ class AdminPanelProvider extends PanelProvider
             ->brandName('Sistema Académico USIL')
             ->login()
             ->colors([
-                'primary' => Color::Amber,
+                // Azul institucional USIL (ver Frontend/static/img/logos/logo_usil_azul.png),
+                // en vez del Amber genérico por defecto de Filament.
+                'primary' => Color::hex('#1E3FCF'),
+            ])
+            ->navigationGroups([
+                'Identidad académica',
+                'Oferta académica',
+                'Matriculación',
+                'Canvas ↔ Teams',
+                'Auditoría',
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')

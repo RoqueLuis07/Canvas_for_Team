@@ -14,7 +14,9 @@ class RolResource extends Resource
 {
     protected static ?string $model = Rol::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-identification';
+
+    protected static ?string $navigationGroup = 'Identidad académica';
 
     protected static ?string $slug = 'roles';
 

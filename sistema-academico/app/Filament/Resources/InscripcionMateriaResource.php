@@ -21,6 +21,8 @@ class InscripcionMateriaResource extends Resource
 
     protected static ?string $navigationLabel = 'Alta en materias';
 
+    protected static ?string $navigationGroup = 'Matriculación';
+
     public static function form(Form $form): Form
     {
         return $form

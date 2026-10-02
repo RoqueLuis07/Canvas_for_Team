@@ -14,7 +14,9 @@ class PostulacionResource extends Resource
 {
     protected static ?string $model = Postulacion::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-document-check';
+
+    protected static ?string $navigationGroup = 'Matriculación';
 
     public static function form(Form $form): Form
     {

@@ -14,7 +14,9 @@ class MiembroEquipoResource extends Resource
 {
     protected static ?string $model = MiembroEquipo::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-user-circle';
+
+    protected static ?string $navigationGroup = 'Canvas ↔ Teams';
 
     public static function form(Form $form): Form
     {
