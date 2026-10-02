@@ -12,6 +12,7 @@ services:
     volumes:
       - ./:/var/www/html
     environment:
+      - APP_KEY=${APP_KEY}
       - DB_CONNECTION=mysql
       - DB_HOST=db
       - DB_DATABASE=sistema_academico
