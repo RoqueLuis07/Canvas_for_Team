@@ -63,6 +63,33 @@ def _norm(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", s).strip("_")
 
 
+def _match_col_idx(headers: dict, *keys: str) -> int | None:
+    """Encuentra la columna cuyo encabezado corresponde a alguno de los
+    `keys` (ej. "cedula", "ci"), probando primero por COINCIDENCIA EXACTA
+    del encabezado normalizado, y solo si no hay ninguna cayendo a
+    coincidencia parcial (substring) — en ese orden de prioridad.
+
+    Claves cortas tipo "ci" son abreviaturas que también aparecen como
+    substring de un montón de palabras comunes en español ("inscripción",
+    "comercial", "servicio"...). Sin priorizar la coincidencia exacta,
+    una columna de fecha o de cualquier otra cosa puede "ganarle" a la
+    columna real de Cédula/CI y corromper en silencio la contraseña
+    generada (cedula-Iniciales termina siendo fecha-Iniciales) — bug real
+    visto en una planilla de MBA con una columna no relacionada que
+    contenía "ci" en su encabezado antes de llegar a la columna "CI".
+    """
+    norm_keys = [_norm(k) for k in keys]
+    for nk in norm_keys:
+        for h, idx in headers.items():
+            if h == nk:
+                return idx
+    for nk in norm_keys:
+        for h, idx in headers.items():
+            if nk in h:
+                return idx
+    return None
+
+
 def _collision_note(creds: dict) -> str:
     """Arma el aviso de colisión de nombre para la columna de Estado, según
     si se pudo cruzar por cédula (SIS ID / postalCode) o no:
@@ -1199,11 +1226,7 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
             continue
 
         def get_col_idx(*keys):
-            for k in keys:
-                for h, idx in headers.items():
-                    if _norm(k) in h:
-                        return idx
-            return None
+            return _match_col_idx(headers, *keys)
 
         col_nombre = get_col_idx("nombre", "alumno", "estudiante")
         col_cedula = get_col_idx("cedula", "cédula", "ci")
@@ -1674,11 +1697,7 @@ async def preview_send_diplomados_credentials(req: DiplomadosUrlRequest) -> Send
         raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo")
@@ -1767,11 +1786,7 @@ async def send_diplomados_credentials(req: DiplomadosUrlRequest) -> BulkResult:
         raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo")
@@ -1924,11 +1939,7 @@ async def preview_send_docentes_credentials(req: DiplomadosUrlRequest) -> SendCr
         raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo", "email")
@@ -2014,11 +2025,7 @@ async def send_docentes_credentials(req: DiplomadosUrlRequest) -> BulkResult:
         raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo", "email")
@@ -3289,11 +3296,7 @@ async def preview_egreso_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
     headers = [h for h in headers_raw if h]
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers_dict.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers_dict, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo", "email")
@@ -3389,11 +3392,7 @@ async def _import_egreso_onedrive_inner(req: DiplomadosUrlRequest) -> BulkResult
         raise HTTPException(status_code=400, detail="No se encontraron cabeceras.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo", "email")
@@ -3578,11 +3577,7 @@ async def preview_docentes_onedrive(req: DiplomadosUrlRequest) -> DocentesPrevie
         raise HTTPException(status_code=400, detail="No se encontraron las columnas de 'Nombre' y 'Cédula'.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_cedula = get_col_idx("cedula", "cdula", "ci")
@@ -3678,11 +3673,7 @@ async def import_docentes_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
         raise HTTPException(status_code=400, detail="Columnas de Nombre y Cédula no encontradas.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_cedula = get_col_idx("cedula", "cdula", "ci")
@@ -4291,11 +4282,7 @@ async def _process_rollback_bg(job_id: int, req: DiplomadosUrlRequest, contents:
             break
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_usuario = get_col_idx("usuario")
     col_enviado = get_col_idx("estado", "enviado")
@@ -4817,11 +4804,7 @@ async def import_masivo_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
         raise HTTPException(status_code=400, detail="No se encontraron las columnas requeridas (Nombre, Cedula).")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_cedula = get_col_idx("cedula", "cédula", "ci", "documento", "dni")
@@ -5011,11 +4994,7 @@ async def preview_delete_courses_onedrive(req: DiplomadosUrlRequest) -> PreviewR
         raise HTTPException(status_code=400, detail="No se encontraron cabeceras.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_sis = get_col_idx("sisid", "sis", "id")
     col_nombre = get_col_idx("nombre", "curso")
@@ -5084,11 +5063,7 @@ async def import_delete_courses_onedrive(req: DiplomadosUrlRequest) -> BulkResul
         raise HTTPException(status_code=400, detail="No se encontraron cabeceras.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     # Sin fallback genérico "id": en un endpoint que ELIMINA cursos, si la
     # planilla no trae una columna de SIS ID reconocible, es más seguro
@@ -5214,11 +5189,7 @@ async def get_envio_credenciales_sheets(req: UrlOnlyRequest) -> list[str]:
 
 def _envio_credenciales_cols(headers_dict: dict):
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers_dict.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers_dict, *keys)
 
     return {
         "nombre": get_col_idx("nombre"),
