@@ -37,11 +37,11 @@
           </div>
           <div class="card-body">
             <div class="mb-3">
-              <label class="form-label text-danger fw-bold">Nombre del Docente o Alumno</label>
-              <input type="text" class="form-control border-danger" id="searchInput" placeholder="Escriba para buscar en Canvas..." autocomplete="off">
+              <label class="form-label text-danger fw-bold">Nombre, correo institucional o SIS / Cédula</label>
+              <input type="text" class="form-control border-danger" id="searchInput" placeholder="Escriba un nombre, correo o SIS para buscar en Canvas..." autocomplete="off">
               <div id="searchSpinner" class="spinner-border spinner-border-sm text-danger mt-2" style="display:none;" role="status"></div>
             </div>
-            
+
             <div class="mb-3 row">
               <div class="col">
                 <label class="form-label text-muted">ID SIS / Cédula</label>
@@ -52,10 +52,24 @@
                 <input type="email" class="form-control" id="emailInput" readonly>
               </div>
             </div>
-            
+
+            <div class="mb-3">
+              <label class="form-label text-danger fw-bold">Plataforma</label>
+              <div class="btn-group w-100" role="group" aria-label="Plataforma a dar de baja">
+                <input type="radio" class="btn-check" name="egresoPlatform" id="platformBoth" value="both" checked>
+                <label class="btn btn-outline-danger" for="platformBoth">Canvas + Teams</label>
+
+                <input type="radio" class="btn-check" name="egresoPlatform" id="platformCanvas" value="canvas">
+                <label class="btn btn-outline-danger" for="platformCanvas">Solo Canvas</label>
+
+                <input type="radio" class="btn-check" name="egresoPlatform" id="platformTeams" value="teams">
+                <label class="btn btn-outline-danger" for="platformTeams">Solo Teams</label>
+              </div>
+            </div>
+
             <div class="alert alert-warning">
                 <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                Esta acción <strong>suspenderá</strong> la cuenta en Canvas y <strong>deshabilitará</strong> el inicio de sesión en Microsoft Teams. No se borrarán los historiales de calificaciones.
+                En Canvas esta acción <strong>elimina</strong> la cuenta. En Microsoft Teams <strong>deshabilita</strong> el inicio de sesión y quita las licencias (no borra la cuenta de Azure AD). No se borrarán los historiales de calificaciones.
             </div>
 
             <div class="d-grid mt-4">
@@ -200,27 +214,34 @@ async function fetchUser(query) {
 async function executeOffboarding() {
     const sysId = document.getElementById('sysInput').value;
     const emailStr = document.getElementById('emailInput').value;
+    const platform = document.querySelector('input[name="egresoPlatform"]:checked').value;
     const btn = document.getElementById('btnExecute');
-    
+
     if (!sysId) {
         toast("Busque y seleccione un usuario primero.", "warning");
         return;
     }
-    
-    if (!confirm("¿Está absolutamente seguro de suspender este usuario en Teams y Canvas?")) {
+
+    const platformLabel = platform === 'both' ? 'Canvas y Teams' : (platform === 'canvas' ? 'Canvas' : 'Teams');
+    if (!confirm(`¿Está absolutamente seguro de dar de baja a este usuario en ${platformLabel}?`)) {
         return;
     }
-    
+
     btn.innerText = "Procesando...";
     btn.disabled = true;
-    
+
     try {
-        const queryParams = `sys_user_id=${encodeURIComponent(sysId)}` + (emailStr ? `&email=${encodeURIComponent(emailStr)}` : '');
-        const res = await fetch('/egreso/suspend?' + queryParams, {
-            method: 'POST'
+        // Preferimos el correo institucional como identificador: sirve
+        // para resolver la cuenta tanto en Canvas como en Teams. Si no hay
+        // correo (solo pasó por Canvas), cae al SIS/cédula.
+        const identifier = emailStr || sysId;
+        const res = await fetch('/egreso/delete-account', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, platform }),
         });
         const data = await res.json();
-        
+
         if (res.ok) {
             let msg = `Canvas: ${data.canvas} | Teams: ${data.teams}`;
             toast("Proceso finalizado. " + msg, "success");

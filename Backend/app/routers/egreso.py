@@ -1,4 +1,6 @@
+from typing import Literal
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 import logging
 from app.services import canvas_client as canvas
 from app.services import teams_client as graph
@@ -7,6 +9,69 @@ from app.core.config import settings
 router = APIRouter(prefix="/egreso", tags=["Desvinculación"])
 logger = logging.getLogger(__name__)
 _ACCOUNT = settings.canvas_account_id
+
+
+class DeleteAccountRequest(BaseModel):
+    identifier: str
+    """Correo institucional O SIS user ID (cédula) — se busca por cualquiera
+    de los dos, no hace falta saber cuál es."""
+    platform: Literal["canvas", "teams", "both"] = "both"
+
+
+@router.post("/delete-account", summary="Eliminar/suspender una cuenta por correo o SIS, en Canvas y/o Teams")
+async def delete_account(body: DeleteAccountRequest):
+    """Apartado de baja de un solo paso: se le da un correo institucional O
+    un SIS user ID (cédula), y la plataforma (Canvas, Teams, o ambas), sin
+    necesidad de saber de antemano en cuál de las dos existe la cuenta.
+
+    Comportamiento por plataforma (igual al de /egreso/suspend):
+    - Canvas: elimina la cuenta de la subcuenta (DELETE real).
+    - Teams: deshabilita la cuenta en Azure AD y le quita las licencias
+      asignadas (reversible — no borra el usuario de Entra ID).
+    """
+    identifier = body.identifier.strip()
+    if not identifier:
+        raise HTTPException(status_code=400, detail="Se requiere un correo o SIS user ID")
+
+    res = {"identifier": identifier, "platform": body.platform, "canvas": "skipped", "teams": "skipped"}
+    resolved_email = None
+
+    if body.platform in ("canvas", "both"):
+        try:
+            match = await canvas.find_user_exact(_ACCOUNT, identifier)
+            if match:
+                await canvas.delete(f"/accounts/{_ACCOUNT}/users/{match['id']}")
+                res["canvas"] = "deleted"
+                resolved_email = match.get("email") or match.get("login_id")
+            else:
+                res["canvas"] = "not_found"
+        except Exception as e:
+            logger.error(f"Error eliminando en Canvas: {e}")
+            res["canvas"] = f"error: {e}"
+
+    if body.platform in ("teams", "both"):
+        target_email = resolved_email or (identifier if "@" in identifier else None)
+        if not target_email:
+            res["teams"] = "skipped (sin correo — usá el correo institucional o buscá primero por Canvas)"
+        else:
+            try:
+                t_user = await graph.get_user_by_upn_exact(target_email, select="id")
+                if t_user and t_user.get("id"):
+                    t_user_id = t_user["id"]
+                    await graph.patch(f"/users/{t_user_id}", {"accountEnabled": False})
+                    res["teams"] = "suspended"
+                    try:
+                        removed = await graph.remove_all_licenses(t_user_id)
+                        res["license"] = f"removed ({len(removed)})" if removed else "none"
+                    except Exception as le:
+                        res["license"] = f"error: {le}"
+                else:
+                    res["teams"] = "not_found"
+            except Exception as te:
+                logger.error(f"Error eliminando en Teams: {te}")
+                res["teams"] = f"error: {te}"
+
+    return res
 
 @router.post("/suspend", summary="Suspender cuenta de Canvas y MS Teams")
 async def suspend_user(sys_user_id: str, email: str = None):

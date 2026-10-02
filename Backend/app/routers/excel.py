@@ -1216,7 +1216,10 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
         col_usuario = get_col_idx("usuario")
         col_contra = get_col_idx("contrasena", "contraseña", "clave")
         col_enviado = get_col_idx("estado", "enviado")
-    
+
+        title_val_early = _find_row1_title(ws)
+        is_mba_early = "mba" in req.sheet_name.lower() or "mba" in (title_val_early or "").lower()
+
         col_cc = get_col_idx("cc", "copia")
         sheet_cc_list = []
         if col_cc:
@@ -1234,7 +1237,15 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
             return
 
         next_col = ws.max_column + 1
-            
+
+        # MBA además crea la cuenta en Canvas (a diferencia de Diplomados,
+        # que hoy es solo Teams) — si la planilla no trae una columna de
+        # curso de Canvas, se crea una para dejar el ID asentado.
+        if is_mba_early and not col_curso:
+            col_curso = next_col
+            _safe_set_cell(ws, header_row_idx, col_curso, "ID Curso Canvas").font = Font(bold=True)
+            next_col += 1
+
         if not col_usuario:
             col_usuario = next_col
             _safe_set_cell(ws, header_row_idx, col_usuario, "Usuario").font = Font(bold=True)
@@ -1316,7 +1327,28 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                         _safe_set_cell(ws, 1, col_usuario, global_team_id).font = Font(bold=True)
                 except Exception as e:
                     print(f"Error pre-creando equipo: {e}")
-        
+
+        # Curso de Canvas global para MBA: mismo criterio que el Team de
+        # arriba — se crea (o reutiliza) una sola vez por pestaña, a partir
+        # del título de la fila 1, y el ID queda asentado en la fila 1 de la
+        # columna "ID Curso Canvas" para no recrearlo en corridas futuras.
+        global_course_id = ""
+        if is_mba and global_team_name and col_curso:
+            course_id_from_header = str(ws.cell(row=1, column=col_curso).value or "").strip()
+            if course_id_from_header.isdigit():
+                global_course_id = course_id_from_header
+            else:
+                try:
+                    existing_cid = await canvas.search_course_by_name(_ACCOUNT_LOCAL, global_team_name)
+                    if existing_cid:
+                        global_course_id = existing_cid
+                    else:
+                        global_course_id = await canvas.create_course(_ACCOUNT_LOCAL, global_team_name)
+                    if global_course_id:
+                        _safe_set_cell(ws, 1, col_curso, global_course_id).font = Font(bold=True)
+                except Exception as e:
+                    print(f"Error pre-creando curso Canvas (MBA): {e}")
+
         async def process_row(r_idx):
             nombre = str(ws.cell(row=r_idx, column=col_nombre).value or "").strip()
             cedula = _clean_cedula(str(ws.cell(row=r_idx, column=col_cedula).value or "").strip())
@@ -1361,6 +1393,26 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                                     await graph.add_member_to_group(target_equipo, uid)
                     except Exception:
                         pass
+                    # Mismo auto-reparo para Canvas: un run previo pudo haber
+                    # creado la cuenta de Teams pero fallado al crear la de
+                    # Canvas o al matricularla en el curso.
+                    if is_mba and global_course_id:
+                        try:
+                            canvas_match = await canvas.find_user_exact(_ACCOUNT_LOCAL, usuario_val)
+                            if canvas_match:
+                                try:
+                                    await canvas.post(f"/courses/{global_course_id}/enrollments", {
+                                        "enrollment": {
+                                            "user_id": canvas_match["id"],
+                                            "type": "StudentEnrollment",
+                                            "enrollment_state": "active",
+                                            "notify": False,
+                                        },
+                                    })
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
                 return
 
             creds, status = await user_service.generate_unique_credentials(nombre, cedula, "teams")
@@ -1448,7 +1500,58 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                 except Exception as e:
                     if "already exist" not in str(e).lower():
                         error = str(error) + f" | TeamsEnroll: {e}" if error else f"TeamsEnroll: {e}"
-            
+
+            # MBA: a diferencia de Diplomados (Teams-only), acá además se da
+            # de alta al alumno en Canvas y se lo matricula como estudiante
+            # en el curso global de la pestaña.
+            if is_mba and global_course_id:
+                canvas_id = None
+                try:
+                    cu = await canvas.post(f"/accounts/{_ACCOUNT_LOCAL}/users", {
+                        "user": {
+                            "name": creds["full_name"],
+                            "sortable_name": creds["full_name"],
+                            "short_name": parts[0] + " " + parts[-1] if len(parts) > 1 else creds["full_name"],
+                        },
+                        "pseudonym": {
+                            "unique_id": login_id,
+                            "sis_user_id": cedula,
+                            "password": pwd,
+                            "send_confirmation": False,
+                        },
+                        "communication_channel": {
+                            "type": "email", "address": login_id,
+                            "skip_confirmation": True,
+                        },
+                    })
+                    canvas_id = cu["id"]
+                except Exception as e:
+                    if "already exists" not in str(e).lower() and "sis_user_id" not in str(e).lower():
+                        error = str(error) + f" | Canvas: {e}" if error else f"Canvas: {e}"
+                    else:
+                        try:
+                            match = await canvas.find_user_exact(_ACCOUNT_LOCAL, login_id)
+                            if match:
+                                canvas_id = match["id"]
+                        except Exception:
+                            pass
+                        if not canvas_id:
+                            error = str(error) + f" | Canvas: {e}" if error else f"Canvas: {e}"
+
+                if canvas_id:
+                    try:
+                        await canvas.post(f"/courses/{global_course_id}/enrollments", {
+                            "enrollment": {
+                                "user_id": canvas_id,
+                                "type": "StudentEnrollment",
+                                "enrollment_state": "active",
+                                "notify": False,
+                            },
+                        })
+                    except Exception as e:
+                        if "already" not in str(e).lower():
+                            error = str(error) + f" | CanvasEnroll: {e}" if error else f"CanvasEnroll: {e}"
+
             if not error or "Creado OK" in str(error) or "Ya existía" in str(error):
                 ws.cell(row=r_idx, column=col_usuario, value=login_id)
                 ws.cell(row=r_idx, column=col_contra, value=pwd)
