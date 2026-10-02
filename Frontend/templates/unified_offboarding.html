@@ -24,6 +24,11 @@
       <i class="bi bi-cloud-arrow-down-fill me-2"></i>Egreso Masivo (Enlace OneDrive)
     </button>
   </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link text-danger" id="duplicados-tab" data-bs-toggle="tab" data-bs-target="#duplicados" type="button" role="tab" aria-controls="duplicados" aria-selected="false">
+      <i class="bi bi-search me-2"></i>Diagnóstico de Duplicados
+    </button>
+  </li>
 </ul>
 
 <div class="tab-content" id="offboardingTabsContent">
@@ -127,6 +132,46 @@
             <button class="btn btn-danger w-100 p-3" id="btnConfirmEgresoOneDrive" onclick="confirmEgresoOneDrive()" disabled>
               <i class="bi bi-check-circle me-1"></i>Confirmar y Procesar
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: Diagnóstico de Duplicados -->
+  <div class="tab-pane fade" id="duplicados" role="tabpanel" aria-labelledby="duplicados-tab">
+    <div class="card shadow-sm mb-4 border-danger">
+      <div class="card-header bg-danger text-white">
+        <h5 class="mb-0"><i class="bi bi-search me-2"></i>Diagnóstico: cuentas duplicadas en Teams/Azure AD</h5>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info border-info">
+          <i class="bi bi-info-circle-fill me-2"></i>
+          Pegá una cédula por línea (o separadas por coma). Por cada una, se busca en Canvas (referencia) y en
+          Teams/Azure AD cuántas cuentas tienen esa cédula guardada — si hay más de una en Teams, es una cuenta
+          duplicada real de la misma persona. <strong>Esto no borra ni modifica nada</strong>, solo arma la lista
+          para revisar antes de usar "Egreso Individual" con la cuenta vieja o la duplicada, según corresponda.
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Cédulas a revisar</label>
+          <textarea class="form-control" id="dupCedulasInput" rows="6" placeholder="9303751&#10;6258346&#10;6707968&#10;..."></textarea>
+        </div>
+        <button class="btn btn-danger" id="btnFindDuplicates" onclick="findDuplicates()">
+          <i class="bi bi-search me-1"></i>Buscar duplicados
+        </button>
+        <div id="dupResultWrap" class="mt-4" style="display:none;">
+          <h6 class="fw-bold" id="dupSummary"></h6>
+          <div class="table-responsive border rounded bg-white">
+            <table class="table table-sm table-striped mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Cédula</th>
+                  <th>Canvas</th>
+                  <th>Cuentas en Teams/Azure AD</th>
+                </tr>
+              </thead>
+              <tbody id="dupResultBody"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -258,6 +303,63 @@ async function executeOffboarding() {
         btn.disabled = false;
     } finally {
         btn.innerHTML = '<i class="bi bi-person-x-fill me-2"></i>Ejecutar Desvinculación';
+    }
+}
+
+
+// --- Diagnóstico de Duplicados ---
+async function findDuplicates() {
+    const raw = document.getElementById('dupCedulasInput').value;
+    const cedulas = raw.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+    const btn = document.getElementById('btnFindDuplicates');
+
+    if (cedulas.length === 0) {
+        toast("Pegá al menos una cédula.", "warning");
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Buscando...';
+
+    try {
+        const res = await fetch('/egreso/find-duplicates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cedulas }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            toast(data.detail || "Error en el servidor", "danger");
+            return;
+        }
+
+        document.getElementById('dupResultWrap').style.display = 'block';
+        const summaryEl = document.getElementById('dupSummary');
+        if (data.duplicates_found > 0) {
+            summaryEl.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>${data.duplicates_found} cédula(s) con cuentas duplicadas en Teams, de ${data.total} revisadas.</span>`;
+        } else {
+            summaryEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Sin duplicados en Teams, de ${data.total} cédulas revisadas.</span>`;
+        }
+
+        const tbody = document.getElementById('dupResultBody');
+        tbody.innerHTML = data.results.map(r => {
+            const canvasCell = r.canvas
+                ? `<span class="text-muted">${r.canvas.email || r.canvas.id}</span>`
+                : '<span class="text-muted">— sin cuenta —</span>';
+            const teamsCell = (r.teams && r.teams.length > 0)
+                ? '<ul class="mb-0 ps-3">' + r.teams.map(u =>
+                    `<li>${u.userPrincipalName} ${u.accountEnabled === false ? '<span class="badge bg-secondary">deshabilitada</span>' : ''} <small class="text-muted">(creada: ${u.createdDateTime || '?'})</small></li>`
+                  ).join('') + '</ul>'
+                : (r.error ? `<span class="text-danger">Error: ${r.error}</span>` : '<span class="text-muted">— sin cuenta —</span>');
+            const rowClass = r.duplicate ? 'table-danger' : '';
+            return `<tr class="${rowClass}"><td>${r.cedula}</td><td>${canvasCell}</td><td>${teamsCell}</td></tr>`;
+        }).join('');
+    } catch (err) {
+        toast("Error de red: " + err.message, "danger");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-search me-1"></i>Buscar duplicados';
     }
 }
 

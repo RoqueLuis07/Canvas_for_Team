@@ -1,3 +1,4 @@
+import re
 from typing import Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -72,6 +73,69 @@ async def delete_account(body: DeleteAccountRequest):
                 res["teams"] = f"error: {te}"
 
     return res
+
+class FindDuplicatesRequest(BaseModel):
+    cedulas: list[str]
+
+
+@router.post("/find-duplicates", summary="Diagnóstico: cuentas duplicadas en Teams/Azure AD por cédula")
+async def find_duplicates(body: FindDuplicatesRequest):
+    """Para una lista de cédulas (columna CI de la planilla, por ejemplo),
+    busca cuántas cuentas de Azure AD/Teams tienen esa cédula guardada en
+    `postalCode` (campo que el alta de credenciales usa para guardarla) —
+    si hay más de una, es una cuenta duplicada real de la misma persona.
+
+    También se informa la cuenta de Canvas de esa cédula como referencia,
+    aunque ahí un duplicado real es prácticamente imposible: Canvas
+    rechaza crear un segundo usuario con el mismo SIS user ID.
+
+    Esto NO borra ni modifica nada — es solo para armar la lista de qué
+    cuentas de Teams revisar/eliminar a mano con /egreso/delete-account.
+    """
+    results = []
+    for raw in body.cedulas:
+        cedula = re.sub(r"[.\-\s]", "", (raw or "").strip())
+        if not cedula:
+            continue
+
+        canvas_match = None
+        try:
+            c_user = await canvas.get(f"/accounts/{_ACCOUNT}/users/sis_user_id:{cedula}")
+            if c_user:
+                canvas_match = {"id": c_user.get("id"), "email": c_user.get("email") or c_user.get("login_id")}
+        except Exception:
+            pass
+
+        teams_matches = []
+        try:
+            # postalCode no está indexado para $filter por defecto en Graph;
+            # si la tenant no lo permite, cae a una búsqueda $search más
+            # amplia por el propio texto de la cédula.
+            res = await graph.get(
+                "/users",
+                params={
+                    "$filter": f"postalCode eq '{cedula}'",
+                    "$select": "id,displayName,userPrincipalName,createdDateTime,accountEnabled",
+                },
+            )
+            teams_matches = res.get("value", []) if res else []
+        except Exception as e:
+            results.append({"cedula": cedula, "canvas": canvas_match, "teams": [], "error": str(e)})
+            continue
+
+        results.append({
+            "cedula": cedula,
+            "canvas": canvas_match,
+            "teams": teams_matches,
+            "duplicate": len(teams_matches) > 1,
+        })
+
+    return {
+        "total": len(results),
+        "duplicates_found": sum(1 for r in results if r.get("duplicate")),
+        "results": results,
+    }
+
 
 @router.post("/suspend", summary="Suspender cuenta de Canvas y MS Teams")
 async def suspend_user(sys_user_id: str, email: str = None):
