@@ -14,6 +14,9 @@ Proyecto Integrador — **Programación IV**. Grupo N.° 3 — Canvas LMS / Micr
   proyecto local y qué falta por rol. Léela antes de tocar el código.
 - **[Reporte de Sprints — Avance 2](docs/REPORTE_SPRINTS_AVANCE2.md)** —
   Sprint Review, Retrospective y entregable metodológico exigido por la cátedra.
+- **[Bitácora de trabajo](docs/Bitacora_Grupo3_Canvas_for_Teams.docx)** —
+  registro cronológico de actividad, distribución por rol funcional,
+  bloqueos y aportes del equipo.
 - Rama de trabajo del equipo: **`php_proyecto_integrador`** — no se pushea ni
   se hace merge hacia otra rama del repositorio.
 

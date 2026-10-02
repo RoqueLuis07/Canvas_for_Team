@@ -313,3 +313,4 @@ Portainer funcionando.
 - **[EVIDENCIA_PRESENTACION.md](sistema-academico/docs/EVIDENCIA_PRESENTACION.md)** — este mismo checklist, versión ampliada.
 - **[PROMPT_DISEÑO_INTERFAZ.md](sistema-academico/docs/PROMPT_DISEÑO_INTERFAZ.md)** — prompt para iterar la interfaz con herramientas de diseño con IA.
 - **[ceremonias/](sistema-academico/docs/ceremonias/)** — evidencia de ceremonias ágiles (Avance 3).
+- **[Bitacora_Grupo3_Canvas_for_Teams.docx](sistema-academico/docs/Bitacora_Grupo3_Canvas_for_Teams.docx)** — bitácora de trabajo: registro cronológico de actividad, distribución por rol funcional, bloqueos y aportes del equipo.
