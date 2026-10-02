@@ -12,6 +12,8 @@ Proyecto Integrador — **Programación IV**. Grupo N.° 3 — Canvas LMS / Micr
 - **[Guía Oficial del Equipo](docs/Guia_Equipo_Sistema_Academico.pdf)** — qué es
   la plataforma, arquitectura, reglas de la rama de trabajo, cómo levantar el
   proyecto local y qué falta por rol. Léela antes de tocar el código.
+- **[Reporte de Sprints — Avance 2](docs/REPORTE_SPRINTS_AVANCE2.md)** —
+  Sprint Review, Retrospective y entregable metodológico exigido por la cátedra.
 - Rama de trabajo del equipo: **`php_proyecto_integrador`** — no se pushea ni
   se hace merge hacia otra rama del repositorio.
 
