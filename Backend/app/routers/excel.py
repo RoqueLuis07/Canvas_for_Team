@@ -1449,7 +1449,15 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                             pass
                 return
 
-            creds, status = await user_service.generate_unique_credentials(nombre, cedula, "teams")
+            # platform="both" (no solo "teams"): si la persona ya tiene cuenta
+            # en Canvas (de este mismo flujo de MBA, de Alta Docentes, de
+            # Ingreso, etc.) se detecta por CÉDULA -el chequeo más confiable,
+            # porque es el SIS ID exacto- y se reutiliza su correo real, en
+            # vez de intentar adivinarlo de nuevo y terminar creando una
+            # cuenta duplicada cuando el correo real tiene otro formato
+            # (ej. por una colisión de nombre resuelta distinto la vez
+            # anterior).
+            creds, status = await user_service.generate_unique_credentials(nombre, cedula, "both")
             login_id = creds["email"]
             pwd = creds["password"]
             error = None
@@ -4587,7 +4595,15 @@ async def import_diplomados_json(req: JsonDataRequest):
             continue
             
         try:
-            creds, status = await user_service.generate_unique_credentials(nombre, cedula, "teams")
+            # platform="both" (no solo "teams"): si la persona ya tiene cuenta
+            # en Canvas (de este mismo flujo de MBA, de Alta Docentes, de
+            # Ingreso, etc.) se detecta por CÉDULA -el chequeo más confiable,
+            # porque es el SIS ID exacto- y se reutiliza su correo real, en
+            # vez de intentar adivinarlo de nuevo y terminar creando una
+            # cuenta duplicada cuando el correo real tiene otro formato
+            # (ej. por una colisión de nombre resuelta distinto la vez
+            # anterior).
+            creds, status = await user_service.generate_unique_credentials(nombre, cedula, "both")
             login_id = creds["email"]
             pwd = creds["password"]
             
