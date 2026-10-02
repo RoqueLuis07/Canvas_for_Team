@@ -6,6 +6,8 @@ use App\Contracts\CanvasClient;
 use App\Contracts\TeamsClient;
 use App\Exceptions\CursoException;
 use App\Models\Curso;
+use App\Models\EquipoTeams;
+use App\Models\MiembroEquipo;
 use App\Models\Persona;
 
 /**
@@ -70,6 +72,14 @@ class CursoService
 
                 $curso->update(['teams_group_id' => $teamsGroupId]);
 
+                EquipoTeams::create([
+                    'teams_group_id' => $teamsGroupId,
+                    'curso_id' => $curso->id,
+                    'nombre' => $curso->materia->nombre,
+                    'visibilidad' => 'Private',
+                    'fecha_creacion' => now(),
+                ]);
+
                 return $curso->refresh();
             },
         );
@@ -113,6 +123,13 @@ class CursoService
                     'docente_canvas_at' => now(),
                     'docente_teams_at' => now(),
                 ]);
+
+                if ($curso->equipoTeams) {
+                    MiembroEquipo::updateOrCreate(
+                        ['equipo_id' => $curso->equipoTeams->id, 'persona_id' => $docente->id],
+                        ['rol_teams' => 'Owner', 'fecha_alta' => now()],
+                    );
+                }
 
                 return $curso->refresh();
             },

@@ -12,6 +12,8 @@ use App\Models\Persona;
 use App\Models\PlanEstudio;
 use App\Models\Postulacion;
 use App\Models\Programa;
+use App\Models\Rol;
+use App\Models\Subcuenta;
 use App\Models\User;
 use App\Services\CursoService;
 use App\Services\InscripcionMateriaService;
@@ -38,6 +40,18 @@ class DatabaseSeeder extends Seeder
         $admin = User::factory()->create([
             'name' => 'Administrador Académico',
             'email' => 'admin@usil.edu.py',
+        ]);
+
+        // ── Entidades formales del MER de Avance 1: ROL y SUBCUENTA. ──────
+        $rolAdminTi = Rol::factory()->create(['nombre' => 'Admin TI', 'descripcion' => 'Personal de TI con acceso total al panel.']);
+        $rolDocente = Rol::factory()->create(['nombre' => 'Docente', 'descripcion' => 'Docente titular de uno o más cursos.']);
+        $rolEstudiante = Rol::factory()->create(['nombre' => 'Estudiante', 'descripcion' => 'Alumno matriculado en la institución.']);
+
+        $subcuenta = Subcuenta::factory()->create([
+            'canvas_account_id' => 1001,
+            'nombre' => 'Facultad de Ingeniería',
+            'carrera' => 'Ingeniería en Informática',
+            'sede' => 'USIL Paraguay',
         ]);
 
         $programa = Programa::factory()->create([
@@ -83,9 +97,9 @@ class DatabaseSeeder extends Seeder
         $inscripciones = app(InscripcionMateriaService::class);
         $materiales = new MaterialService(app(CanvasClient::class));
 
-        $cursoMatematica = Curso::factory()->create(['materia_id' => $matematicaI->id, 'periodo_academico_id' => $periodo->id, 'cupo_maximo' => null]);
-        $cursoIntroProgramacion = Curso::factory()->create(['materia_id' => $introProgramacion->id, 'periodo_academico_id' => $periodo->id, 'cupo_maximo' => null]);
-        $cursoCalculo = Curso::factory()->create(['materia_id' => $calculoI->id, 'periodo_academico_id' => $periodo->id, 'cupo_maximo' => 2]);
+        $cursoMatematica = Curso::factory()->create(['materia_id' => $matematicaI->id, 'subcuenta_id' => $subcuenta->id, 'periodo_academico_id' => $periodo->id, 'cupo_maximo' => null]);
+        $cursoIntroProgramacion = Curso::factory()->create(['materia_id' => $introProgramacion->id, 'subcuenta_id' => $subcuenta->id, 'periodo_academico_id' => $periodo->id, 'cupo_maximo' => null]);
+        $cursoCalculo = Curso::factory()->create(['materia_id' => $calculoI->id, 'subcuenta_id' => $subcuenta->id, 'periodo_academico_id' => $periodo->id, 'cupo_maximo' => 2]);
 
         foreach ([$cursoMatematica, $cursoIntroProgramacion, $cursoCalculo] as $curso) {
             $cursoService->crearEnCanvas($curso);
@@ -97,6 +111,8 @@ class DatabaseSeeder extends Seeder
         //    primer material del curso. ───────────────────────────────────
         $docente = Persona::factory()->docente()->create([
             'nombre_completo' => 'Prof. Lucía Fernández',
+            'email_institucional' => 'lfernandez@usil.edu.py',
+            'rol_id' => $rolDocente->id,
             'canvas_user_id' => 'canvas-lucia',
             'azure_user_id' => 'azure-lucia',
         ]);
@@ -114,6 +130,8 @@ class DatabaseSeeder extends Seeder
         //    semestre predefinidos automáticamente por el Departamento. ───
         $aspiranteNuevo = Persona::factory()->create([
             'nombre_completo' => 'Ana Benítez',
+            'email_institucional' => 'abenitez@usil.edu.py',
+            'rol_id' => $rolEstudiante->id,
             'canvas_user_id' => 'canvas-ana',
             'azure_user_id' => 'azure-ana',
         ]);
@@ -136,6 +154,8 @@ class DatabaseSeeder extends Seeder
         //    Cálculo I manualmente. ─────────────────────────────────────
         $alumnoContinua = Persona::factory()->alumno()->create([
             'nombre_completo' => 'Carlos Rojas',
+            'email_institucional' => 'crojas@usil.edu.py',
+            'rol_id' => $rolEstudiante->id,
             'canvas_user_id' => 'canvas-carlos',
             'azure_user_id' => 'azure-carlos',
         ]);

@@ -36,9 +36,13 @@ el flujo académico sin depender de credenciales reales de Canvas/Azure.
 ## Modelo de datos actual
 
 ```
+Rol 1─N Persona
+Subcuenta 1─N Curso
 Programa 1─N PlanEstudio 1─N Materia N─N Materia (prerrequisitos)
 PlanEstudio 1─N Matricula N─1 Persona
 PeriodoAcademico 1─N Curso N─1 Materia
+Curso 1─1 EquipoTeams
+EquipoTeams 1─N MiembroEquipo N─1 Persona
 Curso 1─N InscripcionMateria N─1 Matricula
 Curso 1─N Material
 Curso N─1 Persona (docente)
@@ -48,27 +52,55 @@ JobSincronizacion, LogAuditoria — independientes, referencian al usuario (User
 
 | Entidad | Qué representa |
 |---|---|
-| `Persona` | Cualquier actor: aspirante, alumno, docente o administrativo (`tipo`, `canvas_user_id`, `azure_user_id`). |
-| `Programa` | Programa académico (ej. "Ingeniería en Informática"). |
-| `PlanEstudio` | Versión del plan curricular de un Programa. |
-| `Materia` | Definición curricular (código, semestre sugerido, prerrequisitos). |
-| `PeriodoAcademico` | Período lectivo (ej. "2026-2"), con estado de inscripciones. |
-| `Postulacion` | Postulación/admisión de un aspirante a un Programa en un Período. |
-| `Matricula` | Vínculo de una Persona con un PlanEstudio en un Período — se origina o no en una Postulación admitida. |
-| `Curso` | Oferta concreta de una Materia en un Período — lo que se crea como curso en Canvas y equipo en Teams. |
-| `InscripcionMateria` | Alta de una Matricula en un Curso, con alta/baja automática en Canvas/Teams (origen `manual` o `predefinida`). |
-| `Material` | Contenido académico de un Curso, publicable como página de Canvas. |
-| `JobSincronizacion` | Ciclo de vida de cada operación de sincronización disparada (tipo, estado, resultado). |
-| `LogAuditoria` | Historial de auditoría: usuario, acción, entidad afectada, fecha. |
+| `Rol` | Rol institucional (Admin TI, Docente, Estudiante) — MER: `ROL`. |
+| `Persona` | Cualquier actor: aspirante, alumno, docente o administrativo (`tipo`, `rol_id`, `email_institucional`, `estado`, `canvas_user_id`, `azure_user_id`) — MER: `USUARIO`. |
+| `Subcuenta` | Subcuenta/facultad de Canvas (`canvas_account_id`, `carrera`, `sede`) — MER: `SUBCUENTA`. |
+| `Programa` | Programa académico (ej. "Ingeniería en Informática") — ampliación fuera del MER formal. |
+| `PlanEstudio` | Versión del plan curricular de un Programa — ampliación. |
+| `Materia` | Definición curricular (código, semestre sugerido, prerrequisitos) — ampliación. |
+| `PeriodoAcademico` | Período lectivo (ej. "2026-2"), con estado de inscripciones — ampliación. |
+| `Postulacion` | Postulación/admisión de un aspirante a un Programa en un Período — ampliación. |
+| `Matricula` | Vínculo de una Persona con un PlanEstudio en un Período — se origina o no en una Postulación admitida — ampliación (matrícula por plan, no por curso). |
+| `Curso` | Oferta concreta de una Materia en un Período, con `subcuenta_id` — lo que se crea como curso en Canvas — MER: `CURSO`. |
+| `InscripcionMateria` | Alta de una Matricula en un Curso, con alta/baja automática en Canvas/Teams (origen `manual` o `predefinida`) — MER: `MATRICULA` (el nombre `InscripcionMateria` se mantuvo porque `Matricula` ya estaba tomado por la entidad de plan de estudio, más amplia). |
+| `EquipoTeams` | Equipo de Microsoft Teams asociado 1:1 a un Curso (`teams_group_id`, `visibilidad`, `fecha_creacion`) — MER: `EQUIPO_TEAMS`. |
+| `MiembroEquipo` | Membresía de una Persona en un EquipoTeams (`rol_teams`: Owner/Member, `fecha_alta`) — MER: `MIEMBRO_EQUIPO`. |
+| `Material` | Contenido académico de un Curso, publicable como página de Canvas — ampliación. |
+| `JobSincronizacion` | Ciclo de vida de cada operación de sincronización disparada (tipo, estado, resultado) — MER: `JOB_SINCRONIZACION`. |
+| `LogAuditoria` | Historial de auditoría: usuario, acción, entidad afectada, fecha — MER: `LOG_AUDITORIA`. |
 
-> **Nota:** el MER entregado en Avance 1 (`ROL`, `USUARIO`, `SUBCUENTA`,
-> `CURSO`, `MATRICULA`, `EQUIPO_TEAMS`, `MIEMBRO_EQUIPO`,
-> `JOB_SINCRONIZACION`, `LOG_AUDITORIA`) es más acotado que el modelo actual
-> — este último creció con un módulo de autoservicio académico (postulación,
-> planes de estudio, materias) que excede ese alcance formal. La
-> realineación al MER exacto de Avance 1 está identificada como pendiente
-> (ver Guía Oficial del Equipo, sección 8) y no se ejecutó todavía para no
-> arriesgar la estabilidad del Avance 2 ya entregado.
+### Alineación con el MER de Avance 1
+
+Las nueve entidades del MER entregado en Avance 1 (`ROL`, `USUARIO`,
+`SUBCUENTA`, `CURSO`, `MATRICULA`, `EQUIPO_TEAMS`, `MIEMBRO_EQUIPO`,
+`JOB_SINCRONIZACION`, `LOG_AUDITORIA`) están todas implementadas, como
+tabla y modelo propios, en `php_proyecto_integrador`:
+
+| Entidad MER (Avance 1) | Tabla / Modelo Laravel |
+|---|---|
+| `ROL` | `roles` / `App\Models\Rol` |
+| `USUARIO` | `personas` / `App\Models\Persona` |
+| `SUBCUENTA` | `subcuentas` / `App\Models\Subcuenta` |
+| `CURSO` | `cursos` / `App\Models\Curso` |
+| `MATRICULA` | `inscripcion_materias` / `App\Models\InscripcionMateria` |
+| `EQUIPO_TEAMS` | `equipo_teams` / `App\Models\EquipoTeams` |
+| `MIEMBRO_EQUIPO` | `miembro_equipos` / `App\Models\MiembroEquipo` |
+| `JOB_SINCRONIZACION` | `job_sincronizacions` / `App\Models\JobSincronizacion` |
+| `LOG_AUDITORIA` | `log_auditorias` / `App\Models\LogAuditoria` |
+
+`EquipoTeams` y `MiembroEquipo` se completan automáticamente desde
+`CursoService` (al crear el equipo en Teams, y al asignar al docente como
+`Owner`) y desde `InscripcionMateriaService` (al matricular/dar de baja a
+un alumno, como `Member`) — no son formularios manuales aislados, reflejan
+el mismo flujo de sincronización real.
+
+El modelo sigue siendo **más amplio** que el MER formal: conserva el
+módulo de autoservicio académico (`Programa`, `PlanEstudio`, `Materia`,
+`Postulacion`, `Matricula` como matrícula por plan de estudio) construido
+en el Avance 2, que excede el alcance de Avance 1 pero no lo contradice —
+las nueve entidades formales existen y operan dentro de él. Esta decisión
+(ampliar en vez de reemplazar) se mantuvo explícitamente para no arriesgar
+la estabilidad de lo ya entregado.
 
 ## Despliegue
 

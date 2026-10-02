@@ -9,6 +9,7 @@ use App\Models\Curso;
 use App\Models\InscripcionMateria;
 use App\Models\Materia;
 use App\Models\Matricula;
+use App\Models\MiembroEquipo;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -230,6 +231,13 @@ class InscripcionMateriaService
                 if (! $inscripcion->estaAlDiaEnTeams()) {
                     $this->teams->addMember($curso->teams_group_id, $persona->azure_user_id);
                     $inscripcion->update(['teams_enrollment_at' => now()]);
+
+                    if ($curso->equipoTeams) {
+                        MiembroEquipo::updateOrCreate(
+                            ['equipo_id' => $curso->equipoTeams->id, 'persona_id' => $persona->id],
+                            ['rol_teams' => 'Member', 'fecha_alta' => now()],
+                        );
+                    }
                 }
             },
         );
@@ -249,6 +257,13 @@ class InscripcionMateriaService
 
                 if ($inscripcion->estaAlDiaEnTeams() && $persona->azure_user_id) {
                     $this->teams->removeMember($curso->teams_group_id, $persona->azure_user_id);
+
+                    if ($curso->equipoTeams) {
+                        MiembroEquipo::where('equipo_id', $curso->equipoTeams->id)
+                            ->where('persona_id', $persona->id)
+                            ->where('rol_teams', 'Member')
+                            ->delete();
+                    }
                 }
 
                 $inscripcion->update(['canvas_enrollment_at' => null, 'teams_enrollment_at' => null]);

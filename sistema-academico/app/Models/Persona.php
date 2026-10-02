@@ -15,18 +15,26 @@ class Persona extends Model
 
     protected $fillable = [
         'user_id',
+        'rol_id',
         'nombre_completo',
         'cedula',
         'email_personal',
+        'email_institucional',
         'telefono',
         'tipo',
         'canvas_user_id',
         'azure_user_id',
+        'estado',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function rol(): BelongsTo
+    {
+        return $this->belongsTo(Rol::class);
     }
 
     public function postulaciones(): HasMany
@@ -37,5 +45,10 @@ class Persona extends Model
     public function matriculas(): HasMany
     {
         return $this->hasMany(Matricula::class);
+    }
+
+    public function membresiasEquipo(): HasMany
+    {
+        return $this->hasMany(MiembroEquipo::class);
     }
 }

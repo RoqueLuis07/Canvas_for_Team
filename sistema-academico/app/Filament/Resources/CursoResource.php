@@ -35,6 +35,11 @@ class CursoResource extends Resource
                     ->searchable()
                     ->preload()
                     ->required(),
+                Forms\Components\Select::make('subcuenta_id')
+                    ->label('Subcuenta (Canvas)')
+                    ->relationship('subcuenta', 'nombre')
+                    ->searchable()
+                    ->preload(),
                 Forms\Components\TextInput::make('cupo_maximo')
                     ->numeric()
                     ->helperText('Vacío = sin límite de cupo.'),
@@ -69,6 +74,10 @@ class CursoResource extends Resource
                 Tables\Columns\TextColumn::make('periodoAcademico.nombre')
                     ->label('Período')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('subcuenta.nombre')
+                    ->label('Subcuenta')
+                    ->placeholder('Sin asignar')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\IconColumn::make('canvas_course_id')
                     ->label('Canvas')
                     ->boolean()

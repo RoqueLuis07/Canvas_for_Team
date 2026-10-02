@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Curso extends Model
 {
@@ -15,6 +16,7 @@ class Curso extends Model
 
     protected $fillable = [
         'materia_id',
+        'subcuenta_id',
         'periodo_academico_id',
         'docente_persona_id',
         'cupo_maximo',
@@ -36,6 +38,16 @@ class Curso extends Model
     public function materia(): BelongsTo
     {
         return $this->belongsTo(Materia::class);
+    }
+
+    public function subcuenta(): BelongsTo
+    {
+        return $this->belongsTo(Subcuenta::class);
+    }
+
+    public function equipoTeams(): HasOne
+    {
+        return $this->hasOne(EquipoTeams::class);
     }
 
     public function periodoAcademico(): BelongsTo

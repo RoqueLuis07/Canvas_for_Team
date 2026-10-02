@@ -28,12 +28,22 @@ class PersonaResource extends Resource
                     ->required(),
                 Forms\Components\TextInput::make('email_personal')
                     ->email(),
+                Forms\Components\TextInput::make('email_institucional')
+                    ->email(),
                 Forms\Components\TextInput::make('telefono')
                     ->tel(),
                 Forms\Components\TextInput::make('tipo')
                     ->required(),
+                Forms\Components\Select::make('rol_id')
+                    ->label('Rol')
+                    ->relationship('rol', 'nombre')
+                    ->searchable()
+                    ->preload(),
                 Forms\Components\TextInput::make('canvas_user_id'),
                 Forms\Components\TextInput::make('azure_user_id'),
+                Forms\Components\Select::make('estado')
+                    ->options(['activo' => 'Activo', 'inactivo' => 'Inactivo'])
+                    ->required(),
             ]);
     }
 
@@ -54,10 +64,16 @@ class PersonaResource extends Resource
                     ->searchable(),
                 Tables\Columns\TextColumn::make('tipo')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('rol.nombre')
+                    ->label('Rol')
+                    ->placeholder('Sin asignar')
+                    ->badge(),
                 Tables\Columns\TextColumn::make('canvas_user_id')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('azure_user_id')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('estado')
+                    ->badge(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
