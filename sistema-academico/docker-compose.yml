@@ -1,0 +1,80 @@
+version: '3.9'
+
+# Stack para desplegar vía Portainer (Avance 2). Balanceo con HAProxy entre
+# dos arquitecturas activas se agrega en el Avance 3 — este compose es la
+# "Arquitectura A" de base.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: sync_usil_app
+    volumes:
+      # Volumen nombrado (no bind-mount del host): Docker lo llena solo, la
+      # primera vez, con el contenido ya buildeado de la imagen (código +
+      # vendor/ instalado por composer). Un bind-mount de ./:/var/www/html
+      # acá taparía ese vendor/ con el working copy crudo del repo clonado
+      # por Portainer, que no lo tiene — el contenedor fallaría al arrancar.
+      - app_code:/var/www/html
+    environment:
+      - APP_KEY=${APP_KEY}
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - DB_DATABASE=sistema_academico
+      - DB_USERNAME=sistema_academico
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SESSION_DRIVER=redis
+      - CACHE_STORE=redis
+      - REDIS_HOST=redis
+      # Mismas credenciales que el sistema FastAPI (Canvas_for_Teams) —
+      # se cargan desde el .env de este stack en Portainer.
+      - CANVAS_BASE_URL=${CANVAS_BASE_URL}
+      - CANVAS_ACCESS_TOKEN=${CANVAS_ACCESS_TOKEN}
+      - CANVAS_ACCOUNT_ID=${CANVAS_ACCOUNT_ID}
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET}
+    depends_on:
+      - db
+      - redis
+    networks: [academico_net]
+
+  webserver:
+    build:
+      context: ./docker/nginx
+    container_name: sync_usil_web
+    ports:
+      - '8080:80'
+    volumes:
+      # Mismo volumen nombrado que "app" — así nginx ve exactamente el
+      # mismo public/ que usa php-fpm para resolver SCRIPT_FILENAME.
+      - app_code:/var/www/html:ro
+    depends_on: [app]
+    networks: [academico_net]
+
+  db:
+    image: mysql:8.0
+    container_name: sync_usil_db
+    environment:
+      - MYSQL_DATABASE=sistema_academico
+      - MYSQL_USER=sistema_academico
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - '3306:3306'
+    networks: [academico_net]
+
+  redis:
+    image: redis:7-alpine
+    container_name: sync_usil_redis
+    networks: [academico_net]
+
+volumes:
+  db_data:
+  app_code:
+
+networks:
+  academico_net:
+    driver: bridge

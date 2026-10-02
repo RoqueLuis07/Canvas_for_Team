@@ -1,234 +1,316 @@
-# 📚 USIL Gestión TI - Guía de Uso
+# Proyecto Integrador — Programación IV — Grupo N.° 3
 
-Sistema integral de automatización y gestión para Canvas LMS y Microsoft Teams. Permite el alta unificada de usuarios, matrículas, control de asistencias, gestión de equipos y auditoría completa de forma masiva y automatizada.
+## Sistema Académico USIL: integración Canvas LMS ↔ Microsoft Teams
 
-🔗 **Producción (Live):** [https://canvasforteams-production.up.railway.app/](https://canvasforteams-production.up.railway.app/)
+Panel administrativo que centraliza y automatiza la sincronización entre
+**Canvas LMS** (gestión académica) y **Microsoft Teams** (identidad y
+colaboración) para USIL Paraguay: alta de usuarios, creación de
+cursos/equipos, matriculación combinada y auditoría de cada operación.
+
+> ⚠️ **Rama de trabajo del equipo: `php_proyecto_integrador`.** El
+> proyecto en sí vive en la carpeta **[`sistema-academico/`](sistema-academico/)**.
+> El resto de los archivos en la raíz de esta rama (`Backend/`,
+> `Frontend/`, etc.) pertenece a un **proyecto distinto y no
+> relacionado** — un sistema en producción para USIL Paraguay en
+> FastAPI, heredado automáticamente al crear esta rama desde `main` —
+> y no forma parte de este trabajo ni hace falta revisarlo.
 
 ---
 
-## 🚀 Inicio Rápido
+## Índice
 
-### Requisitos Previos
-- Python 3.10+
-- Credenciales de Canvas LMS (Token de Administrador)
-- Credenciales de Microsoft Teams/Azure AD (App Registration con permisos Graph API)
+1. [Equipo](#1-equipo-grupo-n-3)
+2. [Problema que resuelve, paso a paso](#2-problema-que-resuelve-paso-a-paso)
+3. [Arquitectura técnica, explicada](#3-arquitectura-técnica-explicada)
+4. [Modelo de datos, entidad por entidad](#4-modelo-de-datos-entidad-por-entidad)
+5. [Flujo de uso del sistema, paso a paso](#5-flujo-de-uso-del-sistema-paso-a-paso)
+6. [Cómo levantarlo en local, paso a paso](#6-cómo-levantarlo-en-local-paso-a-paso)
+7. [Cómo está desplegado, paso a paso](#7-cómo-está-desplegado-paso-a-paso)
+8. [Qué deben saber los docentes](#8-qué-deben-saber-los-docentes)
 
-### 1. Instalación
+---
+
+## 1. Equipo (Grupo N.° 3)
+
+| Rol | Integrante | C.I. | Responsabilidad |
+|---|---|---|---|
+| Scrum Master / Project Manager | Roque Esteche | 6.868.066 | Metodología ágil, coordinación del equipo, implementación consolidada, control de alcance. |
+| Backend & Software Architect Lead | Hypatia García | 5.444.430 | Lógica de negocio en Laravel, arquitectura de datos, migraciones, diseño de la API/servicios. |
+| DevOps & Cloud Engineer | María Iglesias | 7.330.668 | Dockerfile, docker-compose.yml, stack en Portainer. |
+| Frontend & QA Engineer | Jesús Domínguez | 5.666.290 | Vistas del panel, pruebas funcionales. |
+| Frontend & QA Engineer | Alfonzo Martínez | 4.826.141 | Vistas del panel, pruebas funcionales. |
+| Frontend & QA Engineer | Claudio Ortigoza | 3.770.718 | Vistas del panel, pruebas funcionales. |
+
+**Caso de uso:** el equipo adaptó la consigna de la cátedra (PyME o
+Empresa de Paraguay) a un caso institucional real — USIL Paraguay — en
+vez de un caso PyME hipotético, por tratarse de una problemática
+operativa real y ya identificada. Esta decisión fue comunicada y **está
+aceptada por el docente**.
+
+## 2. Problema que resuelve, paso a paso
+
+USIL Paraguay administra dos plataformas que hoy **no están
+integradas entre sí**: Canvas LMS (cursos, matrículas, calificaciones) y
+Microsoft 365/Teams (identidad institucional, correo, espacios de
+colaboración). Esto obliga al personal de TI a repetir, manualmente, el
+mismo trabajo dos veces por cada persona y cada curso:
+
+1. Dar de alta a un usuario (estudiante o docente) en Canvas **y** en
+   Azure Active Directory por separado.
+2. Crear el equipo de Microsoft Teams correspondiente a cada curso
+   publicado en Canvas, a mano.
+3. Matricular al usuario en el curso de Canvas, y por separado, darlo de
+   alta como miembro del Team.
+4. Dar de baja al usuario en ambas plataformas al finalizar un período o
+   egreso.
+5. Llevar un registro de auditoría de todo esto, hoy disperso entre
+   correos, planillas y el historial nativo de cada plataforma por
+   separado.
+
+Esto genera inconsistencias reales (alguien matriculado en Canvas sin
+acceso al Team del curso, o viceversa), demoras, y cero trazabilidad
+centralizada. El sistema resuelve cada uno de esos 5 puntos con una
+acción desde un único panel, dejando además un registro auditable de
+cada operación.
+
+## 3. Arquitectura técnica, explicada
+
+| Capa | Tecnología | Por qué |
+|---|---|---|
+| Framework | Laravel 13 (PHP 8.4) | Exigencia de la cátedra; ORM (Eloquent) y ecosistema de administración (Filament) maduro. |
+| Panel administrativo | Filament 3.3 (`/admin`) | Genera CRUDs y formularios de administración rápido y consistente, sobre Laravel. |
+| Base de datos | SQLite (desarrollo local) / MySQL 8 (Portainer) | SQLite no requiere instalar nada para desarrollar; MySQL es el motor relacional de producción exigido. |
+| Sesiones / caché | Base de datos (local) / Redis (Portainer) | Redis centraliza sesiones entre contenedores — necesario si en Avance 3 hay más de un nodo de aplicación detrás de HAProxy. |
+| Integraciones | Canvas API (REST), Microsoft Graph API (Teams/Azure AD) | Las dos plataformas reales que el sistema sincroniza. |
+
+### Patrón Contract + Null-Object — paso a paso de cómo funciona
+
+1. `App\Contracts\CanvasClient` y `TeamsClient` son **interfaces** PHP:
+   definen qué operaciones existen (crear curso, matricular, crear
+   equipo, etc.) sin decir cómo se ejecutan.
+2. Hay dos implementaciones de cada una:
+   - `HttpCanvasClient` / `HttpTeamsClient` — hacen la llamada HTTP real
+     a Canvas/Microsoft Graph.
+   - `NullCanvasClient` / `NullTeamsClient` — no llaman a ningún
+     servicio externo: simulan el resultado (devuelven un ID falso
+     consistente) y lo dejan registrado en el log.
+3. `AppServiceProvider` decide **en el arranque de la aplicación** cuál
+   de las dos inyectar, mirando si hay credenciales de Canvas/Azure
+   configuradas en el `.env`. Si no hay, usa las `Null*`.
+4. Resultado práctico: **todo el flujo académico se puede desarrollar,
+   probar y hacer una demo completa sin depender de un token real de
+   Canvas ni de una app registration de Azure.** Nadie del equipo
+   necesitó credenciales reales para avanzar.
+
+### Servicios de negocio (`App\Services`) — qué hace cada uno
+
+| Servicio | Responsabilidad paso a paso |
+|---|---|
+| `CursoService` | 1) Crea el curso en Canvas (`crearEnCanvas`). 2) Crea el equipo en Teams (`crearEnTeams`). 3) Asigna al docente titular: lo matricula como profesor en Canvas y lo agrega como propietario (`Owner`) del equipo en Teams (`asignarDocente`). |
+| `InscripcionMateriaService` | 1) Valida que el curso ya exista en Canvas y Teams. 2) Valida prerrequisitos y cupo. 3) Matricula al alumno en Canvas y lo agrega como miembro (`Member`) del equipo en Teams, en una sola acción (`inscribirManual`). También maneja bajas (`darDeBaja`) y cambios de curso. |
+| `MaterialService` | Publica contenido de un curso como página de Canvas. |
+| `SincronizacionService` | Envuelve **cada** llamada real a Canvas/Teams de los servicios de arriba: antes de ejecutar, crea un `JobSincronizacion` en estado `pendiente`; durante, lo pasa a `en_proceso`; al terminar, a `completado` o `error`. En paralelo, registra un `LogAuditoria` con quién disparó la operación, sobre qué entidad, y cuándo. |
+
+## 4. Modelo de datos, entidad por entidad
+
+```
+Rol 1─N Persona
+Subcuenta 1─N Curso
+Programa 1─N PlanEstudio 1─N Materia N─N Materia (prerrequisitos)
+PlanEstudio 1─N Matricula N─1 Persona
+PeriodoAcademico 1─N Curso N─1 Materia
+Curso 1─1 EquipoTeams
+EquipoTeams 1─N MiembroEquipo N─1 Persona
+Curso 1─N InscripcionMateria N─1 Matricula
+Curso 1─N Material
+Curso N─1 Persona (docente)
+Postulacion N─1 Persona, N─1 Programa, N─1 PeriodoAcademico
+JobSincronizacion, LogAuditoria — independientes, referencian al usuario (User) que disparó la operación
+```
+
+Las **9 entidades exactas del MER formal de Avance 1** están implementadas
+como tabla y modelo propios de Laravel:
+
+| Entidad MER (Avance 1) | Tabla / Modelo Laravel | Qué representa |
+|---|---|---|
+| `ROL` | `roles` / `Rol` | Rol institucional: Admin TI, Docente, Estudiante. |
+| `USUARIO` | `personas` / `Persona` | Cualquier actor del sistema — aspirante, alumno, docente o administrativo — con su `rol_id`, `email_institucional`, `estado`, `canvas_user_id` y `azure_user_id`. |
+| `SUBCUENTA` | `subcuentas` / `Subcuenta` | Subcuenta/facultad de Canvas (`canvas_account_id`, `carrera`, `sede`). |
+| `CURSO` | `cursos` / `Curso` | Oferta concreta de una materia en un período, con su `subcuenta_id` — lo que se crea como curso real en Canvas. |
+| `MATRICULA` | `inscripcion_materias` / `InscripcionMateria` | Alta de una persona en un curso, con alta/baja automática en Canvas y Teams (`manual` o `predefinida`). El nombre de clase quedó `InscripcionMateria` porque `Matricula` ya estaba tomado por una entidad más amplia (ver abajo). |
+| `EQUIPO_TEAMS` | `equipo_teams` / `EquipoTeams` | Equipo de Microsoft Teams asociado 1 a 1 a un curso (`teams_group_id`, `visibilidad`, `fecha_creacion`). |
+| `MIEMBRO_EQUIPO` | `miembro_equipos` / `MiembroEquipo` | Membresía de una persona en un equipo de Teams (`rol_teams`: `Owner`/`Member`, `fecha_alta`). Se completa automáticamente, no es un formulario manual. |
+| `JOB_SINCRONIZACION` | `job_sincronizacions` / `JobSincronizacion` | Ciclo de vida de cada operación disparada contra Canvas/Teams (`pendiente` → `en_proceso` → `completado`/`error`). |
+| `LOG_AUDITORIA` | `log_auditorias` / `LogAuditoria` | Historial de auditoría: usuario, acción, entidad afectada, fecha. |
+
+### Entidades de ampliación (más allá del MER formal)
+
+El equipo construyó, además, un módulo de autoservicio académico que
+**no reemplaza** las 9 entidades de arriba, sino que las usa por dentro:
+
+| Entidad | Qué representa | Por qué se agregó |
+|---|---|---|
+| `Programa` | Programa académico (ej. "Ingeniería en Informática"). | Para poder modelar postulaciones y planes de estudio reales, no solo cursos sueltos. |
+| `PlanEstudio` | Versión del plan curricular de un `Programa`. | Un programa cambia de plan de estudio con los años; esto lo versiona. |
+| `Materia` | Definición curricular: código, semestre sugerido, prerrequisitos. | Separa la definición curricular (`Materia`) de su oferta concreta en un período (`Curso`). |
+| `PeriodoAcademico` | Período lectivo (ej. "2026-2"), con estado de inscripciones. | Un mismo curso se repite período a período; esto evita duplicar la materia cada vez. |
+| `Postulacion` | Postulación/admisión de un aspirante a un `Programa` en un período. | Modela el ingreso real de un alumno nuevo, no solo la matrícula. |
+| `Matricula` | Vínculo de una persona con un `PlanEstudio` en un período (se origina o no en una `Postulacion` admitida). | Distingue "alumno nuevo" (cursos del primer semestre predefinidos) de "alumno que continúa" (elige sus cursos, sujeto a prerrequisitos). |
+| `Material` | Contenido académico de un curso, publicable como página de Canvas. | Extensión directa de la gestión de curso. |
+
+**Por qué conviven las dos cosas:** el MER formal de Avance 1 alcanza
+para la problemática central (sincronización Canvas↔Teams). El equipo
+decidió **ampliar en vez de reemplazar** — construir el módulo de
+autoservicio académico sin tocar las 9 entidades formales — para no
+arriesgar la estabilidad de lo ya entregado en Avance 1.
+
+## 5. Flujo de uso del sistema, paso a paso
+
+Este es el recorrido real que hace un administrador de TI en el panel:
+
+1. **Login** en `/admin` con una cuenta institucional.
+2. **Listado de cursos** (`/admin/cursos`): ve todos los cursos, con
+   columnas que indican con un ícono si ya están creados en Canvas y en
+   Teams.
+3. **Crear en Canvas**: sobre un curso sin crear, un clic en "Crear en
+   Canvas" dispara `CursoService::crearEnCanvas`. Queda registrado el
+   `canvas_course_id` y un `JobSincronizacion`.
+4. **Crear en Teams**: un clic en "Crear en Teams" dispara
+   `CursoService::crearEnTeams`. Se crea la fila en `equipo_teams` con
+   el `teams_group_id`.
+5. **Asignar docente**: se elige un docente de la lista; el sistema lo
+   matricula como profesor en Canvas y lo agrega como `Owner` del
+   equipo de Teams, en una sola acción.
+6. **Matricular alumnos**: desde "Alta en materias", se busca al alumno
+   y al curso; el sistema valida que no esté ya matriculado, valida
+   cupo y prerrequisitos, y lo da de alta en Canvas **y** en Teams como
+   `Member`, en un solo paso.
+7. **Baja**: desde la misma pantalla, dar de baja a un alumno lo
+   desmatricula de Canvas y lo remueve del equipo de Teams a la vez.
+8. **Auditoría**: en cualquier momento, "Jobs de sincronización" y
+   "Auditoría" muestran el historial completo de qué se hizo, quién lo
+   hizo, y si tuvo éxito o error.
+
+## 6. Cómo levantarlo en local, paso a paso
 
 ```bash
-# Clonar o navegar al directorio del proyecto
-cd -canvas_for_teams-
+# 1. Clonar el repositorio
+git clone https://github.com/RoqueLuis07/Canvas_for_Team.git
+cd Canvas_for_Team
 
-# Instalar dependencias
-pip install -r requirements.txt
+# 2. Pararse en la rama del proyecto integrador
+git checkout php_proyecto_integrador
+cd sistema-academico
 
-# Crear archivo de configuración
+# 3. Instalar las dependencias PHP (Laravel, Filament, etc.)
+composer install
+
+# 4. Crear el archivo de configuración local
 cp .env.example .env
+
+# 5. Generar la clave de encriptación de la aplicación (APP_KEY)
+php artisan key:generate
+
+# 6. Crear las tablas y cargar datos de ejemplo (seeder)
+php artisan migrate:fresh --seed
+
+# 7. Levantar el servidor de desarrollo
+php artisan serve
 ```
 
-### 2. Configuración (.env)
-Edita el archivo `.env` con tus credenciales:
+Con eso, el panel queda en `http://localhost:8000/admin`. Login de
+prueba creado por el seeder: `admin@usil.edu.py` / `password`. No hace
+falta ninguna credencial real de Canvas ni de Azure — el paso 4 deja
+esos campos vacíos y el sistema usa los clientes simulados
+automáticamente (ver sección 3).
 
-```env
-CANVAS_BASE_URL=https://usilparaguay.instructure.com
-CANVAS_ACCESS_TOKEN=tu_token_de_canvas
-CANVAS_ACCOUNT_ID=1
+Para correr los tests y verificar el estilo del código antes de
+cualquier cambio:
 
-AZURE_TENANT_ID=tu_tenant_id
-AZURE_CLIENT_ID=tu_client_id
-AZURE_CLIENT_SECRET=tu_client_secret
-INSTITUTIONAL_DOMAIN=tu_dominio.edu.py
-
-SMTP_FROM=it@usil.edu.py
-
-ADMIN_ALLOWED_EMAILS=admin1@usil.edu.py,admin2@usil.edu.py
-```
-
-> El envío de correos de credenciales se hace vía Microsoft Graph (`sendMail`), reutilizando las credenciales de Azure de arriba — no hace falta usuario/contraseña SMTP. Requiere el permiso de aplicación `Mail.Send` con consentimiento de administrador sobre el buzón indicado en `SMTP_FROM`.
-
-> **Acceso al sistema:** solo los correos institucionales listados en `ADMIN_ALLOWED_EMAILS` (separados por coma) pueden iniciar sesión — cualquier otra cuenta de Azure AD del tenant (alumnos, docentes) queda bloqueada aunque se autentique correctamente contra Azure. Para dar de alta a un nuevo administrador de TI, agregá su correo a esa variable y reiniciá el servidor.
-
-### 3. Ejecutar el Servidor
-
-**Opción A: Script PowerShell (Recomendado en Windows)**
-```powershell
-.\run.ps1
-```
-
-**Opción B: Comando directo**
 ```bash
-cd Backend
-python -m uvicorn app.main:app --host 127.0.0.1 --port 3000 --reload
+php artisan test --compact                 # 32/32 tests
+vendor/bin/pint --dirty --format agent      # estilo de código
 ```
 
-El sistema estará disponible en: **http://localhost:3000** o **http://127.0.0.1:3000**
+## 7. Cómo está desplegado, paso a paso
 
----
+**Stack de Portainer (Avance 2)** — `sistema-academico/docker-compose.yml`:
 
-## 🏗️ Estructura del Proyecto
+1. **`app`** — contenedor de Laravel + PHP-FPM, construido con imagen
+   propia (`docker/php/Dockerfile`).
+2. **`webserver`** — Nginx, también con imagen propia
+   (`docker/nginx/Dockerfile`), expuesto en el puerto `8080`.
+3. **`db`** — MySQL 8, con los datos en un volumen persistente.
+4. **`redis`** — sesiones y caché centralizadas.
 
-- **Frontend/**: Contiene la interfaz de usuario.
-  - `templates/`: Plantillas HTML (Jinja2).
-  - `static/`: Archivos estáticos (CSS, JS, imágenes).
-- **Backend/**: Contiene el servidor y la lógica de negocio.
-  - `app/`: Código fuente de la API (FastAPI, routers, modelos).
-  - Persistencia en PostgreSQL (Supabase) — ver `SUPABASE_DATABASE_URL` en `.env`.
-  - Archivos de configuración (`.env`, `requirements.txt`, etc.).
+El código de la aplicación (incluyendo `vendor/`, generado durante el
+build de la imagen) vive en un **volumen Docker nombrado** (`app_code`),
+compartido entre `app` y `webserver` — no es un bind-mount del host, así
+que el despliegue es reproducible clonando el repositorio desde cero en
+cualquier servidor con Portainer.
 
----
+Pasos para desplegarlo desde cero en Portainer:
 
-## 📖 Guía Completa de Uso
+1. Portainer → **Stacks** → **Add stack** → método de build
+   **Repository**.
+2. Repository URL: `https://github.com/RoqueLuis07/Canvas_for_Team.git`,
+   referencia `refs/heads/php_proyecto_integrador`, compose path
+   `sistema-academico/docker-compose.yml`.
+3. Cargar las variables de entorno de
+   `sistema-academico/.env.portainer.example` en "Environment
+   variables" del stack (`APP_KEY`, contraseñas de MySQL; las de
+   Canvas/Azure pueden dejarse vacías para usar los clientes
+   simulados).
+4. **Deploy the stack.** El `entrypoint.sh` del contenedor `app` genera
+   el `APP_KEY` si falta, espera a que MySQL esté listo (reintenta
+   hasta 15 veces), corre las migraciones, y recién ahí arranca
+   `php-fpm`.
 
-La plataforma ha sido optimizada para enfocarse **exclusivamente en procesos masivos y automatizados**, eliminando las funciones redundantes que Canvas o Teams ya ofrecen de forma nativa.
+**Railway** — despliegue alternativo de un solo contenedor, usado para
+tener una URL pública rápida de demo antes de tener el stack de
+Portainer funcionando.
 
-### 🏠 Página Principal (Dashboard)
+## 8. Qué deben saber los docentes
 
-**URL**: http://localhost:3000/ui/home
+### Alineación con la consigna oficial del Proyecto Integrador
 
-Es tu portal de entrada con acceso rápido a las funcionalidades principales:
-- 🧑‍🎓 **Nuevo Ingreso (Alta Unificada)**
-- 🎓 **Matriculaciones (Unificadas)**
-- 📚 **Cursos (Canvas)**
-- 🤝 **Equipos (Teams)**
-- 📊 **Asistencias**
-- 📋 **Historial de Trabajos**
+| Requisito de la cátedra | Estado |
+|---|---|
+| Laravel + MySQL/PostgreSQL + Docker/Portainer | ✅ Laravel 13 + MySQL + Portainer desplegado. |
+| HAProxy, dos arquitecturas activas | Corresponde a **Avance 3** — no exigido todavía. |
+| Tablero ágil digital (Scrum/Kanban) | ✅ Trello ("Sync USIL — Canvas ↔ Teams"), con Product Backlog (HU-01 a HU-06). |
+| Declaración de Alcance + MER/DER + Diccionario de Datos + 3FN | ✅ Entregado en el informe de Avance 1. |
+| Caso de uso: PyME o Empresa de Paraguay | USIL Paraguay (institución, no PyME) — desviación explícita, **comunicada y aceptada por el docente**. |
+| Reporte de Sprints / evidencia de ceremonias (Avance 2) | ✅ `docs/REPORTE_SPRINTS_AVANCE2.md`, con nota metodológica honesta sobre cómo se reconstruyó. |
+| Módulo CRUD funcional con reglas de negocio (Avance 2) | ✅ Servicios de negocio (sección 3) operando de punta a punta. |
+| Sesiones centralizadas (Avance 2) | ✅ Redis. |
+| Despliegue inicial en Portainer (Avance 2) | ✅ Verificado en vivo. |
 
----
+### Cómo verificar cada cosa, en orden
 
-## 🧑‍🎓 Nuevo Ingreso (Alta Unificada)
+1. **Clonar y levantar en local** (sección 6) — 5 minutos, sin
+   credenciales.
+2. **Entrar a `/admin`** y recorrer el flujo de uso (sección 5): crear
+   curso en Canvas/Teams, asignar docente, matricular un alumno, ver el
+   log de auditoría.
+3. **Ver las 9 entidades del MER** navegables en el panel (menú
+   agrupado: Identidad académica, Oferta académica, Matriculación,
+   Canvas ↔ Teams, Auditoría).
+4. **Correr `php artisan test --compact`** — 32/32 tests en verde.
+5. **Revisar el historial de commits** de `sistema-academico/` en
+   GitHub — es la evidencia fechada y verificable de todo el desarrollo
+   (ver `docs/REPORTE_SPRINTS_AVANCE2.md` para el detalle día por día).
+6. **Ver el stack desplegado en Portainer** (URL pública a cargo del
+   equipo) para confirmar que corre fuera del entorno local.
 
-### ¿Para qué sirve?
-Proceso masivo para dar de alta a nuevos alumnos y docentes simultáneamente en **Azure AD/Teams** y **Canvas LMS**, con generación automática de contraseñas y envío de credenciales por correo electrónico.
+### Documentación completa (`sistema-academico/docs/`)
 
-### Pasos para Usar:
-1. Accede a **Directorio & Ingresos → Alta Unificada** (`/ui/ingreso`).
-2. Descarga la plantilla Excel provista en la vista.
-3. Completa el Excel con los datos: Nombre, Apellidos, Correo Personal, Cédula/DNI, Tipo (student/teacher), Sede, y Programa.
-4. Sube el Excel al sistema.
-5. Selecciona a qué correo enviar el reporte de ejecución (opcional) y si deseas enviar los correos de bienvenida a los usuarios automáticamente.
-6. Haz clic en procesar. El sistema creará las cuentas en ambas plataformas y enviará los correos desde `it@usil.edu.py`.
-
----
-
-## 🚫 Desvinculación Unificada (Egreso)
-
-### ¿Para qué sirve?
-Desactivar o eliminar cuentas de alumnos retirados o egresados de forma masiva en ambas plataformas para liberar licencias y mantener la seguridad.
-
-### Pasos para Usar:
-1. Accede a **Directorio & Ingresos → Egreso / Desvinculación** (`/egreso`).
-2. Descarga la plantilla y llénala con los correos institucionales de los usuarios a desvincular.
-3. Sube el Excel y el sistema procederá a suspender las cuentas en Azure AD y eliminarlas/desactivarlas en Canvas.
-
----
-
-## 🎓 Matriculación Unificada
-
-### ¿Para qué sirve?
-Enrolar listas masivas de alumnos a sus respectivos **Cursos en Canvas** y añadirlos como miembros en sus **Equipos de Teams** de forma simultánea.
-
-### Pasos para Usar:
-1. Accede a **Matriculaciones** (`/ui/unified-enrollments`).
-2. Descarga la plantilla Excel.
-3. Llena el Excel especificando el ID de Canvas, el ID de Teams, y el correo institucional del usuario.
-4. Carga el Excel y procesa.
-
----
-
-## 🤝 Gestión de Equipos (Teams)
-
-### ¿Para qué sirve?
-Administrar de forma eficiente los Equipos de Microsoft Teams, con herramientas enfocadas en la adición masiva de miembros.
-
-### Pasos para Usar:
-1. Accede a **Equipos (Teams)** (`/ui/teams/teams`).
-2. Selecciona un Equipo de la lista para ver sus detalles.
-3. Puedes añadir miembros usando **Carga Múltiple (Excel)** o **Carga por Correos (Pegar lista de correos)**.
-4. La adición individual y creación individual de Teams se han retirado para enfocarnos en procesos masivos (puedes crear Teams individuales directamente desde la app nativa de Teams).
-
----
-
-## 📚 Gestión de Cursos (Canvas)
-
-### ¿Para qué sirve?
-Ver el listado de todos los cursos de Canvas, actualizar configuraciones de forma ágil y sincronizarlos con Teams.
-
-### Pasos para Usar:
-1. Accede a **Cursos (Canvas)** (`/ui/canvas/courses`).
-2. Puedes buscar cursos y ver cuántos estudiantes tienen.
-3. Usa la opción **Añadir miembros Excel** para procesar listas masivas.
-
----
-
-## 📊 Reportes de Asistencia
-
-### ¿Para qué sirve?
-Descargar matrices de asistencia de todos los cursos de Canvas en Excel de forma organizada, sin tener que descargar archivos manualmente desde el correo que envía Canvas.
-
-### Pasos para Usar:
-1. Cada mes, descarga los reportes CSV crudos desde la herramienta "Attendance" de Canvas.
-2. Guárdalos en la carpeta correspondiente (`Carpeta de plantillas/`).
-3. Entra a **Asistencias** (`/ui/canvas/attendance`) y presiona "Refrescar".
-4. El sistema compilará y formateará los datos, permitiéndote descargar un reporte en Excel limpio y listo para enviar a directivos.
-
----
-
-## 📋 Historial de Trabajos (Jobs) - ⭐ Control Total
-
-### ¿Para qué sirve?
-Ver el resultado detallado de **TODAS** las operaciones masivas realizadas (altas, matrículas, desvinculaciones). Todo queda guardado de forma persistente.
-
-### ¿Cómo usarlo?
-1. Entra a **Historial Trabajos** (`/ui/jobs`).
-2. Filtra por "Hoy", "Esta semana" o por operación específica (ej. "Alta Unificada").
-3. Si subiste un Excel con 100 alumnos, aquí verás cuántos se crearon con **Éxito (✓)** y cuántos tuvieron **Errores (✗)**.
-4. Puedes leer el mensaje de error exacto (ej. "El correo ya existe en Azure") para corregir el archivo y volver a intentarlo.
-
----
-
-## 🔒 Auditoría y Logs
-
-### ¿Para qué sirve?
-Ver un registro completo (log) de quién hizo qué en el sistema. Registra todas las solicitudes HTTP, endpoints accedidos y usuarios responsables, ideal para control de seguridad y trazabilidad.
-
-- Accede desde **Auditoría** (`/ui/audit`).
-
----
-
-## 💾 Base de Datos
-
-El sistema usa una única base **PostgreSQL en Supabase** (`SUPABASE_DATABASE_URL` en `.env`), con estas tablas principales:
-
-1. **canvas_courses / canvas_users / canvas_enrollments** - Caché local de Canvas (sincronizada, no es la fuente de verdad).
-2. **azure_users** - Caché local de usuarios de Azure AD/Teams.
-3. **jobs** - Historial detallado de operaciones masivas (background jobs).
-4. **audit_logs** - Log de auditoría de solicitudes.
-
-Todos los datos se **persisten automáticamente** aunque el servidor se reinicie.
-
----
-
-## 🛠️ Stack Técnico (Para Administradores)
-
-| Capa | Tecnología |
-|------|-----------|
-| **Backend** | Python 3.12 + FastAPI |
-| **Servidor** | Uvicorn (ASGI) |
-| **Integraciones** | Canvas LMS REST API v1, Microsoft Graph API |
-| **Autenticación** | OAuth2, Graph API Tokens, envío de correo vía Microsoft Graph |
-| **Base de Datos** | PostgreSQL (Supabase) |
-| **Frontend** | Jinja2 Templates + Vanilla JS + Bootstrap 5.3 |
-| **Despliegue** | Dockerizado para Railway (`railway up`) |
-
----
-
-## ⚠️ Solución de Problemas Frecuentes
-
-**1. "Error 403 al subir código a GitHub"**
-Si usaste una cuenta diferente a la configurada en Windows, ve al "Administrador de Credenciales" de Windows, borra la credencial antigua de GitHub y vuelve a hacer `git push`.
-
-**2. "Los correos de bienvenida no llegan"**
-Verifica que `SMTP_FROM` en tu `.env` sea la cuenta institucional correcta (ej. `it@usil.edu.py`) y que la App Registration de Azure tenga concedido el permiso de aplicación `Mail.Send` (con consentimiento de administrador) sobre ese buzón.
-
-**3. "No aparecen datos al subir el Excel de Nuevo Ingreso"**
-Asegúrate de haber descargado la plantilla oficial desde el botón "Plantilla Excel" y no alterar los nombres de las cabeceras (columnas). Si falla, revisa el **Historial de Trabajos** para leer el error exacto.
+- **[Avance_1_Informe_Planificacion.pdf](sistema-academico/docs/Avance_1_Informe_Planificacion.pdf)** — informe oficial de Avance 1 ya entregado.
+- **[ARQUITECTURA.md](sistema-academico/docs/ARQUITECTURA.md)** — versión detallada de las secciones 3 y 4 de este README.
+- **[CHANGELOG_AVANCE2.md](sistema-academico/docs/CHANGELOG_AVANCE2.md)** — qué se agregó en Avance 2 sobre Avance 1.
+- **[REPORTE_SPRINTS_AVANCE2.md](sistema-academico/docs/REPORTE_SPRINTS_AVANCE2.md)** — Sprint Review y Retrospective de Avance 2.
+- **[Guia_Equipo_Sistema_Academico.pdf](sistema-academico/docs/Guia_Equipo_Sistema_Academico.pdf)** — guía oficial para el equipo.
+- **[EVIDENCIA_PRESENTACION.md](sistema-academico/docs/EVIDENCIA_PRESENTACION.md)** — este mismo checklist, versión ampliada.
+- **[PROMPT_DISEÑO_INTERFAZ.md](sistema-academico/docs/PROMPT_DISEÑO_INTERFAZ.md)** — prompt para iterar la interfaz con herramientas de diseño con IA.
+- **[ceremonias/](sistema-academico/docs/ceremonias/)** — evidencia de ceremonias ágiles (Avance 3).
+- **[Bitacora_Grupo3_Canvas_for_Teams.docx](sistema-academico/docs/Bitacora_Grupo3_Canvas_for_Teams.docx)** — bitácora de trabajo: registro cronológico de actividad, distribución por rol funcional, bloqueos y aportes del equipo.
