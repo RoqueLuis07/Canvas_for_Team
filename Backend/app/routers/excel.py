@@ -25,6 +25,7 @@ from app.models.canvas import BulkResult
 from app.services import canvas_client as canvas
 from app.services import teams_client as graph
 from app.services import user_service
+from app.services.credential_generator import generate_password
 from app.services import email_service
 from app.services.teams_client import create_team_via_group
 from app.core import jobs
@@ -1399,6 +1400,16 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                 # y lo agregamos si falta — un run previo pudo haber creado la
                 # cuenta pero fallado al matricularla en el grupo.
                 if usuario_val and "@" in usuario_val:
+                    # Reparo de contraseña: la cuenta ya existe (hay Usuario)
+                    # pero la celda de Contraseña está vacía o quedó mal
+                    # generada (ej. por el bug de detección de columna ya
+                    # corregido) — se recalcula con la cédula de ESTA fila,
+                    # sin tocar la cuenta en Canvas/Teams (no hace falta,
+                    # solo había que dejar asentada la contraseña real).
+                    if col_contra and cedula:
+                        contra_val = str(ws.cell(row=r_idx, column=col_contra).value or "").strip()
+                        if not contra_val:
+                            ws.cell(row=r_idx, column=col_contra, value=generate_password(cedula, nombre))
                     try:
                         target_equipo = id_equipo if (id_equipo and id_equipo != "None") else global_team_id
                         if not target_equipo and curso_nombre:
