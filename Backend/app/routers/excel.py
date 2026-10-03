@@ -1062,6 +1062,65 @@ async def get_egreso_sheets(req: UrlOnlyRequest) -> list[str]:
         return sheets
     except Exception as e:
         raise HTTPException(status_code=400, detail="El archivo no es un Excel válido.")
+@router.post("/excel/check-duplicate-headers", summary="Diagnóstico: columnas con el mismo encabezado en cualquier pestaña del archivo")
+async def check_duplicate_headers(req: UrlOnlyRequest) -> dict:
+    """Escanea TODAS las pestañas de un archivo de OneDrive y reporta qué
+    encabezados se repiten dentro de la misma fila de encabezados — el
+    problema real que causó el envío de credenciales cruzadas en MBA
+    2026-02 (dos columnas "Usuario"/"Contraseña" en la misma pestaña, y el
+    sistema usaba la última en vez de la que el equipo mantenía a mano).
+
+    Esto NO modifica nada — es solo lectura, para chequear cualquier
+    planilla (Diplomados, MBA, Alta Docentes, etc.) antes de confiar en
+    ella para un envío real.
+    """
+    if not req.url or "http" not in req.url:
+        raise HTTPException(status_code=400, detail="URL inválida.")
+
+    encoded_url = _encode_share_url(req.url)
+    try:
+        contents = await graph.get_raw(f"/shares/{encoded_url}/driveItem/content")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo descargar el archivo. {e}")
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents), read_only=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="El archivo no es un Excel válido.")
+
+    results = []
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        header_row_idx, _, headers_raw = _find_header_row_and_headers(ws)
+        if not header_row_idx:
+            results.append({"sheet": sheet_name, "error": "No se encontró fila de encabezados."})
+            continue
+
+        seen: dict[str, list[int]] = {}
+        for i, h in enumerate(headers_raw, 1):
+            if not h:
+                continue
+            norm = _norm(h)
+            seen.setdefault(norm, []).append(i)
+
+        duplicates = [
+            {"header": h, "columns": cols, "column_letters": [openpyxl.utils.get_column_letter(c) for c in cols]}
+            for h, cols in seen.items() if len(cols) > 1
+        ]
+        results.append({
+            "sheet": sheet_name,
+            "duplicate_headers": duplicates,
+            "has_risk": len(duplicates) > 0,
+        })
+
+    wb.close()
+    return {
+        "total_sheets": len(results),
+        "sheets_with_risk": sum(1 for r in results if r.get("has_risk")),
+        "results": results,
+    }
+
+
 @router.post("/excel/diplomados/preview", summary="Pre-visualizar planilla de Diplomados")
 async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
     if not req.url or "http" not in req.url:
