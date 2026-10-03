@@ -1097,10 +1097,15 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
             col_estado = i
         if "nombre" in h_lower:
             if col_nombre == -1: col_nombre = i
-        if "cedula" in h_lower or "cédula" in h_lower or "ci" in h_lower:
-            if col_cedula == -1: col_cedula = i
         if "usuario" in h_lower:
             if col_usuario == -1: col_usuario = i
+    # Cédula/CI aparte, con coincidencia EXACTA priorizada (ver _match_col_idx):
+    # "ci" como substring matchea cualquier palabra con "ci" adentro (ej. "Fecha
+    # Inscripción"), y si esa columna aparece antes que la real "CI" en la
+    # planilla, le gana — mostrando una fecha donde debería ir la cédula.
+    _cedula_idx = _match_col_idx(headers_dict, "cedula", "cédula", "ci")
+    if _cedula_idx:
+        col_cedula = _cedula_idx - 1
     # Si no hay columna "Estado" propiamente dicha, "Enviado" cumple el mismo rol.
     if col_estado == -1:
         for i, h in enumerate(headers_raw):
@@ -4748,10 +4753,15 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
             col_estado = i
         if "nombre" in h_lower:
             if col_nombre == -1: col_nombre = i
-        if "cedula" in h_lower or "cédula" in h_lower or "ci" in h_lower:
-            if col_cedula == -1: col_cedula = i
         if "usuario" in h_lower:
             if col_usuario == -1: col_usuario = i
+    # Cédula/CI aparte, con coincidencia EXACTA priorizada (ver _match_col_idx):
+    # "ci" como substring matchea cualquier palabra con "ci" adentro (ej. "Fecha
+    # Inscripción"), y si esa columna aparece antes que la real "CI" en la
+    # planilla, le gana — mostrando una fecha donde debería ir la cédula.
+    _cedula_idx = _match_col_idx(headers_dict, "cedula", "cédula", "ci")
+    if _cedula_idx:
+        col_cedula = _cedula_idx - 1
 
     students_to_process = 0
     students_already_processed = 0
