@@ -970,6 +970,11 @@ class DiplomadosUrlRequest(BaseModel):
     delete_account: bool = False
     cc: list[str] = []
     report_url: str | None = None
+    only_emails: list[str] | None = None
+    """Si viene seteado, solo en /send-credentials: limita el envío a estos
+    correos personales exactos (comparación case-insensitive), dejando el
+    resto de las filas pendientes intactas — para probar con una fila antes
+    de confirmar el envío masivo a todos."""
 
 
 
@@ -1864,6 +1869,8 @@ async def send_diplomados_credentials(req: DiplomadosUrlRequest) -> BulkResult:
         v = raw.strip().lower()
         return bool(v) and ("✅" in raw or v in ("si", "yes", "true", "enviado"))
 
+    only_emails_norm = {e.strip().lower() for e in req.only_emails} if req.only_emails else None
+
     rows_to_send = []
     for r_idx in range(header_row_idx + 1, ws.max_row + 1):
         usuario_val = str(ws.cell(row=r_idx, column=col_usuario).value or "").strip()
@@ -1878,6 +1885,8 @@ async def send_diplomados_credentials(req: DiplomadosUrlRequest) -> BulkResult:
             continue  # sin correo personal para enviar
         if _looks_sent(ya_enviado) or _looks_sent(ya_enviado_legacy):
             continue  # ya se le envió (por este sistema o por el proceso anterior)
+        if only_emails_norm is not None and correo_val.strip().lower() not in only_emails_norm:
+            continue  # filtro de prueba: no está en la lista de correos a enviar ahora
 
         rows_to_send.append(r_idx)
 
