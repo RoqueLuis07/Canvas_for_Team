@@ -296,4 +296,29 @@ class InscripcionMateriaServiceTest extends TestCase
         $this->assertTrue($inscripcionNueva->estaAlDiaEnCanvas());
         $this->assertTrue($inscripcionNueva->estaAlDiaEnTeams());
     }
+
+    public function test_cambiar_materia_no_retiro_la_inscripcion_actual_si_el_curso_nuevo_no_es_valido(): void
+    {
+        $plan = PlanEstudio::factory()->create();
+        $materiaActual = Materia::factory()->create(['plan_estudio_id' => $plan->id]);
+        $materiaNueva = Materia::factory()->create(['plan_estudio_id' => $plan->id]);
+        $cursoActual = Curso::factory()->creadoEnCanvasYTeams()->create(['materia_id' => $materiaActual->id, 'cupo_maximo' => null]);
+        $cursoNuevoInvalido = Curso::factory()->create(['materia_id' => $materiaNueva->id]);
+
+        $matricula = Matricula::factory()->create([
+            'persona_id' => $this->personaConCuentas()->id,
+            'plan_estudio_id' => $plan->id,
+            'postulacion_id' => null,
+        ]);
+
+        $inscripcionActual = $this->service->inscribirManual($matricula, $cursoActual);
+
+        $this->expectException(InscripcionMateriaException::class);
+        $this->expectExceptionMessage('todavía no fue creado en Canvas y Teams');
+
+        $this->service->cambiarMateria($inscripcionActual, $cursoNuevoInvalido);
+
+        $this->assertSame('inscrita', $inscripcionActual->refresh()->estado);
+        $this->assertSame($cursoActual->id, $inscripcionActual->curso_id);
+    }
 }

@@ -131,15 +131,21 @@ class InscripcionMateriaService
     }
 
     /**
-     * Cambia a un alumno de un curso a otro: da de baja la inscripción
-     * actual (académica y en las plataformas) y lo inscribe manualmente en
-     * el nuevo curso.
+     * Cambia a un alumno de un curso a otro. La validación del curso nuevo
+     * ocurre antes de retirar el curso actual para evitar que una decisión
+     * inválida descuadre al alumno o desaparezca de su inscripción vigente.
      *
      * @throws InscripcionMateriaException
      */
     public function cambiarMateria(InscripcionMateria $inscripcionActual, Curso $cursoNuevo): InscripcionMateria
     {
         $matricula = $inscripcionActual->matricula;
+
+        $this->assertCursoListoParaMatricular($cursoNuevo);
+        $this->assertPersonaConCuentas($matricula);
+        $this->assertPrerequisitosCumplidos($matricula, $cursoNuevo);
+        $this->assertCupoDisponible($cursoNuevo);
+        $this->assertNoInscritoAun($matricula, $cursoNuevo);
 
         $this->darDeBaja($inscripcionActual);
 
