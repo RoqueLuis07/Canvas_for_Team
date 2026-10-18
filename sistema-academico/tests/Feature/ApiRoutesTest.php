@@ -8,6 +8,7 @@ use App\Models\Materia;
 use App\Models\Matricula;
 use App\Models\Persona;
 use App\Models\PlanEstudio;
+use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -15,6 +16,22 @@ use Tests\TestCase;
 class ApiRoutesTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function makeAdminUser(): User
+    {
+        $usuario = User::factory()->create();
+        $rol = Rol::factory()->create(['nombre' => 'Admin TI']);
+
+        Persona::factory()->create([
+            'user_id' => $usuario->id,
+            'rol_id' => $rol->id,
+            'nombre_completo' => 'Admin TI',
+            'tipo' => 'administrativo',
+            'estado' => 'activo',
+        ]);
+
+        return $usuario;
+    }
 
     public function test_api_health_endpoint_returns_status(): void
     {
@@ -25,8 +42,14 @@ class ApiRoutesTest extends TestCase
             ->assertJsonPath('database', 'connected');
     }
 
-    public function test_api_cursos_returns_estructura_json(): void
+    public function test_api_cursos_requiere_autenticacion_y_permisos(): void
     {
+        $response = $this->getJson('/api/cursos');
+        $response->assertUnauthorized();
+
+        $usuarioAdmin = $this->makeAdminUser();
+        $this->actingAs($usuarioAdmin);
+
         $plan = PlanEstudio::factory()->create();
         $materia = Materia::factory()->create(['plan_estudio_id' => $plan->id]);
         Curso::factory()->creadoEnCanvasYTeams()->create([
@@ -42,8 +65,11 @@ class ApiRoutesTest extends TestCase
         $this->assertSame(5, $response->json('0.cupo_maximo'));
     }
 
-    public function test_api_matriculas_incluye_inscripciones(): void
+    public function test_api_matriculas_incluye_inscripciones_para_admin_o_propietario(): void
     {
+        $usuario = User::factory()->create();
+        $this->actingAs($usuario);
+
         $plan = PlanEstudio::factory()->create();
         $persona = Persona::factory()->create();
         $materia = Materia::factory()->create(['plan_estudio_id' => $plan->id]);
@@ -61,15 +87,27 @@ class ApiRoutesTest extends TestCase
         ]);
 
         $response = $this->getJson('/api/matriculas/'.$matricula->id);
+        $response->assertForbidden();
+
+        $usuarioAdmin = $this->makeAdminUser();
+        $this->actingAs($usuarioAdmin);
+        $response = $this->getJson('/api/matriculas/'.$matricula->id);
 
         $response->assertOk();
         $this->assertSame($matricula->id, $response->json('id'));
         $this->assertSame('inscrita', $response->json('inscripciones.0.estado'));
     }
 
-    public function test_api_auditoria_returns_last_entries(): void
+    public function test_api_auditoria_requiere_admin_ti(): void
     {
         $usuario = User::factory()->create();
+        $this->actingAs($usuario);
+
+        $response = $this->getJson('/api/auditoria');
+        $response->assertForbidden();
+
+        $usuarioAdmin = $this->makeAdminUser();
+        $this->actingAs($usuarioAdmin);
         LogAuditoria::create([
             'usuario_id' => $usuario->id,
             'accion' => 'curso_creado_canvas',
