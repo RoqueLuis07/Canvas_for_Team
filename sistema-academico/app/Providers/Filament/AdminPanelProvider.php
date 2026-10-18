@@ -2,6 +2,9 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Pages\Auth\Login;
+use Filament\Enums\ThemeMode;
+use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -27,12 +30,17 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->brandName('Sistema Académico USIL')
-            ->login()
+            ->brandLogo(asset('images/brand/usil-logo-blue.png'))
+            ->darkModeBrandLogo(asset('images/brand/usil-logo-white.png'))
+            ->brandLogoHeight('4.5rem')
+            ->login(Login::class)
+            ->defaultThemeMode(ThemeMode::Light)
+            ->font('system-ui', provider: LocalFontProvider::class)
             ->colors([
-                // Azul institucional USIL (ver Frontend/static/img/logos/logo_usil_azul.png),
-                // en vez del Amber genérico por defecto de Filament.
-                'primary' => Color::hex('#1E3FCF'),
+                'primary' => Color::hex('#1946B9'),
             ])
+            ->theme(asset('css/filament/admin/theme.css'))
+            ->sidebarCollapsibleOnDesktop()
             ->navigationGroups([
                 'Identidad académica',
                 'Oferta académica',
