@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Contracts\CanvasClient;
+use App\Contracts\TeamsClient;
 use App\Exceptions\InscripcionMateriaException;
 use App\Models\Curso;
+use App\Models\InscripcionMateria;
 use App\Models\Materia;
 use App\Models\Matricula;
 use App\Models\PeriodoAcademico;
@@ -11,6 +14,7 @@ use App\Models\Persona;
 use App\Models\PlanEstudio;
 use App\Models\Postulacion;
 use App\Services\InscripcionMateriaService;
+use App\Services\SincronizacionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -144,6 +148,73 @@ class InscripcionMateriaServiceTest extends TestCase
         $this->expectExceptionMessage('ya está inscrito');
 
         $this->service->inscribirManual($matricula, $curso);
+    }
+
+    public function test_reintenta_el_alta_si_teams_fallo_en_la_primera_inscripcion(): void
+    {
+        $plan = PlanEstudio::factory()->create();
+        $materia = Materia::factory()->create(['plan_estudio_id' => $plan->id]);
+        $curso = Curso::factory()->creadoEnCanvasYTeams()->create(['materia_id' => $materia->id, 'cupo_maximo' => 1]);
+        $matricula = Matricula::factory()->create([
+            'persona_id' => $this->personaConCuentas()->id,
+            'plan_estudio_id' => $plan->id,
+            'postulacion_id' => null,
+        ]);
+
+        $teamsCaido = new class implements TeamsClient
+        {
+            public function createTeam(string $name): string
+            {
+                return 'x';
+            }
+
+            public function addMember(string $teamsGroupId, string $azureUserId, string $role = 'Member'): void
+            {
+                throw new \RuntimeException('Graph caído');
+            }
+
+            public function removeMember(string $teamsGroupId, string $azureUserId): void {}
+        };
+
+        $servicioConFalla = new InscripcionMateriaService(
+            app(CanvasClient::class), $teamsCaido, app(SincronizacionService::class)
+        );
+
+        try {
+            $servicioConFalla->inscribirManual($matricula, $curso);
+            $this->fail('Debió fallar por Teams.');
+        } catch (\RuntimeException) {
+            // esperado
+        }
+
+        $this->assertSame(1, InscripcionMateria::count());
+
+        $inscripcion = $this->service->inscribirManual($matricula, $curso);
+
+        $this->assertSame(1, InscripcionMateria::count());
+        $this->assertTrue($inscripcion->estaAlDiaEnCanvas());
+        $this->assertTrue($inscripcion->estaAlDiaEnTeams());
+    }
+
+    public function test_no_deja_inscripcion_huerfana_si_la_persona_no_tiene_cuentas(): void
+    {
+        $plan = PlanEstudio::factory()->create();
+        $materia = Materia::factory()->create(['plan_estudio_id' => $plan->id]);
+        $curso = Curso::factory()->creadoEnCanvasYTeams()->create(['materia_id' => $materia->id, 'cupo_maximo' => null]);
+        $matricula = Matricula::factory()->create([
+            'persona_id' => Persona::factory()->create(['canvas_user_id' => null, 'azure_user_id' => null])->id,
+            'plan_estudio_id' => $plan->id,
+            'postulacion_id' => null,
+        ]);
+
+        try {
+            $this->service->inscribirManual($matricula, $curso);
+            $this->fail('Debió fallar por falta de cuentas.');
+        } catch (InscripcionMateriaException) {
+            // esperado
+        }
+
+        $this->assertSame(0, InscripcionMateria::count());
     }
 
     public function test_alumno_nuevo_recibe_cursos_de_primer_semestre_predefinidos(): void

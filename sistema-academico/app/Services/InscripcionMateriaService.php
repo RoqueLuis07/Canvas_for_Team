@@ -46,6 +46,19 @@ class InscripcionMateriaService
     public function inscribirManual(Matricula $matricula, Curso $curso): InscripcionMateria
     {
         $this->assertCursoListoParaMatricular($curso);
+        $this->assertPersonaConCuentas($matricula);
+
+        // Reintento: una inscripción previa quedó sin alta completa en
+        // Canvas/Teams (falla de la plataforma). Ya ocupa su cupo y ya pasó
+        // las validaciones, así que solo se completa el alta pendiente.
+        $pendiente = $this->inscripcionPendienteDeAlta($matricula, $curso);
+
+        if ($pendiente) {
+            $this->altaEnPlataformas($matricula, $curso, $pendiente);
+
+            return $pendiente->refresh();
+        }
+
         $this->assertPrerequisitosCumplidos($matricula, $curso);
         $this->assertCupoDisponible($curso);
         $this->assertNoInscritoAun($matricula, $curso);
@@ -131,6 +144,33 @@ class InscripcionMateriaService
         $this->darDeBaja($inscripcionActual);
 
         return $this->inscribirManual($matricula, $cursoNuevo);
+    }
+
+    protected function inscripcionPendienteDeAlta(Matricula $matricula, Curso $curso): ?InscripcionMateria
+    {
+        return InscripcionMateria::query()
+            ->where('matricula_id', $matricula->id)
+            ->where('curso_id', $curso->id)
+            ->where('estado', 'inscrita')
+            ->where(fn ($q) => $q->whereNull('canvas_enrollment_at')->orWhereNull('teams_enrollment_at'))
+            ->first();
+    }
+
+    /**
+     * Se valida antes de crear la inscripción para no dejar un registro
+     * "inscrita" huérfano si la persona no tiene cuentas.
+     *
+     * @throws InscripcionMateriaException
+     */
+    protected function assertPersonaConCuentas(Matricula $matricula): void
+    {
+        $persona = $matricula->persona;
+
+        if (! $persona->canvas_user_id || ! $persona->azure_user_id) {
+            throw new InscripcionMateriaException(
+                "{$persona->nombre_completo} todavía no tiene cuenta institucional (Canvas/Teams) creada."
+            );
+        }
     }
 
     /**
