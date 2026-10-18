@@ -69,6 +69,15 @@ JobSincronizacion, LogAuditoria — independientes, referencian al usuario (User
 | `JobSincronizacion` | Ciclo de vida de cada operación de sincronización disparada (tipo, estado, resultado) — MER: `JOB_SINCRONIZACION`. |
 | `LogAuditoria` | Historial de auditoría: usuario, acción, entidad afectada, fecha — MER: `LOG_AUDITORIA`. |
 
+### Acceso al panel por rol
+
+El panel requiere una Persona activa vinculada al usuario autenticado. Admin
+TI administra todos los recursos; Docente solo consulta sus cursos y
+materiales; Estudiante solo consulta sus matrículas e inscripciones. Las
+acciones de escritura quedan reservadas a Admin TI. Las consultas también se
+filtran por la Persona vinculada para impedir el acceso a registros ajenos,
+incluso mediante una URL directa.
+
 ### Alineación con el MER de Avance 1
 
 Las nueve entidades del MER entregado en Avance 1 (`ROL`, `USUARIO`,

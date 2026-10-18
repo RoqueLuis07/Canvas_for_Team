@@ -6,11 +6,10 @@ use App\Filament\Resources\PersonaResource\Pages;
 use App\Models\Persona;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class PersonaResource extends Resource
+class PersonaResource extends AdminOnlyResource
 {
     protected static ?string $model = Persona::class;
 

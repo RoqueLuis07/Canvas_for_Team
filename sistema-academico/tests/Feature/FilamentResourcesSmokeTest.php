@@ -2,6 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Resources\CursoResource;
+use App\Filament\Resources\InscripcionMateriaResource;
+use App\Filament\Resources\MaterialResource;
+use App\Filament\Resources\MatriculaResource;
+use App\Models\Curso;
+use App\Models\Materia;
+use App\Models\Material;
+use App\Models\Matricula;
 use App\Models\Persona;
 use App\Models\Rol;
 use App\Models\User;
@@ -46,6 +54,101 @@ class FilamentResourcesSmokeTest extends TestCase
         $this->actingAs($adminUser);
 
         $this->get('/admin')->assertStatus(403);
+    }
+
+    public function test_docente_can_only_view_assigned_courses_and_materials(): void
+    {
+        $teacherRole = Rol::factory()->create(['nombre' => 'Docente']);
+        $teacherUser = User::factory()->create();
+        $teacher = Persona::factory()->docente()->create([
+            'user_id' => $teacherUser->id,
+            'rol_id' => $teacherRole->id,
+        ]);
+        $otherTeacher = Persona::factory()->docente()->create();
+
+        $teacherCourse = Curso::factory()->create([
+            'docente_persona_id' => $teacher->id,
+            'materia_id' => Materia::factory()->create(['nombre' => 'Curso del docente'])->id,
+        ]);
+        $otherCourse = Curso::factory()->create([
+            'docente_persona_id' => $otherTeacher->id,
+            'materia_id' => Materia::factory()->create(['nombre' => 'Curso ajeno'])->id,
+        ]);
+        $teacherMaterial = Material::factory()->create(['curso_id' => $teacherCourse->id]);
+        $otherMaterial = Material::factory()->create(['curso_id' => $otherCourse->id]);
+
+        $this->actingAs($teacherUser);
+
+        $this->get('/admin')->assertOk();
+        $this->get('/admin/cursos')->assertOk();
+        $this->get('/admin/materials')->assertOk();
+        $this->get('/admin/personas')->assertForbidden();
+        $this->get('/admin/cursos/create')->assertForbidden();
+        $this->get('/admin/materials/create')->assertForbidden();
+        $this->get("/admin/cursos/{$teacherCourse->id}/edit")->assertForbidden();
+        $this->get("/admin/cursos/{$otherCourse->id}/edit")->assertNotFound();
+
+        $this->assertEqualsCanonicalizing(
+            [$teacherCourse->id],
+            CursoResource::getEloquentQuery()->pluck('id')->all(),
+        );
+        $this->assertEqualsCanonicalizing(
+            [$teacherMaterial->id],
+            MaterialResource::getEloquentQuery()->pluck('id')->all(),
+        );
+        $this->assertNotContains($otherMaterial->id, MaterialResource::getEloquentQuery()->pluck('id')->all());
+    }
+
+    public function test_student_can_only_view_their_enrollments(): void
+    {
+        $studentRole = Rol::factory()->create(['nombre' => 'Estudiante']);
+        $studentUser = User::factory()->create();
+        $student = Persona::factory()->alumno()->create([
+            'user_id' => $studentUser->id,
+            'rol_id' => $studentRole->id,
+        ]);
+        $otherStudent = Persona::factory()->alumno()->create();
+
+        $studentMatricula = Matricula::factory()->create(['persona_id' => $student->id]);
+        $otherMatricula = Matricula::factory()->create(['persona_id' => $otherStudent->id]);
+        $course = Curso::factory()->create();
+        $studentInscripcion = $studentMatricula->inscripciones()->create([
+            'curso_id' => $course->id,
+            'origen' => 'manual',
+            'estado' => 'inscrita',
+            'fecha_inscripcion' => today(),
+        ]);
+        $otherInscripcion = $otherMatricula->inscripciones()->create([
+            'curso_id' => Curso::factory()->create()->id,
+            'origen' => 'manual',
+            'estado' => 'inscrita',
+            'fecha_inscripcion' => today(),
+        ]);
+
+        $this->actingAs($studentUser);
+
+        $this->get('/admin')->assertOk();
+        $this->get('/admin/matriculas')->assertOk();
+        $this->get('/admin/inscripcion-materias')->assertOk();
+        $this->get('/admin/cursos')->assertForbidden();
+        $this->get('/admin/matriculas/create')->assertForbidden();
+        $this->get("/admin/matriculas/{$studentMatricula->id}/edit")->assertForbidden();
+        $this->get("/admin/matriculas/{$otherMatricula->id}/edit")->assertNotFound();
+        $this->get("/admin/inscripcion-materias/{$studentInscripcion->id}/edit")->assertForbidden();
+        $this->get("/admin/inscripcion-materias/{$otherInscripcion->id}/edit")->assertNotFound();
+
+        $this->assertEqualsCanonicalizing(
+            [$studentMatricula->id],
+            MatriculaResource::getEloquentQuery()->pluck('id')->all(),
+        );
+        $this->assertEqualsCanonicalizing(
+            [$studentInscripcion->id],
+            InscripcionMateriaResource::getEloquentQuery()->pluck('id')->all(),
+        );
+        $this->assertNotContains(
+            $otherInscripcion->id,
+            InscripcionMateriaResource::getEloquentQuery()->pluck('id')->all(),
+        );
     }
 
     #[DataProvider('resourceIndexUrls')]

@@ -9,11 +9,12 @@ use App\Services\InscripcionMateriaService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
-class InscripcionMateriaResource extends Resource
+class InscripcionMateriaResource extends AdminOnlyResource
 {
     protected static ?string $model = InscripcionMateria::class;
 
@@ -22,6 +23,38 @@ class InscripcionMateriaResource extends Resource
     protected static ?string $navigationLabel = 'Alta en materias';
 
     protected static ?string $navigationGroup = 'Matriculación';
+
+    public static function canViewAny(): bool
+    {
+        $user = static::currentUser();
+
+        return $user?->isAdminTI() || $user?->isEstudiante();
+    }
+
+    public static function canView(Model $record): bool
+    {
+        $user = static::currentUser();
+
+        return $user?->isAdminTI()
+            || ($user?->isEstudiante() && $record->matricula?->persona_id === $user->activePersonaIdForRole('Estudiante'));
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = static::currentUser();
+
+        if ($user?->isAdminTI()) {
+            return $query;
+        }
+
+        if ($user?->isEstudiante()) {
+            return $query->whereHas('matricula', fn (Builder $enrollmentQuery) => $enrollmentQuery
+                ->where('persona_id', $user->activePersonaIdForRole('Estudiante')));
+        }
+
+        return $query->whereRaw('1 = 0');
+    }
 
     public static function form(Form $form): Form
     {
@@ -108,8 +141,10 @@ class InscripcionMateriaResource extends Resource
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->visible(fn (InscripcionMateria $record) => $record->estado !== 'retirada')
+                    ->visible(fn (InscripcionMateria $record) => auth()->user()?->isAdminTI() && $record->estado !== 'retirada')
                     ->action(function (InscripcionMateria $record) {
+                        abort_unless(auth()->user()?->isAdminTI(), 403);
+
                         try {
                             app(InscripcionMateriaService::class)->darDeBaja($record);
                             Notification::make()->title('Alumno dado de baja de la materia')->success()->send();
@@ -121,7 +156,7 @@ class InscripcionMateriaResource extends Resource
                     ->label('Cambiar de materia')
                     ->icon('heroicon-o-arrow-path')
                     ->color('warning')
-                    ->visible(fn (InscripcionMateria $record) => $record->estado === 'inscrita')
+                    ->visible(fn (InscripcionMateria $record) => auth()->user()?->isAdminTI() && $record->estado === 'inscrita')
                     ->form([
                         Forms\Components\Select::make('curso_nuevo_id')
                             ->label('Nuevo curso')
@@ -135,6 +170,8 @@ class InscripcionMateriaResource extends Resource
                             ->required(),
                     ])
                     ->action(function (InscripcionMateria $record, array $data) {
+                        abort_unless(auth()->user()?->isAdminTI(), 403);
+
                         try {
                             app(InscripcionMateriaService::class)->cambiarMateria(
                                 $record,

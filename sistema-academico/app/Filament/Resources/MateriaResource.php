@@ -6,11 +6,10 @@ use App\Filament\Resources\MateriaResource\Pages;
 use App\Models\Materia;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class MateriaResource extends Resource
+class MateriaResource extends AdminOnlyResource
 {
     protected static ?string $model = Materia::class;
 

@@ -6,15 +6,15 @@ use App\Filament\Resources\JobSincronizacionResource\Pages;
 use App\Models\JobSincronizacion;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Solo lectura: los JobSincronizacion se crean y actualizan desde
  * SincronizacionService, no manualmente desde el panel.
  */
-class JobSincronizacionResource extends Resource
+class JobSincronizacionResource extends AdminOnlyResource
 {
     protected static ?string $model = JobSincronizacion::class;
 
@@ -96,6 +96,21 @@ class JobSincronizacionResource extends Resource
     }
 
     public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDeleteAny(): bool
     {
         return false;
     }

@@ -6,16 +6,16 @@ use App\Filament\Resources\LogAuditoriaResource\Pages;
 use App\Models\LogAuditoria;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Solo lectura (HU-05): historial de auditoría de sincronizaciones,
  * consultable por usuario o entidad afectada. Los registros se crean desde
  * SincronizacionService, no manualmente desde el panel.
  */
-class LogAuditoriaResource extends Resource
+class LogAuditoriaResource extends AdminOnlyResource
 {
     protected static ?string $model = LogAuditoria::class;
 
@@ -73,6 +73,21 @@ class LogAuditoriaResource extends Resource
     }
 
     public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return false;
+    }
+
+    public static function canDeleteAny(): bool
     {
         return false;
     }

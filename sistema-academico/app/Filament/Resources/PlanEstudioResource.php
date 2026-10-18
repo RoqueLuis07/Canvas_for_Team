@@ -6,11 +6,10 @@ use App\Filament\Resources\PlanEstudioResource\Pages;
 use App\Models\PlanEstudio;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class PlanEstudioResource extends Resource
+class PlanEstudioResource extends AdminOnlyResource
 {
     protected static ?string $model = PlanEstudio::class;
 

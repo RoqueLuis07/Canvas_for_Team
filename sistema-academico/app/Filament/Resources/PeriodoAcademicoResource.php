@@ -6,11 +6,10 @@ use App\Filament\Resources\PeriodoAcademicoResource\Pages;
 use App\Models\PeriodoAcademico;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class PeriodoAcademicoResource extends Resource
+class PeriodoAcademicoResource extends AdminOnlyResource
 {
     protected static ?string $model = PeriodoAcademico::class;
 

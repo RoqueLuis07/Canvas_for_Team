@@ -9,11 +9,12 @@ use App\Services\MaterialService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
-class MaterialResource extends Resource
+class MaterialResource extends AdminOnlyResource
 {
     protected static ?string $model = Material::class;
 
@@ -22,6 +23,38 @@ class MaterialResource extends Resource
     protected static ?string $navigationLabel = 'Materiales';
 
     protected static ?string $navigationGroup = 'Canvas ↔ Teams';
+
+    public static function canViewAny(): bool
+    {
+        $user = static::currentUser();
+
+        return $user?->isAdminTI() || $user?->isDocente();
+    }
+
+    public static function canView(Model $record): bool
+    {
+        $user = static::currentUser();
+
+        return $user?->isAdminTI()
+            || ($user?->isDocente() && $record->curso?->docente_persona_id === $user->activePersonaIdForRole('Docente'));
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = static::currentUser();
+
+        if ($user?->isAdminTI()) {
+            return $query;
+        }
+
+        if ($user?->isDocente()) {
+            return $query->whereHas('curso', fn (Builder $courseQuery) => $courseQuery
+                ->where('docente_persona_id', $user->activePersonaIdForRole('Docente')));
+        }
+
+        return $query->whereRaw('1 = 0');
+    }
 
     public static function form(Form $form): Form
     {
@@ -90,8 +123,10 @@ class MaterialResource extends Resource
                     ->label('Publicar en Canvas')
                     ->icon('heroicon-o-cloud-arrow-up')
                     ->color('info')
-                    ->visible(fn (Material $record) => ! $record->estaPublicadoEnCanvas())
+                    ->visible(fn (Material $record) => auth()->user()?->isAdminTI() && ! $record->estaPublicadoEnCanvas())
                     ->action(function (Material $record) {
+                        abort_unless(auth()->user()?->isAdminTI(), 403);
+
                         try {
                             app(MaterialService::class)->publicarEnCanvas($record);
                             Notification::make()->title('Material publicado en Canvas')->success()->send();

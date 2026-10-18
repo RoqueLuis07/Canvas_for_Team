@@ -6,11 +6,10 @@ use App\Filament\Resources\PostulacionResource\Pages;
 use App\Models\Postulacion;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class PostulacionResource extends Resource
+class PostulacionResource extends AdminOnlyResource
 {
     protected static ?string $model = Postulacion::class;
 

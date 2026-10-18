@@ -9,11 +9,12 @@ use App\Services\CursoService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
-class CursoResource extends Resource
+class CursoResource extends AdminOnlyResource
 {
     protected static ?string $model = Curso::class;
 
@@ -22,6 +23,37 @@ class CursoResource extends Resource
     protected static ?string $navigationLabel = 'Cursos (Canvas/Teams)';
 
     protected static ?string $navigationGroup = 'Canvas ↔ Teams';
+
+    public static function canViewAny(): bool
+    {
+        $user = static::currentUser();
+
+        return $user?->isAdminTI() || $user?->isDocente();
+    }
+
+    public static function canView(Model $record): bool
+    {
+        $user = static::currentUser();
+
+        return $user?->isAdminTI()
+            || ($user?->isDocente() && $record->docente_persona_id === $user->activePersonaIdForRole('Docente'));
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = static::currentUser();
+
+        if ($user?->isAdminTI()) {
+            return $query;
+        }
+
+        if ($user?->isDocente()) {
+            return $query->where('docente_persona_id', $user->activePersonaIdForRole('Docente'));
+        }
+
+        return $query->whereRaw('1 = 0');
+    }
 
     public static function form(Form $form): Form
     {
@@ -108,8 +140,10 @@ class CursoResource extends Resource
                     ->label('Crear en Canvas')
                     ->icon('heroicon-o-academic-cap')
                     ->color('info')
-                    ->visible(fn (Curso $record) => ! $record->estaCreadoEnCanvas())
+                    ->visible(fn (Curso $record) => auth()->user()?->isAdminTI() && ! $record->estaCreadoEnCanvas())
                     ->action(function (Curso $record) {
+                        abort_unless(auth()->user()?->isAdminTI(), 403);
+
                         try {
                             app(CursoService::class)->crearEnCanvas($record);
                             Notification::make()->title('Curso creado en Canvas')->success()->send();
@@ -121,8 +155,10 @@ class CursoResource extends Resource
                     ->label('Crear en Teams')
                     ->icon('heroicon-o-user-group')
                     ->color('info')
-                    ->visible(fn (Curso $record) => ! $record->estaCreadoEnTeams())
+                    ->visible(fn (Curso $record) => auth()->user()?->isAdminTI() && ! $record->estaCreadoEnTeams())
                     ->action(function (Curso $record) {
+                        abort_unless(auth()->user()?->isAdminTI(), 403);
+
                         try {
                             app(CursoService::class)->crearEnTeams($record);
                             Notification::make()->title('Equipo creado en Teams')->success()->send();
@@ -134,7 +170,7 @@ class CursoResource extends Resource
                     ->label('Asignar docente')
                     ->icon('heroicon-o-user-plus')
                     ->color('success')
-                    ->visible(fn (Curso $record) => $record->estaCreadoEnCanvas() && $record->estaCreadoEnTeams())
+                    ->visible(fn (Curso $record) => auth()->user()?->isAdminTI() && $record->estaCreadoEnCanvas() && $record->estaCreadoEnTeams())
                     ->form([
                         Forms\Components\Select::make('docente_persona_id')
                             ->label('Docente')
@@ -143,6 +179,8 @@ class CursoResource extends Resource
                             ->required(),
                     ])
                     ->action(function (Curso $record, array $data) {
+                        abort_unless(auth()->user()?->isAdminTI(), 403);
+
                         try {
                             app(CursoService::class)->asignarDocente($record, Persona::findOrFail($data['docente_persona_id']));
                             Notification::make()->title('Docente asignado en Canvas y Teams')->success()->send();

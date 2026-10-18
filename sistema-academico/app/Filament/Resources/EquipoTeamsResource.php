@@ -6,11 +6,10 @@ use App\Filament\Resources\EquipoTeamsResource\Pages;
 use App\Models\EquipoTeams;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class EquipoTeamsResource extends Resource
+class EquipoTeamsResource extends AdminOnlyResource
 {
     protected static ?string $model = EquipoTeams::class;
 

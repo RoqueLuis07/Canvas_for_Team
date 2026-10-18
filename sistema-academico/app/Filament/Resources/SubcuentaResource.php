@@ -6,11 +6,10 @@ use App\Filament\Resources\SubcuentaResource\Pages;
 use App\Models\Subcuenta;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class SubcuentaResource extends Resource
+class SubcuentaResource extends AdminOnlyResource
 {
     protected static ?string $model = Subcuenta::class;
 

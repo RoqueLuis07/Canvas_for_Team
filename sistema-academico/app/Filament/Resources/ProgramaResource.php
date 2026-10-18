@@ -6,11 +6,10 @@ use App\Filament\Resources\ProgramaResource\Pages;
 use App\Models\Programa;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class ProgramaResource extends Resource
+class ProgramaResource extends AdminOnlyResource
 {
     protected static ?string $model = Programa::class;
 

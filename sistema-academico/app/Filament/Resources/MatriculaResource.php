@@ -6,17 +6,49 @@ use App\Filament\Resources\MatriculaResource\Pages;
 use App\Models\Matricula;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
-class MatriculaResource extends Resource
+class MatriculaResource extends AdminOnlyResource
 {
     protected static ?string $model = Matricula::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-user-plus';
 
     protected static ?string $navigationGroup = 'Matriculación';
+
+    public static function canViewAny(): bool
+    {
+        $user = static::currentUser();
+
+        return $user?->isAdminTI() || $user?->isEstudiante();
+    }
+
+    public static function canView(Model $record): bool
+    {
+        $user = static::currentUser();
+
+        return $user?->isAdminTI()
+            || ($user?->isEstudiante() && $record->persona_id === $user->activePersonaIdForRole('Estudiante'));
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $query = parent::getEloquentQuery();
+        $user = static::currentUser();
+
+        if ($user?->isAdminTI()) {
+            return $query;
+        }
+
+        if ($user?->isEstudiante()) {
+            return $query->where('persona_id', $user->activePersonaIdForRole('Estudiante'));
+        }
+
+        return $query->whereRaw('1 = 0');
+    }
 
     public static function form(Form $form): Form
     {

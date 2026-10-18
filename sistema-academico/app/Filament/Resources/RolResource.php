@@ -6,11 +6,10 @@ use App\Filament\Resources\RolResource\Pages;
 use App\Models\Rol;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 
-class RolResource extends Resource
+class RolResource extends AdminOnlyResource
 {
     protected static ?string $model = Rol::class;
 

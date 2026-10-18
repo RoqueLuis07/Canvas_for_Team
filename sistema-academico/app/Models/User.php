@@ -27,20 +27,43 @@ class User extends Authenticatable implements FilamentUser
 
     public function isAdminTI(): bool
     {
+        return $this->hasActiveRole('Admin TI');
+    }
+
+    public function isDocente(): bool
+    {
+        return $this->hasActiveRole('Docente');
+    }
+
+    public function isEstudiante(): bool
+    {
+        return $this->hasActiveRole('Estudiante');
+    }
+
+    public function hasActiveRole(string $roleName): bool
+    {
         return $this->persona()
             ->where('estado', 'activo')
-            ->whereHas('rol', fn ($query) => $query->whereRaw('LOWER(nombre) = ?', ['admin ti']))
+            ->whereHas('rol', fn ($query) => $query->whereRaw('LOWER(nombre) = ?', [mb_strtolower($roleName)]))
             ->exists();
     }
 
+    public function activePersonaIdForRole(string $roleName): ?int
+    {
+        $id = $this->persona()
+            ->where('estado', 'activo')
+            ->whereHas('rol', fn ($query) => $query->whereRaw('LOWER(nombre) = ?', [mb_strtolower($roleName)]))
+            ->value('id');
+
+        return $id === null ? null : (int) $id;
+    }
+
     /**
-     * El acceso al panel administrativo queda restringido al personal con rol
-     * administrativo institucional. Los usuarios de alumnos/docentes o usuarios
-     * sin rol no pueden ingresar.
+     * El acceso al panel requiere un rol institucional activo reconocido.
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->isAdminTI();
+        return $this->isAdminTI() || $this->isDocente() || $this->isEstudiante();
     }
 
     /**
