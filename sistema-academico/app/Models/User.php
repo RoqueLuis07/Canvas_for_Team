@@ -9,6 +9,7 @@ use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -19,14 +20,30 @@ class User extends Authenticatable implements FilamentUser
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    public function persona(): HasOne
+    {
+        return $this->hasOne(Persona::class);
+    }
+
+    public function isAdminTI(): bool
+    {
+        if ($this->email === 'admin@usil.edu.py') {
+            return true;
+        }
+
+        return $this->persona()
+            ->whereHas('rol', fn ($query) => $query->whereRaw('LOWER(nombre) = ?', ['admin ti']))
+            ->exists();
+    }
+
     /**
-     * Todo usuario del sistema (personal administrativo/académico) puede
-     * acceder al panel — todavía no hay un modelo de roles granular sobre
-     * `users`; eso vive en `Persona::tipo` para postulantes/alumnos/docentes.
+     * El acceso al panel administrativo queda restringido al personal con rol
+     * administrativo institucional. Los usuarios de alumnos/docentes o usuarios
+     * sin rol no pueden ingresar.
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return true;
+        return $this->isAdminTI();
     }
 
     /**
