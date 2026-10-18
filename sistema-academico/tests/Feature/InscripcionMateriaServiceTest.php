@@ -411,4 +411,59 @@ class InscripcionMateriaServiceTest extends TestCase
         $this->assertSame('inscrita', $inscripcionActual->refresh()->estado);
         $this->assertSame($cursoActual->id, $inscripcionActual->curso_id);
     }
+
+    public function test_auditoria_atribuye_el_error_a_teams_cuando_canvas_ya_estaba_al_dia(): void
+    {
+        $plan = PlanEstudio::factory()->create();
+        $materia = Materia::factory()->create(['plan_estudio_id' => $plan->id]);
+        $curso = Curso::factory()->creadoEnCanvasYTeams()->create(['materia_id' => $materia->id, 'cupo_maximo' => null]);
+        $matricula = Matricula::factory()->create([
+            'persona_id' => $this->personaConCuentas()->id,
+            'plan_estudio_id' => $plan->id,
+            'postulacion_id' => null,
+        ]);
+        $inscripcion = $matricula->inscripciones()->create([
+            'curso_id' => $curso->id,
+            'origen' => 'manual',
+            'estado' => 'inscrita',
+            'fecha_inscripcion' => now(),
+            'canvas_enrollment_at' => now(),
+        ]);
+
+        $teamsCaido = new class implements TeamsClient
+        {
+            public function createTeam(string $name): string
+            {
+                return 'x';
+            }
+
+            public function addMember(string $teamsGroupId, string $azureUserId, string $role = 'Member'): void
+            {
+                throw new \RuntimeException('Graph sigue caído');
+            }
+
+            public function removeMember(string $teamsGroupId, string $azureUserId): void {}
+        };
+        $servicio = new InscripcionMateriaService(app(CanvasClient::class), $teamsCaido, app(SincronizacionService::class));
+
+        try {
+            $servicio->inscribirManual($matricula, $curso);
+            $this->fail('Debió fallar por Teams.');
+        } catch (\RuntimeException) {
+            // esperado
+        }
+
+        $this->assertSame(0, LogAuditoria::where('entidad_afectada', "InscripcionMateria#{$inscripcion->id}:canvas")->count());
+
+        $detalleTeams = json_decode(
+            LogAuditoria::where('entidad_afectada', "InscripcionMateria#{$inscripcion->id}:teams")->value('detalle'),
+            true,
+        );
+
+        $this->assertSame('error', $detalleTeams['estado']);
+        $this->assertSame('Graph sigue caído', $detalleTeams['error']);
+        $this->assertSame('inscrita', $detalleTeams['registro']['estado']);
+        $this->assertTrue($detalleTeams['registro']['canvas_al_dia']);
+        $this->assertFalse($detalleTeams['registro']['teams_al_dia']);
+    }
 }

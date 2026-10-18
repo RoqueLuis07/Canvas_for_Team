@@ -22,8 +22,9 @@ class SincronizacionService
      * bien.
      *
      * @param  array<string, array{estado?: string, resultado?: string|null, error?: string|null}>  $plataformas
+     * @param  array<string, mixed>|null  $estadoFinal  Estado del registro al cerrar el intento.
      */
-    public function registrarAuditoriaPorPlataforma(string $accionNombre, string $entidadAfectada, array $plataformas): void
+    public function registrarAuditoriaPorPlataforma(string $accionNombre, string $entidadAfectada, array $plataformas, ?array $estadoFinal = null): void
     {
         $usuario = Auth::user();
 
@@ -36,6 +37,10 @@ class SincronizacionService
 
             if (isset($resultado['error'])) {
                 $detalle['error'] = $resultado['error'];
+            }
+
+            if ($estadoFinal !== null) {
+                $detalle['registro'] = $estadoFinal;
             }
 
             LogAuditoria::create([

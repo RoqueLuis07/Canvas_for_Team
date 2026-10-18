@@ -267,16 +267,19 @@ class InscripcionMateriaService
         }
 
         $resultadosPorPlataforma = [];
+        $plataformaActual = 'canvas';
 
         $this->sincronizacion->ejecutar(
             'matricula', 'inscripcion_alta_plataformas', "InscripcionMateria#{$inscripcion->id}",
-            function () use ($curso, $persona, $inscripcion, &$resultadosPorPlataforma) {
+            function () use ($curso, $persona, $inscripcion, &$resultadosPorPlataforma, &$plataformaActual) {
                 try {
                     if (! $inscripcion->estaAlDiaEnCanvas()) {
                         $this->canvas->enrollUser($curso->canvas_course_id, $persona->canvas_user_id);
                         $inscripcion->update(['canvas_enrollment_at' => now()]);
                         $resultadosPorPlataforma['canvas'] = ['estado' => 'completado', 'resultado' => 'alta_ok'];
                     }
+
+                    $plataformaActual = 'teams';
 
                     if (! $inscripcion->estaAlDiaEnTeams()) {
                         $this->teams->addMember($curso->teams_group_id, $persona->azure_user_id);
@@ -292,8 +295,7 @@ class InscripcionMateriaService
                         $resultadosPorPlataforma['teams'] = ['estado' => 'completado', 'resultado' => 'alta_ok'];
                     }
                 } catch (\Throwable $e) {
-                    $plataforma = isset($resultadosPorPlataforma['canvas']) ? 'teams' : 'canvas';
-                    $resultadosPorPlataforma[$plataforma] = ['estado' => 'error', 'error' => $e->getMessage()];
+                    $resultadosPorPlataforma[$plataformaActual] = ['estado' => 'error', 'error' => $e->getMessage()];
 
                     throw $e;
                 } finally {
@@ -301,6 +303,7 @@ class InscripcionMateriaService
                         'inscripcion_alta_plataformas',
                         "InscripcionMateria#{$inscripcion->id}",
                         $resultadosPorPlataforma,
+                        $this->estadoFinalDe($inscripcion),
                     );
                 }
             },
@@ -313,16 +316,19 @@ class InscripcionMateriaService
         $persona = $inscripcion->matricula->persona;
 
         $resultadosPorPlataforma = [];
+        $plataformaActual = 'canvas';
 
         $this->sincronizacion->ejecutar(
             'baja', 'inscripcion_baja_plataformas', "InscripcionMateria#{$inscripcion->id}",
-            function () use ($curso, $persona, $inscripcion, &$resultadosPorPlataforma) {
+            function () use ($curso, $persona, $inscripcion, &$resultadosPorPlataforma, &$plataformaActual) {
                 try {
                     if ($inscripcion->estaAlDiaEnCanvas() && $persona->canvas_user_id) {
                         $this->canvas->unenrollUser($curso->canvas_course_id, $persona->canvas_user_id);
                         $inscripcion->update(['canvas_enrollment_at' => null]);
                         $resultadosPorPlataforma['canvas'] = ['estado' => 'completado', 'resultado' => 'baja_ok'];
                     }
+
+                    $plataformaActual = 'teams';
 
                     if ($inscripcion->estaAlDiaEnTeams() && $persona->azure_user_id) {
                         $this->teams->removeMember($curso->teams_group_id, $persona->azure_user_id);
@@ -338,8 +344,7 @@ class InscripcionMateriaService
                         $resultadosPorPlataforma['teams'] = ['estado' => 'completado', 'resultado' => 'baja_ok'];
                     }
                 } catch (\Throwable $e) {
-                    $plataforma = isset($resultadosPorPlataforma['canvas']) ? 'teams' : 'canvas';
-                    $resultadosPorPlataforma[$plataforma] = ['estado' => 'error', 'error' => $e->getMessage()];
+                    $resultadosPorPlataforma[$plataformaActual] = ['estado' => 'error', 'error' => $e->getMessage()];
 
                     throw $e;
                 } finally {
@@ -347,9 +352,25 @@ class InscripcionMateriaService
                         'inscripcion_baja_plataformas',
                         "InscripcionMateria#{$inscripcion->id}",
                         $resultadosPorPlataforma,
+                        $this->estadoFinalDe($inscripcion),
                     );
                 }
             },
         );
+    }
+
+    /**
+     * Foto del registro al terminar el intento, para que la auditoría
+     * muestre en qué quedó la inscripción aunque una plataforma haya fallado.
+     *
+     * @return array<string, mixed>
+     */
+    protected function estadoFinalDe(InscripcionMateria $inscripcion): array
+    {
+        return [
+            'estado' => $inscripcion->estado,
+            'canvas_al_dia' => $inscripcion->estaAlDiaEnCanvas(),
+            'teams_al_dia' => $inscripcion->estaAlDiaEnTeams(),
+        ];
     }
 }
