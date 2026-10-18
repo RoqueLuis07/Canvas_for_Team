@@ -111,27 +111,71 @@ class CursoService
         return $this->sincronizacion->ejecutar(
             'alta_usuario', 'docente_asignado', "Curso#{$curso->id}",
             function () use ($curso, $docente) {
+                $resultadosPorPlataforma = [];
+                $plataformaActual = 'canvas';
+
                 try {
-                    $this->canvas->enrollUser($curso->canvas_course_id, $docente->canvas_user_id, 'TeacherEnrollment');
-                    $this->teams->addMember($curso->teams_group_id, $docente->azure_user_id, 'Owner');
-                } catch (\Throwable $e) {
-                    throw new CursoException("No se pudo asignar al docente en Canvas/Teams: {$e->getMessage()}", previous: $e);
-                }
+                    $mismaAsignacion = $curso->docente_persona_id === $docente->id;
 
-                $curso->update([
-                    'docente_persona_id' => $docente->id,
-                    'docente_canvas_at' => now(),
-                    'docente_teams_at' => now(),
-                ]);
+                    if (! $mismaAsignacion || ! $curso->docenteEstaAlDiaEnCanvas()) {
+                        try {
+                            $this->canvas->enrollUser($curso->canvas_course_id, $docente->canvas_user_id, 'TeacherEnrollment');
+                        } catch (\Throwable $e) {
+                            $resultadosPorPlataforma['canvas'] = ['estado' => 'error', 'error' => $e->getMessage()];
 
-                if ($curso->equipoTeams) {
-                    MiembroEquipo::updateOrCreate(
-                        ['equipo_id' => $curso->equipoTeams->id, 'persona_id' => $docente->id],
-                        ['rol_teams' => 'Owner', 'fecha_alta' => now()],
+                            throw new CursoException("No se pudo asignar al docente en Canvas: {$e->getMessage()}", previous: $e);
+                        }
+
+                        $curso->update([
+                            'docente_persona_id' => $docente->id,
+                            'docente_canvas_at' => now(),
+                            'docente_teams_at' => $mismaAsignacion ? $curso->docente_teams_at : null,
+                        ]);
+                        $resultadosPorPlataforma['canvas'] = ['estado' => 'completado', 'resultado' => 'asignacion_ok'];
+                    } else {
+                        $resultadosPorPlataforma['canvas'] = ['estado' => 'completado', 'resultado' => 'ya_al_dia'];
+                    }
+
+                    $plataformaActual = 'teams';
+
+                    if (! $mismaAsignacion || ! $curso->docenteEstaAlDiaEnTeams()) {
+                        try {
+                            $this->teams->addMember($curso->teams_group_id, $docente->azure_user_id, 'Owner');
+                        } catch (\Throwable $e) {
+                            $resultadosPorPlataforma['teams'] = ['estado' => 'error', 'error' => $e->getMessage()];
+
+                            throw new CursoException("No se pudo asignar al docente en Teams: {$e->getMessage()}", previous: $e);
+                        }
+
+                        $curso->update([
+                            'docente_persona_id' => $docente->id,
+                            'docente_teams_at' => now(),
+                        ]);
+                        $resultadosPorPlataforma['teams'] = ['estado' => 'completado', 'resultado' => 'asignacion_ok'];
+                    } else {
+                        $resultadosPorPlataforma['teams'] = ['estado' => 'completado', 'resultado' => 'ya_al_dia'];
+                    }
+
+                    if ($curso->equipoTeams) {
+                        MiembroEquipo::updateOrCreate(
+                            ['equipo_id' => $curso->equipoTeams->id, 'persona_id' => $docente->id],
+                            ['rol_teams' => 'Owner', 'fecha_alta' => now()],
+                        );
+                    }
+
+                    return $curso->refresh();
+                } finally {
+                    $this->sincronizacion->registrarAuditoriaPorPlataforma(
+                        'docente_asignado',
+                        "Curso#{$curso->id}",
+                        $resultadosPorPlataforma,
+                        [
+                            'docente_persona_id' => $curso->fresh()->docente_persona_id,
+                            'canvas_al_dia' => $curso->fresh()->docenteEstaAlDiaEnCanvas(),
+                            'teams_al_dia' => $curso->fresh()->docenteEstaAlDiaEnTeams(),
+                        ],
                     );
                 }
-
-                return $curso->refresh();
             },
         );
     }
