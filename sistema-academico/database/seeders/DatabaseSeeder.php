@@ -47,6 +47,15 @@ class DatabaseSeeder extends Seeder
         $rolDocente = Rol::factory()->create(['nombre' => 'Docente', 'descripcion' => 'Docente titular de uno o más cursos.']);
         $rolEstudiante = Rol::factory()->create(['nombre' => 'Estudiante', 'descripcion' => 'Alumno matriculado en la institución.']);
 
+        Persona::factory()->create([
+            'user_id' => $admin->id,
+            'rol_id' => $rolAdminTi->id,
+            'nombre_completo' => $admin->name,
+            'email_institucional' => $admin->email,
+            'tipo' => 'administrativo',
+            'estado' => 'activo',
+        ]);
+
         $subcuenta = Subcuenta::factory()->create([
             'canvas_account_id' => 1001,
             'nombre' => 'Facultad de Ingeniería',

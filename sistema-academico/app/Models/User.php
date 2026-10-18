@@ -27,11 +27,8 @@ class User extends Authenticatable implements FilamentUser
 
     public function isAdminTI(): bool
     {
-        if ($this->email === 'admin@usil.edu.py') {
-            return true;
-        }
-
         return $this->persona()
+            ->where('estado', 'activo')
             ->whereHas('rol', fn ($query) => $query->whereRaw('LOWER(nombre) = ?', ['admin ti']))
             ->exists();
     }

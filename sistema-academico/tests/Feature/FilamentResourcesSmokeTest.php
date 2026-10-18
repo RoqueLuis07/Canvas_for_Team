@@ -25,6 +25,29 @@ class FilamentResourcesSmokeTest extends TestCase
         $this->get('/admin')->assertStatus(403);
     }
 
+    public function test_admin_email_without_admin_role_cannot_access_panel(): void
+    {
+        $this->actingAs(User::factory()->create(['email' => 'admin@usil.edu.py']));
+
+        $this->get('/admin')->assertStatus(403);
+    }
+
+    public function test_inactive_admin_person_cannot_access_panel(): void
+    {
+        $adminRole = Rol::factory()->create(['nombre' => 'Admin TI']);
+        $adminUser = User::factory()->create();
+        Persona::factory()->create([
+            'user_id' => $adminUser->id,
+            'rol_id' => $adminRole->id,
+            'tipo' => 'administrativo',
+            'estado' => 'inactivo',
+        ]);
+
+        $this->actingAs($adminUser);
+
+        $this->get('/admin')->assertStatus(403);
+    }
+
     #[DataProvider('resourceIndexUrls')]
     public function test_resource_index_requires_auth_for_admin_then_loads(string $url): void
     {
