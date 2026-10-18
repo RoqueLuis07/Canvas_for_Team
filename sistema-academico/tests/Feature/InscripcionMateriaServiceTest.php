@@ -7,6 +7,8 @@ use App\Contracts\TeamsClient;
 use App\Exceptions\InscripcionMateriaException;
 use App\Models\Curso;
 use App\Models\InscripcionMateria;
+use App\Models\JobSincronizacion;
+use App\Models\LogAuditoria;
 use App\Models\Materia;
 use App\Models\Matricula;
 use App\Models\PeriodoAcademico;
@@ -188,6 +190,18 @@ class InscripcionMateriaServiceTest extends TestCase
         }
 
         $this->assertSame(1, InscripcionMateria::count());
+        $this->assertSame('error', JobSincronizacion::latest('id')->value('estado'));
+
+        $logsPorPlataforma = LogAuditoria::query()
+            ->where('entidad_afectada', 'like', 'InscripcionMateria#%:%')
+            ->pluck('detalle', 'entidad_afectada');
+
+        $this->assertStringContainsString('"estado":"completado"', $logsPorPlataforma->first(
+            fn (string $detalle, string $entidad) => str_ends_with($entidad, ':canvas'),
+        ));
+        $this->assertStringContainsString('Graph caído', $logsPorPlataforma->first(
+            fn (string $detalle, string $entidad) => str_ends_with($entidad, ':teams'),
+        ));
 
         $inscripcion = $this->service->inscribirManual($matricula, $curso);
 
@@ -271,6 +285,82 @@ class InscripcionMateriaServiceTest extends TestCase
         $this->assertSame('retirada', $inscripcion->estado);
         $this->assertFalse($inscripcion->estaAlDiaEnCanvas());
         $this->assertFalse($inscripcion->estaAlDiaEnTeams());
+    }
+
+    public function test_reintenta_solo_la_baja_pendiente_y_audita_el_fallo_por_plataforma(): void
+    {
+        $plan = PlanEstudio::factory()->create();
+        $materia = Materia::factory()->create(['plan_estudio_id' => $plan->id]);
+        $curso = Curso::factory()->creadoEnCanvasYTeams()->create(['materia_id' => $materia->id, 'cupo_maximo' => null]);
+        $matricula = Matricula::factory()->create([
+            'persona_id' => $this->personaConCuentas()->id,
+            'plan_estudio_id' => $plan->id,
+            'postulacion_id' => null,
+        ]);
+        $inscripcion = $this->service->inscribirManual($matricula, $curso);
+
+        $canvas = new class implements CanvasClient
+        {
+            public int $bajas = 0;
+
+            public function createCourse(string $name, string $sisCourseId): string
+            {
+                return 'x';
+            }
+
+            public function enrollUser(string $canvasCourseId, string $canvasUserId, string $role = 'StudentEnrollment'): void {}
+
+            public function unenrollUser(string $canvasCourseId, string $canvasUserId): void
+            {
+                $this->bajas++;
+            }
+
+            public function createPage(string $canvasCourseId, string $title, string $body): string
+            {
+                return 'x';
+            }
+        };
+        $teamsCaido = new class implements TeamsClient
+        {
+            public function createTeam(string $name): string
+            {
+                return 'x';
+            }
+
+            public function addMember(string $teamsGroupId, string $azureUserId, string $role = 'Member'): void {}
+
+            public function removeMember(string $teamsGroupId, string $azureUserId): void
+            {
+                throw new \RuntimeException('Graph caído al dar de baja');
+            }
+        };
+        $servicioConFalla = new InscripcionMateriaService($canvas, $teamsCaido, app(SincronizacionService::class));
+
+        try {
+            $servicioConFalla->darDeBaja($inscripcion);
+            $this->fail('Debió fallar por Teams.');
+        } catch (\RuntimeException) {
+            // esperado
+        }
+
+        $inscripcion->refresh();
+        $this->assertFalse($inscripcion->estaAlDiaEnCanvas());
+        $this->assertTrue($inscripcion->estaAlDiaEnTeams());
+        $this->assertSame(1, $canvas->bajas);
+        $this->assertSame('error', JobSincronizacion::latest('id')->value('estado'));
+        $this->assertStringContainsString(
+            'Graph caído al dar de baja',
+            LogAuditoria::where('entidad_afectada', "InscripcionMateria#{$inscripcion->id}:teams")
+                ->latest('id')
+                ->value('detalle'),
+        );
+
+        $inscripcion = $this->service->darDeBaja($inscripcion);
+
+        $this->assertSame('retirada', $inscripcion->estado);
+        $this->assertFalse($inscripcion->estaAlDiaEnCanvas());
+        $this->assertFalse($inscripcion->estaAlDiaEnTeams());
+        $this->assertSame(1, $canvas->bajas);
     }
 
     public function test_cambiar_materia_da_de_baja_la_actual_e_inscribe_en_la_nueva(): void
