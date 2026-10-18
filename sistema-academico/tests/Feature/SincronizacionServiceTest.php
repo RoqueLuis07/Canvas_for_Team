@@ -62,4 +62,23 @@ class SincronizacionServiceTest extends TestCase
             $this->assertStringContainsString('falló la sincronización', $log->detalle);
         }
     }
+
+    public function test_registra_logs_individuales_por_plataforma(): void
+    {
+        $usuario = User::factory()->create();
+        $this->actingAs($usuario);
+
+        $this->service->registrarAuditoriaPorPlataforma('inscripcion_alta_plataformas', 'InscripcionMateria#10', [
+            'canvas' => ['estado' => 'completado', 'resultado' => 'alta_ok'],
+            'teams' => ['estado' => 'error', 'error' => 'Graph caído'],
+        ]);
+
+        $logs = LogAuditoria::orderBy('id')->get();
+
+        $this->assertCount(2, $logs);
+        $this->assertSame('InscripcionMateria#10:canvas', $logs[0]->entidad_afectada);
+        $this->assertStringContainsString('"plataforma":"canvas"', $logs[0]->detalle);
+        $this->assertStringContainsString('"plataforma":"teams"', $logs[1]->detalle);
+        $this->assertStringContainsString('Graph caído', $logs[1]->detalle);
+    }
 }

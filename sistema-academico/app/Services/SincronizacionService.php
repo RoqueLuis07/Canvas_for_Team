@@ -17,6 +17,38 @@ use Throwable;
 class SincronizacionService
 {
     /**
+     * Registra un log de auditoría por plataforma, con estado y resultado
+     * para que el historial muestre claramente si Canvas/Teams falló o terminó
+     * bien.
+     *
+     * @param  array<string, array{estado?: string, resultado?: string|null, error?: string|null}>  $plataformas
+     */
+    public function registrarAuditoriaPorPlataforma(string $accionNombre, string $entidadAfectada, array $plataformas): void
+    {
+        $usuario = Auth::user();
+
+        foreach ($plataformas as $plataforma => $resultado) {
+            $detalle = [
+                'plataforma' => $plataforma,
+                'estado' => $resultado['estado'] ?? 'completado',
+                'resultado' => $resultado['resultado'] ?? null,
+            ];
+
+            if (isset($resultado['error'])) {
+                $detalle['error'] = $resultado['error'];
+            }
+
+            LogAuditoria::create([
+                'usuario_id' => $usuario?->id,
+                'accion' => $accionNombre,
+                'entidad_afectada' => $entidadAfectada.':'.$plataforma,
+                'detalle' => json_encode($detalle, JSON_UNESCAPED_UNICODE),
+                'fecha' => now(),
+            ]);
+        }
+    }
+
+    /**
      * @template TReturn
      *
      * @param  \Closure(): TReturn  $accion

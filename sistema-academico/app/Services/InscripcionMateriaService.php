@@ -266,25 +266,46 @@ class InscripcionMateriaService
             );
         }
 
+        $resultadosPorPlataforma = [];
+
         $this->sincronizacion->ejecutar(
             'matricula', 'inscripcion_alta_plataformas', "InscripcionMateria#{$inscripcion->id}",
-            function () use ($curso, $persona, $inscripcion) {
+            function () use ($curso, $persona, $inscripcion, &$resultadosPorPlataforma) {
                 if (! $inscripcion->estaAlDiaEnCanvas()) {
-                    $this->canvas->enrollUser($curso->canvas_course_id, $persona->canvas_user_id);
-                    $inscripcion->update(['canvas_enrollment_at' => now()]);
+                    try {
+                        $this->canvas->enrollUser($curso->canvas_course_id, $persona->canvas_user_id);
+                        $inscripcion->update(['canvas_enrollment_at' => now()]);
+                        $resultadosPorPlataforma['canvas'] = ['estado' => 'completado', 'resultado' => 'alta_ok'];
+                    } catch (\Throwable $e) {
+                        $resultadosPorPlataforma['canvas'] = ['estado' => 'error', 'error' => $e->getMessage()];
+                        throw $e;
+                    }
                 }
 
                 if (! $inscripcion->estaAlDiaEnTeams()) {
-                    $this->teams->addMember($curso->teams_group_id, $persona->azure_user_id);
-                    $inscripcion->update(['teams_enrollment_at' => now()]);
+                    try {
+                        $this->teams->addMember($curso->teams_group_id, $persona->azure_user_id);
+                        $inscripcion->update(['teams_enrollment_at' => now()]);
 
-                    if ($curso->equipoTeams) {
-                        MiembroEquipo::updateOrCreate(
-                            ['equipo_id' => $curso->equipoTeams->id, 'persona_id' => $persona->id],
-                            ['rol_teams' => 'Member', 'fecha_alta' => now()],
-                        );
+                        if ($curso->equipoTeams) {
+                            MiembroEquipo::updateOrCreate(
+                                ['equipo_id' => $curso->equipoTeams->id, 'persona_id' => $persona->id],
+                                ['rol_teams' => 'Member', 'fecha_alta' => now()],
+                            );
+                        }
+
+                        $resultadosPorPlataforma['teams'] = ['estado' => 'completado', 'resultado' => 'alta_ok'];
+                    } catch (\Throwable $e) {
+                        $resultadosPorPlataforma['teams'] = ['estado' => 'error', 'error' => $e->getMessage()];
+                        throw $e;
                     }
                 }
+
+                $this->sincronizacion->registrarAuditoriaPorPlataforma(
+                    'inscripcion_alta_plataformas',
+                    "InscripcionMateria#{$inscripcion->id}",
+                    $resultadosPorPlataforma,
+                );
             },
         );
     }
@@ -294,25 +315,46 @@ class InscripcionMateriaService
         $curso = $inscripcion->curso;
         $persona = $inscripcion->matricula->persona;
 
+        $resultadosPorPlataforma = [];
+
         $this->sincronizacion->ejecutar(
             'baja', 'inscripcion_baja_plataformas', "InscripcionMateria#{$inscripcion->id}",
-            function () use ($curso, $persona, $inscripcion) {
+            function () use ($curso, $persona, $inscripcion, &$resultadosPorPlataforma) {
                 if ($inscripcion->estaAlDiaEnCanvas() && $persona->canvas_user_id) {
-                    $this->canvas->unenrollUser($curso->canvas_course_id, $persona->canvas_user_id);
+                    try {
+                        $this->canvas->unenrollUser($curso->canvas_course_id, $persona->canvas_user_id);
+                        $resultadosPorPlataforma['canvas'] = ['estado' => 'completado', 'resultado' => 'baja_ok'];
+                    } catch (\Throwable $e) {
+                        $resultadosPorPlataforma['canvas'] = ['estado' => 'error', 'error' => $e->getMessage()];
+                        throw $e;
+                    }
                 }
 
                 if ($inscripcion->estaAlDiaEnTeams() && $persona->azure_user_id) {
-                    $this->teams->removeMember($curso->teams_group_id, $persona->azure_user_id);
+                    try {
+                        $this->teams->removeMember($curso->teams_group_id, $persona->azure_user_id);
 
-                    if ($curso->equipoTeams) {
-                        MiembroEquipo::where('equipo_id', $curso->equipoTeams->id)
-                            ->where('persona_id', $persona->id)
-                            ->where('rol_teams', 'Member')
-                            ->delete();
+                        if ($curso->equipoTeams) {
+                            MiembroEquipo::where('equipo_id', $curso->equipoTeams->id)
+                                ->where('persona_id', $persona->id)
+                                ->where('rol_teams', 'Member')
+                                ->delete();
+                        }
+
+                        $resultadosPorPlataforma['teams'] = ['estado' => 'completado', 'resultado' => 'baja_ok'];
+                    } catch (\Throwable $e) {
+                        $resultadosPorPlataforma['teams'] = ['estado' => 'error', 'error' => $e->getMessage()];
+                        throw $e;
                     }
                 }
 
                 $inscripcion->update(['canvas_enrollment_at' => null, 'teams_enrollment_at' => null]);
+
+                $this->sincronizacion->registrarAuditoriaPorPlataforma(
+                    'inscripcion_baja_plataformas',
+                    "InscripcionMateria#{$inscripcion->id}",
+                    $resultadosPorPlataforma,
+                );
             },
         );
     }
