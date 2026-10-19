@@ -258,6 +258,68 @@ class InscripcionMateriaServiceTest extends TestCase
         $this->assertTrue($inscripciones->every(fn ($i) => $i->estaAlDiaEnCanvas() && $i->estaAlDiaEnTeams()));
     }
 
+    public function test_predefinidas_reactiva_una_materia_retirada_del_alumno_nuevo(): void
+    {
+        $plan = PlanEstudio::factory()->create();
+        $periodo = PeriodoAcademico::factory()->create();
+        $materia = Materia::factory()->primerSemestre()->create(['plan_estudio_id' => $plan->id]);
+        Curso::factory()->creadoEnCanvasYTeams()->create([
+            'materia_id' => $materia->id,
+            'periodo_academico_id' => $periodo->id,
+        ]);
+
+        $matricula = Matricula::factory()->create([
+            'persona_id' => $this->personaConCuentas()->id,
+            'plan_estudio_id' => $plan->id,
+            'periodo_academico_id' => $periodo->id,
+            'postulacion_id' => Postulacion::factory()->admitido()->create()->id,
+        ]);
+
+        $primera = $this->service->inscribirPredefinidasAlumnoNuevo($matricula)->sole();
+        $this->service->darDeBaja($primera);
+
+        $segunda = $this->service->inscribirPredefinidasAlumnoNuevo($matricula)->sole();
+
+        $this->assertSame($primera->id, $segunda->id);
+        $this->assertSame('inscrita', $segunda->estado);
+        $this->assertTrue($segunda->estaAlDiaEnCanvas());
+        $this->assertTrue($segunda->estaAlDiaEnTeams());
+        $this->assertSame(1, InscripcionMateria::count());
+    }
+
+    public function test_predefinidas_no_pisa_una_inscripcion_ya_aprobada(): void
+    {
+        $plan = PlanEstudio::factory()->create();
+        $periodo = PeriodoAcademico::factory()->create();
+        $materia = Materia::factory()->primerSemestre()->create(['plan_estudio_id' => $plan->id]);
+        $curso = Curso::factory()->creadoEnCanvasYTeams()->create([
+            'materia_id' => $materia->id,
+            'periodo_academico_id' => $periodo->id,
+        ]);
+
+        $matricula = Matricula::factory()->create([
+            'persona_id' => $this->personaConCuentas()->id,
+            'plan_estudio_id' => $plan->id,
+            'periodo_academico_id' => $periodo->id,
+            'postulacion_id' => Postulacion::factory()->admitido()->create()->id,
+        ]);
+        $aprobada = $matricula->inscripciones()->create([
+            'curso_id' => $curso->id,
+            'origen' => 'predefinida',
+            'estado' => 'aprobada',
+            'fecha_inscripcion' => now()->subMonth(),
+            'canvas_enrollment_at' => now()->subMonth(),
+            'teams_enrollment_at' => now()->subMonth(),
+        ]);
+
+        $this->service->inscribirPredefinidasAlumnoNuevo($matricula);
+
+        $aprobada->refresh();
+        $this->assertSame('aprobada', $aprobada->estado);
+        $this->assertTrue($aprobada->estaAlDiaEnCanvas());
+        $this->assertTrue($aprobada->estaAlDiaEnTeams());
+    }
+
     public function test_alumno_que_continua_no_puede_recibir_cursos_predefinidos(): void
     {
         $plan = PlanEstudio::factory()->create();
@@ -285,6 +347,32 @@ class InscripcionMateriaServiceTest extends TestCase
         $this->assertSame('retirada', $inscripcion->estado);
         $this->assertFalse($inscripcion->estaAlDiaEnCanvas());
         $this->assertFalse($inscripcion->estaAlDiaEnTeams());
+    }
+
+    public function test_reinscribir_tras_una_baja_reactiva_la_misma_fila_y_vuelve_a_dar_de_alta_en_plataformas(): void
+    {
+        $plan = PlanEstudio::factory()->create();
+        $materia = Materia::factory()->create(['plan_estudio_id' => $plan->id]);
+        $curso = Curso::factory()->creadoEnCanvasYTeams()->create(['materia_id' => $materia->id, 'cupo_maximo' => 1]);
+        $matricula = Matricula::factory()->create([
+            'persona_id' => $this->personaConCuentas()->id,
+            'plan_estudio_id' => $plan->id,
+            'postulacion_id' => null,
+        ]);
+
+        $inscripcion = $this->service->inscribirManual($matricula, $curso);
+        $this->service->darDeBaja($inscripcion);
+
+        // El cupo se libera al retirarse y la fila única se reactiva: no se
+        // inserta una segunda inscripción para la misma materia.
+        $reactivada = $this->service->inscribirManual($matricula, $curso);
+
+        $this->assertSame($inscripcion->id, $reactivada->id);
+        $this->assertSame('inscrita', $reactivada->estado);
+        $this->assertSame('manual', $reactivada->origen);
+        $this->assertTrue($reactivada->estaAlDiaEnCanvas());
+        $this->assertTrue($reactivada->estaAlDiaEnTeams());
+        $this->assertSame(1, InscripcionMateria::count());
     }
 
     public function test_reintenta_solo_la_baja_pendiente_y_audita_el_fallo_por_plataforma(): void

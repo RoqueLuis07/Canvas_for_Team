@@ -63,13 +63,9 @@ class InscripcionMateriaService
         $this->assertCupoDisponible($curso);
         $this->assertNoInscritoAun($matricula, $curso);
 
-        $inscripcion = DB::transaction(fn () => InscripcionMateria::create([
-            'matricula_id' => $matricula->id,
-            'curso_id' => $curso->id,
-            'origen' => 'manual',
-            'estado' => 'inscrita',
-            'fecha_inscripcion' => now(),
-        ]));
+        $inscripcion = DB::transaction(
+            fn () => $this->crearOReactivarInscripcion($matricula, $curso, 'manual'),
+        );
 
         $this->altaEnPlataformas($matricula, $curso, $inscripcion);
 
@@ -106,10 +102,7 @@ class InscripcionMateriaService
         return $cursosPrimerSemestre->map(function (Curso $curso) use ($matricula) {
             $this->assertCursoListoParaMatricular($curso);
 
-            $inscripcion = InscripcionMateria::firstOrCreate(
-                ['matricula_id' => $matricula->id, 'curso_id' => $curso->id],
-                ['origen' => 'predefinida', 'estado' => 'inscrita', 'fecha_inscripcion' => now()],
-            );
+            $inscripcion = $this->crearOReactivarInscripcion($matricula, $curso, 'predefinida');
 
             $this->altaEnPlataformas($matricula, $curso, $inscripcion);
 
@@ -160,6 +153,46 @@ class InscripcionMateriaService
             ->where('estado', 'inscrita')
             ->where(fn ($q) => $q->whereNull('canvas_enrollment_at')->orWhereNull('teams_enrollment_at'))
             ->first();
+    }
+
+    /**
+     * El índice único (matrícula, curso) impide insertar una segunda fila
+     * para la misma materia. Si el alumno ya cursó esa materia y la dio de
+     * baja, la fila quedó en 'retirada': se reactiva en vez de duplicarla y
+     * se limpian los sellos de plataforma para que el alta vuelva a correr
+     * en Canvas y Teams.
+     *
+     * Una inscripción en cualquier otro estado (por ejemplo 'aprobada') se
+     * devuelve intacta: nunca se pisa una calificación ya registrada.
+     */
+    protected function crearOReactivarInscripcion(Matricula $matricula, Curso $curso, string $origen): InscripcionMateria
+    {
+        $existente = InscripcionMateria::query()
+            ->where('matricula_id', $matricula->id)
+            ->where('curso_id', $curso->id)
+            ->first();
+
+        if ($existente === null) {
+            return InscripcionMateria::create([
+                'matricula_id' => $matricula->id,
+                'curso_id' => $curso->id,
+                'origen' => $origen,
+                'estado' => 'inscrita',
+                'fecha_inscripcion' => now(),
+            ]);
+        }
+
+        if ($existente->estado === 'retirada') {
+            $existente->update([
+                'origen' => $origen,
+                'estado' => 'inscrita',
+                'fecha_inscripcion' => now(),
+                'canvas_enrollment_at' => null,
+                'teams_enrollment_at' => null,
+            ]);
+        }
+
+        return $existente->refresh();
     }
 
     /**
