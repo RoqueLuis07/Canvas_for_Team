@@ -1,0 +1,91 @@
+<?php
+
+namespace App\Providers\Filament;
+
+use App\Filament\Pages\Auth\Login;
+use App\Http\Middleware\SetFilamentLocale;
+use Filament\Enums\ThemeMode;
+use Filament\FontProviders\LocalFontProvider;
+use Filament\Http\Middleware\Authenticate;
+use Filament\Http\Middleware\AuthenticateSession;
+use Filament\Http\Middleware\DisableBladeIconComponents;
+use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationGroup;
+use Filament\Pages;
+use Filament\Panel;
+use Filament\PanelProvider;
+use Filament\Support\Colors\Color;
+use Filament\Widgets;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Session\Middleware\StartSession;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
+
+class AdminPanelProvider extends PanelProvider
+{
+    public function panel(Panel $panel): Panel
+    {
+        return $panel
+            ->default()
+            ->id('admin')
+            ->path('admin')
+            ->brandName('Sistema Académico USIL')
+            ->brandLogo(asset('images/brand/usil-logo-blue.png'))
+            ->darkModeBrandLogo(asset('images/brand/usil-logo-white.png'))
+            ->brandLogoHeight('4.5rem')
+            ->login(Login::class)
+            ->defaultThemeMode(ThemeMode::Light)
+            ->font('system-ui', provider: LocalFontProvider::class)
+            ->colors([
+                'primary' => Color::hex('#1946B9'),
+            ])
+            ->theme(asset('css/filament/admin/theme.css'))
+            ->sidebarCollapsibleOnDesktop()
+            ->breadcrumbs()
+            ->unsavedChangesAlerts()
+            ->navigationGroups([
+                NavigationGroup::make('Identidad académica')
+                    ->icon('heroicon-o-identification')
+                    ->collapsible(),
+                NavigationGroup::make('Oferta académica')
+                    ->icon('heroicon-o-academic-cap')
+                    ->collapsible(),
+                NavigationGroup::make('Matriculación')
+                    ->icon('heroicon-o-clipboard-document-check')
+                    ->collapsible(),
+                NavigationGroup::make('Canvas ↔ Teams')
+                    ->icon('heroicon-o-arrows-right-left')
+                    ->collapsible(),
+                NavigationGroup::make('Auditoría')
+                    ->icon('heroicon-o-clipboard-document-list')
+                    ->collapsible(),
+            ])
+            ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
+            ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
+            ->pages([
+                Pages\Dashboard::class,
+            ])
+            ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
+            ->widgets([
+                Widgets\AccountWidget::class,
+                Widgets\FilamentInfoWidget::class,
+            ])
+            ->middleware([
+                SetFilamentLocale::class,
+                EncryptCookies::class,
+                AddQueuedCookiesToResponse::class,
+                StartSession::class,
+                AuthenticateSession::class,
+                ShareErrorsFromSession::class,
+                VerifyCsrfToken::class,
+                SubstituteBindings::class,
+                DisableBladeIconComponents::class,
+                DispatchServingFilamentEvent::class,
+            ])
+            ->authMiddleware([
+                Authenticate::class,
+            ]);
+    }
+}

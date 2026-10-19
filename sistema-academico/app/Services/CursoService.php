@@ -1,0 +1,182 @@
+<?php
+
+namespace App\Services;
+
+use App\Contracts\CanvasClient;
+use App\Contracts\TeamsClient;
+use App\Exceptions\CursoException;
+use App\Models\Curso;
+use App\Models\EquipoTeams;
+use App\Models\MiembroEquipo;
+use App\Models\Persona;
+
+/**
+ * "Asignación de curso": convierte la oferta de una Materia en un Período
+ * (un Curso, todavía solo un registro académico) en un curso real de Canvas
+ * y un equipo real de Teams. Es el paso que el Departamento Académico
+ * dispara antes de poder matricular alumnos en él.
+ */
+class CursoService
+{
+    public function __construct(
+        protected CanvasClient $canvas,
+        protected TeamsClient $teams,
+        protected SincronizacionService $sincronizacion,
+    ) {}
+
+    /**
+     * @throws CursoException
+     */
+    public function crearEnCanvas(Curso $curso): Curso
+    {
+        if ($curso->estaCreadoEnCanvas()) {
+            return $curso;
+        }
+
+        $materia = $curso->materia;
+        $sisCourseId = "{$materia->codigo}-{$curso->periodo_academico_id}";
+
+        return $this->sincronizacion->ejecutar(
+            'crear_curso', 'curso_creado_canvas', "Curso#{$curso->id}",
+            function () use ($curso, $materia, $sisCourseId) {
+                try {
+                    $canvasCourseId = $this->canvas->createCourse($materia->nombre, $sisCourseId);
+                } catch (\Throwable $e) {
+                    throw new CursoException("No se pudo crear el curso en Canvas: {$e->getMessage()}", previous: $e);
+                }
+
+                $curso->update(['canvas_course_id' => $canvasCourseId]);
+
+                return $curso->refresh();
+            },
+        );
+    }
+
+    /**
+     * @throws CursoException
+     */
+    public function crearEnTeams(Curso $curso): Curso
+    {
+        if ($curso->estaCreadoEnTeams()) {
+            return $curso;
+        }
+
+        return $this->sincronizacion->ejecutar(
+            'crear_team', 'team_creado_teams', "Curso#{$curso->id}",
+            function () use ($curso) {
+                try {
+                    $teamsGroupId = $this->teams->createTeam($curso->materia->nombre);
+                } catch (\Throwable $e) {
+                    throw new CursoException("No se pudo crear el equipo en Teams: {$e->getMessage()}", previous: $e);
+                }
+
+                $curso->update(['teams_group_id' => $teamsGroupId]);
+
+                EquipoTeams::create([
+                    'teams_group_id' => $teamsGroupId,
+                    'curso_id' => $curso->id,
+                    'nombre' => $curso->materia->nombre,
+                    'visibilidad' => 'Private',
+                    'fecha_creacion' => now(),
+                ]);
+
+                return $curso->refresh();
+            },
+        );
+    }
+
+    /**
+     * Asigna a un docente como titular del Curso: lo matricula como
+     * profesor en Canvas y como propietario del equipo en Teams. El Curso
+     * debe estar ya creado en ambas plataformas.
+     *
+     * @throws CursoException
+     */
+    public function asignarDocente(Curso $curso, Persona $docente): Curso
+    {
+        if ($docente->tipo !== 'docente') {
+            throw new CursoException("{$docente->nombre_completo} no está registrado como docente.");
+        }
+
+        if (! $curso->estaCreadoEnCanvas() || ! $curso->estaCreadoEnTeams()) {
+            throw new CursoException(
+                "El curso \"{$curso->materia->nombre}\" todavía no fue creado en Canvas y Teams — asignalo antes de designar al docente."
+            );
+        }
+
+        if (! $docente->canvas_user_id || ! $docente->azure_user_id) {
+            throw new CursoException("{$docente->nombre_completo} todavía no tiene cuenta institucional (Canvas/Teams) creada.");
+        }
+
+        return $this->sincronizacion->ejecutar(
+            'alta_usuario', 'docente_asignado', "Curso#{$curso->id}",
+            function () use ($curso, $docente) {
+                $resultadosPorPlataforma = [];
+                $plataformaActual = 'canvas';
+
+                try {
+                    $mismaAsignacion = $curso->docente_persona_id === $docente->id;
+
+                    if (! $mismaAsignacion || ! $curso->docenteEstaAlDiaEnCanvas()) {
+                        try {
+                            $this->canvas->enrollUser($curso->canvas_course_id, $docente->canvas_user_id, 'TeacherEnrollment');
+                        } catch (\Throwable $e) {
+                            $resultadosPorPlataforma['canvas'] = ['estado' => 'error', 'error' => $e->getMessage()];
+
+                            throw new CursoException("No se pudo asignar al docente en Canvas: {$e->getMessage()}", previous: $e);
+                        }
+
+                        $curso->update([
+                            'docente_persona_id' => $docente->id,
+                            'docente_canvas_at' => now(),
+                            'docente_teams_at' => $mismaAsignacion ? $curso->docente_teams_at : null,
+                        ]);
+                        $resultadosPorPlataforma['canvas'] = ['estado' => 'completado', 'resultado' => 'asignacion_ok'];
+                    } else {
+                        $resultadosPorPlataforma['canvas'] = ['estado' => 'completado', 'resultado' => 'ya_al_dia'];
+                    }
+
+                    $plataformaActual = 'teams';
+
+                    if (! $mismaAsignacion || ! $curso->docenteEstaAlDiaEnTeams()) {
+                        try {
+                            $this->teams->addMember($curso->teams_group_id, $docente->azure_user_id, 'Owner');
+                        } catch (\Throwable $e) {
+                            $resultadosPorPlataforma['teams'] = ['estado' => 'error', 'error' => $e->getMessage()];
+
+                            throw new CursoException("No se pudo asignar al docente en Teams: {$e->getMessage()}", previous: $e);
+                        }
+
+                        $curso->update([
+                            'docente_persona_id' => $docente->id,
+                            'docente_teams_at' => now(),
+                        ]);
+                        $resultadosPorPlataforma['teams'] = ['estado' => 'completado', 'resultado' => 'asignacion_ok'];
+                    } else {
+                        $resultadosPorPlataforma['teams'] = ['estado' => 'completado', 'resultado' => 'ya_al_dia'];
+                    }
+
+                    if ($curso->equipoTeams) {
+                        MiembroEquipo::updateOrCreate(
+                            ['equipo_id' => $curso->equipoTeams->id, 'persona_id' => $docente->id],
+                            ['rol_teams' => 'Owner', 'fecha_alta' => now()],
+                        );
+                    }
+
+                    return $curso->refresh();
+                } finally {
+                    $this->sincronizacion->registrarAuditoriaPorPlataforma(
+                        'docente_asignado',
+                        "Curso#{$curso->id}",
+                        $resultadosPorPlataforma,
+                        [
+                            'docente_persona_id' => $curso->fresh()->docente_persona_id,
+                            'canvas_al_dia' => $curso->fresh()->docenteEstaAlDiaEnCanvas(),
+                            'teams_al_dia' => $curso->fresh()->docenteEstaAlDiaEnTeams(),
+                        ],
+                    );
+                }
+            },
+        );
+    }
+}
