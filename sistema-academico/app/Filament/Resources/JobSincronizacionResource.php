@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\JobSincronizacionResource\Pages;
 use App\Models\JobSincronizacion;
+use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Tables;
@@ -24,16 +25,38 @@ class JobSincronizacionResource extends AdminOnlyResource
 
     protected static ?string $navigationGroup = 'Auditoría';
 
+    protected static ?int $navigationSort = 1;
+
+    protected static ?string $modelLabel = 'trabajo de sincronización';
+
+    protected static ?string $pluralModelLabel = 'trabajos de sincronización';
+
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist
             ->schema([
-                TextEntry::make('tipo')->badge(),
-                TextEntry::make('estado')->badge(),
-                TextEntry::make('usuarioSolicitante.name')->label('Solicitante')->placeholder('Sistema'),
-                TextEntry::make('fecha_inicio')->dateTime(),
-                TextEntry::make('fecha_fin')->dateTime(),
-                TextEntry::make('resultado')->columnSpanFull(),
+                Section::make('Ejecución de sincronización')
+                    ->schema([
+                        TextEntry::make('tipo')
+                            ->label('Tipo de tarea')
+                            ->badge(),
+                        TextEntry::make('estado')
+                            ->label('Estado')
+                            ->badge(),
+                        TextEntry::make('usuarioSolicitante.name')
+                            ->label('Solicitada por')
+                            ->placeholder('Sistema'),
+                        TextEntry::make('fecha_inicio')
+                            ->label('Inicio')
+                            ->dateTime(),
+                        TextEntry::make('fecha_fin')
+                            ->label('Finalización')
+                            ->dateTime(),
+                        TextEntry::make('resultado')
+                            ->label('Resultado')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
             ]);
     }
 
@@ -42,8 +65,10 @@ class JobSincronizacionResource extends AdminOnlyResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('tipo')
+                    ->label('Tipo de tarea')
                     ->badge(),
                 Tables\Columns\TextColumn::make('estado')
+                    ->label('Estado')
                     ->badge()
                     ->color(fn (string $state) => match ($state) {
                         'completado' => 'success',
@@ -55,18 +80,21 @@ class JobSincronizacionResource extends AdminOnlyResource
                     ->label('Solicitante')
                     ->placeholder('Sistema'),
                 Tables\Columns\TextColumn::make('fecha_inicio')
+                    ->label('Inicio')
                     ->dateTime()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('fecha_fin')
+                    ->label('Finalización')
                     ->dateTime()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('resultado')
+                    ->label('Resultado')
                     ->limit(60)
                     ->wrap(),
             ])
-            ->defaultSort('fecha_inicio', 'desc')
             ->filters([
                 Tables\Filters\SelectFilter::make('estado')
+                    ->label('Estado')
                     ->options([
                         'pendiente' => 'Pendiente',
                         'en_proceso' => 'En proceso',
@@ -74,6 +102,7 @@ class JobSincronizacionResource extends AdminOnlyResource
                         'error' => 'Error',
                     ]),
                 Tables\Filters\SelectFilter::make('tipo')
+                    ->label('Tipo de tarea')
                     ->options([
                         'alta_usuario' => 'Alta de usuario',
                         'crear_curso' => 'Crear curso',
@@ -81,10 +110,19 @@ class JobSincronizacionResource extends AdminOnlyResource
                         'matricula' => 'Matrícula',
                         'baja' => 'Baja',
                     ]),
+                static::dateRangeFilter('fecha_inicio', 'Fecha de inicio'),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
-            ]);
+                Tables\Actions\ViewAction::make()
+                    ->label('Ver')
+                    ->icon('heroicon-o-eye')
+                    ->tooltip('Ver detalle del trabajo'),
+            ])
+            ->striped()
+            ->paginated([10, 25, 50])
+            ->emptyStateHeading('No hay trabajos de sincronización')
+            ->emptyStateDescription('Las tareas de sincronización aparecerán aquí cuando se ejecuten.')
+            ->defaultSort('fecha_inicio', 'desc');
     }
 
     public static function getPages(): array

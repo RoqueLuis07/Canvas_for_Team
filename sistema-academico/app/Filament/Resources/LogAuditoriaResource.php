@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\LogAuditoriaResource\Pages;
 use App\Models\LogAuditoria;
+use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Tables;
@@ -25,15 +26,34 @@ class LogAuditoriaResource extends AdminOnlyResource
 
     protected static ?string $navigationGroup = 'Auditoría';
 
+    protected static ?int $navigationSort = 2;
+
+    protected static ?string $modelLabel = 'registro de auditoría';
+
+    protected static ?string $pluralModelLabel = 'registros de auditoría';
+
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist
             ->schema([
-                TextEntry::make('usuario.name')->label('Usuario')->placeholder('Sistema'),
-                TextEntry::make('accion'),
-                TextEntry::make('entidad_afectada')->label('Entidad afectada'),
-                TextEntry::make('fecha')->dateTime(),
-                TextEntry::make('detalle')->columnSpanFull(),
+                Section::make('Evento auditado')
+                    ->schema([
+                        TextEntry::make('fecha')
+                            ->label('Fecha y hora')
+                            ->dateTime(),
+                        TextEntry::make('usuario.name')
+                            ->label('Usuario')
+                            ->placeholder('Sistema'),
+                        TextEntry::make('accion')
+                            ->label('Acción')
+                            ->badge(),
+                        TextEntry::make('entidad_afectada')
+                            ->label('Entidad afectada'),
+                        TextEntry::make('detalle')
+                            ->label('Detalle')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
             ]);
     }
 
@@ -42,6 +62,7 @@ class LogAuditoriaResource extends AdminOnlyResource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('fecha')
+                    ->label('Fecha y hora')
                     ->dateTime()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('usuario.name')
@@ -49,19 +70,32 @@ class LogAuditoriaResource extends AdminOnlyResource
                     ->placeholder('Sistema')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('accion')
+                    ->label('Acción')
                     ->badge()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('entidad_afectada')
                     ->label('Entidad afectada')
                     ->searchable(),
             ])
-            ->defaultSort('fecha', 'desc')
             ->filters([
-                //
+                Tables\Filters\SelectFilter::make('usuario')
+                    ->label('Usuario')
+                    ->relationship('usuario', 'name')
+                    ->searchable()
+                    ->preload(),
+                static::dateRangeFilter('fecha', 'Fecha del evento'),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
-            ]);
+                Tables\Actions\ViewAction::make()
+                    ->label('Ver')
+                    ->icon('heroicon-o-eye')
+                    ->tooltip('Ver registro de auditoría'),
+            ])
+            ->striped()
+            ->paginated([10, 25, 50])
+            ->emptyStateHeading('No hay registros de auditoría')
+            ->emptyStateDescription('Los eventos registrados por el sistema aparecerán aquí.')
+            ->defaultSort('fecha', 'desc');
     }
 
     public static function getPages(): array

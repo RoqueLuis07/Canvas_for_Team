@@ -105,6 +105,17 @@
     border-bottom: 1px solid #e9edf4;
 }
 
+.fi-section-header-heading {
+    color: #172554;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.fi-section-header-description {
+    color: #526078;
+    line-height: 1.55;
+}
+
 .fi-input-wrp {
     border-color: #c8d0dd;
     border-radius: 0.5rem;
@@ -154,16 +165,64 @@
 
 .fi-ta-content {
     max-width: 100%;
+    overflow-x: auto;
     overscroll-behavior-x: contain;
     -webkit-overflow-scrolling: touch;
+    scrollbar-color: #aebbd0 #f4f6fa;
+    scrollbar-width: thin;
+}
+
+.fi-ta-table {
+    border-collapse: separate;
+    border-spacing: 0;
 }
 
 .fi-ta-header-cell {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    border-bottom: 1px solid #dbe3ef;
+    background: #f6f8fc;
     color: #465267;
     font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.045em;
     text-transform: uppercase;
+}
+
+.fi-ta-cell {
+    vertical-align: middle;
+}
+
+.fi-badge.fi-color-success {
+    color: #14532d !important;
+    background: #dcfce7 !important;
+    box-shadow: inset 0 0 0 1px #bbf7d0;
+}
+
+.fi-badge.fi-color-warning {
+    color: #713f12 !important;
+    background: #fef3c7 !important;
+    box-shadow: inset 0 0 0 1px #fde68a;
+}
+
+.fi-badge.fi-color-danger {
+    color: #7f1d1d !important;
+    background: #fee2e2 !important;
+    box-shadow: inset 0 0 0 1px #fecaca;
+}
+
+.fi-badge.fi-color-info,
+.fi-badge.fi-color-primary {
+    color: #1e3a8a !important;
+    background: #dbeafe !important;
+    box-shadow: inset 0 0 0 1px #bfdbfe;
+}
+
+.fi-badge.fi-color-gray {
+    color: #374151 !important;
+    background: #f3f4f6 !important;
+    box-shadow: inset 0 0 0 1px #e5e7eb;
 }
 
 .fi-ta-row {
@@ -185,6 +244,8 @@
 
 .fi-modal-window {
     border-radius: 0.8rem;
+    border: 1px solid #dbe3ef;
+    box-shadow: 0 24px 60px rgb(15 23 42 / 18%);
 }
 
 .fi-simple-layout {
@@ -347,7 +408,16 @@
         scrollbar-width: thin;
     }
 
+    .fi-ta-table {
+        min-width: 42rem;
+    }
+
     .fi-btn {
+        min-height: 2.75rem;
+    }
+
+    .fi-input-wrp,
+    .fi-icon-btn {
         min-height: 2.75rem;
     }
 }

@@ -24,6 +24,12 @@ class InscripcionMateriaResource extends AdminOnlyResource
 
     protected static ?string $navigationGroup = 'Matriculación';
 
+    protected static ?int $navigationSort = 3;
+
+    protected static ?string $modelLabel = 'inscripción de materia';
+
+    protected static ?string $pluralModelLabel = 'inscripciones de materias';
+
     public static function canViewAny(): bool
     {
         $user = static::currentUser();
@@ -60,41 +66,57 @@ class InscripcionMateriaResource extends AdminOnlyResource
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('matricula_id')
-                    ->relationship('matricula', 'id')
-                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->persona->nombre_completo} — {$record->periodoAcademico->nombre}")
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\Select::make('curso_id')
-                    ->label('Curso')
-                    ->relationship('curso', 'id')
-                    ->getOptionLabelFromRecordUsing(fn (Curso $record) => "{$record->materia->nombre} ({$record->periodoAcademico->nombre})")
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\Select::make('origen')
-                    ->options([
-                        'manual' => 'Manual',
-                        'predefinida' => 'Predefinida (Departamento Académico)',
+                Forms\Components\Section::make('Inscripción')
+                    ->description('Matrícula, curso, procedencia y estado académico.')
+                    ->schema([
+                        Forms\Components\Select::make('matricula_id')
+                            ->label('Matrícula')
+                            ->relationship('matricula', 'id')
+                            ->getOptionLabelFromRecordUsing(fn ($record): string => "{$record->persona->nombre_completo} — {$record->periodoAcademico->nombre}")
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+                        Forms\Components\Select::make('curso_id')
+                            ->label('Curso')
+                            ->relationship('curso', 'id')
+                            ->getOptionLabelFromRecordUsing(fn (Curso $record): string => "{$record->materia->codigo} · {$record->materia->nombre} — {$record->periodoAcademico->nombre}")
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+                        Forms\Components\Select::make('origen')
+                            ->label('Origen')
+                            ->options([
+                                'manual' => 'Manual',
+                                'predefinida' => 'Predefinida por el Departamento Académico',
+                            ])
+                            ->required(),
+                        Forms\Components\Select::make('estado')
+                            ->label('Estado')
+                            ->options([
+                                'inscrita' => 'Inscrita',
+                                'retirada' => 'Retirada',
+                                'aprobada' => 'Aprobada',
+                                'reprobada' => 'Reprobada',
+                            ])
+                            ->required(),
+                        Forms\Components\DatePicker::make('fecha_inscripcion')
+                            ->label('Fecha de inscripción')
+                            ->required(),
                     ])
-                    ->required(),
-                Forms\Components\Select::make('estado')
-                    ->options([
-                        'inscrita' => 'Inscrita',
-                        'retirada' => 'Retirada',
-                        'aprobada' => 'Aprobada',
-                        'reprobada' => 'Reprobada',
+                    ->columns(2),
+                Forms\Components\Section::make('Sincronización con plataformas')
+                    ->description('Fechas de la última alta registrada en Canvas y Teams.')
+                    ->schema([
+                        Forms\Components\DateTimePicker::make('canvas_enrollment_at')
+                            ->label('Alta en Canvas')
+                            ->disabled(),
+                        Forms\Components\DateTimePicker::make('teams_enrollment_at')
+                            ->label('Alta en Teams')
+                            ->disabled(),
                     ])
-                    ->required(),
-                Forms\Components\DatePicker::make('fecha_inscripcion')
-                    ->required(),
-                Forms\Components\DateTimePicker::make('canvas_enrollment_at')
-                    ->label('Alta en Canvas')
-                    ->disabled(),
-                Forms\Components\DateTimePicker::make('teams_enrollment_at')
-                    ->label('Alta en Teams')
-                    ->disabled(),
+                    ->columns(2)
+                    ->collapsible()
+                    ->collapsed(),
             ]);
     }
 
@@ -111,16 +133,19 @@ class InscripcionMateriaResource extends AdminOnlyResource
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('curso.periodoAcademico.nombre')
-                    ->label('Período')
+                    ->label('Período académico')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('origen')
+                    ->label('Origen')
                     ->badge(),
                 Tables\Columns\TextColumn::make('estado')
+                    ->label('Estado')
                     ->badge()
                     ->color(fn (string $state) => match ($state) {
                         'inscrita' => 'info',
                         'aprobada' => 'success',
-                        'reprobada', 'retirada' => 'danger',
+                        'reprobada' => 'danger',
+                        'retirada' => 'gray',
                         default => 'gray',
                     }),
                 Tables\Columns\IconColumn::make('canvas_enrollment_at')
@@ -133,12 +158,38 @@ class InscripcionMateriaResource extends AdminOnlyResource
                     ->getStateUsing(fn (InscripcionMateria $record) => $record->estaAlDiaEnTeams()),
             ])
             ->filters([
-                //
+                Tables\Filters\SelectFilter::make('estado')
+                    ->label('Estado')
+                    ->options([
+                        'inscrita' => 'Inscrita',
+                        'retirada' => 'Retirada',
+                        'aprobada' => 'Aprobada',
+                        'reprobada' => 'Reprobada',
+                    ]),
+                Tables\Filters\SelectFilter::make('origen')
+                    ->label('Origen')
+                    ->options([
+                        'manual' => 'Manual',
+                        'predefinida' => 'Predefinida por el Departamento Académico',
+                    ]),
+                Tables\Filters\SelectFilter::make('curso_id')
+                    ->label('Curso')
+                    ->options(fn (): array => Curso::query()
+                        ->whereIn('id', static::getEloquentQuery()->distinct()->pluck('curso_id'))
+                        ->with(['materia', 'periodoAcademico'])
+                        ->get()
+                        ->mapWithKeys(fn (Curso $curso): array => [
+                            $curso->id => "{$curso->materia->codigo} · {$curso->materia->nombre} — {$curso->periodoAcademico->nombre}",
+                        ])
+                        ->all())
+                    ->searchable(),
+                static::dateRangeFilter('fecha_inscripcion', 'Fecha de inscripción'),
             ])
             ->actions([
                 Tables\Actions\Action::make('darDeBaja')
                     ->label('Dar de baja')
                     ->icon('heroicon-o-x-circle')
+                    ->tooltip('Retirar al alumno de esta materia')
                     ->color('danger')
                     ->requiresConfirmation()
                     ->visible(fn (InscripcionMateria $record) => auth()->user()?->isAdminTI() && $record->estado !== 'retirada')
@@ -155,6 +206,7 @@ class InscripcionMateriaResource extends AdminOnlyResource
                 Tables\Actions\Action::make('cambiarMateria')
                     ->label('Cambiar de materia')
                     ->icon('heroicon-o-arrow-path')
+                    ->tooltip('Cambiar la inscripción a otro curso del mismo período')
                     ->color('warning')
                     ->visible(fn (InscripcionMateria $record) => auth()->user()?->isAdminTI() && $record->estado === 'inscrita')
                     ->form([
@@ -165,7 +217,7 @@ class InscripcionMateriaResource extends AdminOnlyResource
                                 ->where('id', '!=', $record->curso_id)
                                 ->with('materia')
                                 ->get()
-                                ->mapWithKeys(fn (Curso $c) => [$c->id => $c->materia->nombre]))
+                                ->mapWithKeys(fn (Curso $c) => [$c->id => "{$c->materia->codigo} · {$c->materia->nombre}"]))
                             ->searchable()
                             ->required(),
                     ])
@@ -182,13 +234,23 @@ class InscripcionMateriaResource extends AdminOnlyResource
                             Notification::make()->title('Error al cambiar de materia')->body($e->getMessage())->danger()->send();
                         }
                     }),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->tooltip('Editar inscripción'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->label('Eliminar seleccionadas')
+                        ->color('danger'),
                 ]),
-            ]);
+            ])
+            ->striped()
+            ->paginated([10, 25, 50])
+            ->emptyStateHeading('No hay inscripciones de materias')
+            ->emptyStateDescription('Las inscripciones asociadas a matrículas y cursos aparecerán aquí.')
+            ->defaultSort('fecha_inscripcion', 'desc');
     }
 
     public static function getRelations(): array

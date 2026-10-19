@@ -4,6 +4,8 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\CursoResource\Pages;
 use App\Models\Curso;
+use App\Models\Materia;
+use App\Models\PeriodoAcademico;
 use App\Models\Persona;
 use App\Services\CursoService;
 use Filament\Forms;
@@ -20,9 +22,15 @@ class CursoResource extends AdminOnlyResource
 
     protected static ?string $navigationIcon = 'heroicon-o-video-camera';
 
-    protected static ?string $navigationLabel = 'Cursos (Canvas/Teams)';
+    protected static ?string $navigationLabel = 'Cursos';
 
     protected static ?string $navigationGroup = 'Canvas ↔ Teams';
+
+    protected static ?int $navigationSort = 1;
+
+    protected static ?string $modelLabel = 'curso';
+
+    protected static ?string $pluralModelLabel = 'cursos';
 
     public static function canViewAny(): bool
     {
@@ -59,41 +67,57 @@ class CursoResource extends AdminOnlyResource
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('materia_id')
-                    ->relationship('materia', 'nombre')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\Select::make('periodo_academico_id')
-                    ->relationship('periodoAcademico', 'nombre')
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\Select::make('subcuenta_id')
-                    ->label('Subcuenta (Canvas)')
-                    ->relationship('subcuenta', 'nombre')
-                    ->searchable()
-                    ->preload(),
-                Forms\Components\TextInput::make('cupo_maximo')
-                    ->numeric()
-                    ->helperText('Vacío = sin límite de cupo.'),
-                Forms\Components\TextInput::make('canvas_course_id')
-                    ->label('ID de curso en Canvas')
-                    ->disabled()
-                    ->dehydrated()
-                    ->helperText('Se completa con el botón "Crear en Canvas".'),
-                Forms\Components\TextInput::make('teams_group_id')
-                    ->label('ID de equipo en Teams')
-                    ->disabled()
-                    ->dehydrated()
-                    ->helperText('Se completa con el botón "Crear en Teams".'),
-                Forms\Components\Select::make('estado')
-                    ->options([
-                        'planificado' => 'Planificado',
-                        'publicado' => 'Publicado',
-                        'cerrado' => 'Cerrado',
+                Forms\Components\Section::make('Oferta académica')
+                    ->description('Materia, período y capacidad del curso.')
+                    ->schema([
+                        Forms\Components\Select::make('materia_id')
+                            ->label('Materia')
+                            ->relationship('materia', 'nombre')
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+                        Forms\Components\Select::make('periodo_academico_id')
+                            ->label('Período académico')
+                            ->relationship('periodoAcademico', 'nombre')
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+                        Forms\Components\Select::make('subcuenta_id')
+                            ->label('Subcuenta de Canvas')
+                            ->relationship('subcuenta', 'nombre')
+                            ->searchable()
+                            ->preload(),
+                        Forms\Components\TextInput::make('cupo_maximo')
+                            ->label('Cupo máximo')
+                            ->numeric()
+                            ->helperText('Déjalo vacío si no hay límite de cupo.'),
+                        Forms\Components\Select::make('estado')
+                            ->label('Estado')
+                            ->options([
+                                'planificado' => 'Planificado',
+                                'publicado' => 'Publicado',
+                                'cerrado' => 'Cerrado',
+                            ])
+                            ->required(),
                     ])
-                    ->required(),
+                    ->columns(2),
+                Forms\Components\Section::make('Integración con Canvas y Teams')
+                    ->description('Los identificadores se completan al crear el curso y el equipo en sus plataformas.')
+                    ->schema([
+                        Forms\Components\TextInput::make('canvas_course_id')
+                            ->label('ID de curso en Canvas')
+                            ->disabled()
+                            ->dehydrated()
+                            ->helperText('Se completa con la acción «Crear en Canvas».'),
+                        Forms\Components\TextInput::make('teams_group_id')
+                            ->label('ID de equipo en Teams')
+                            ->disabled()
+                            ->dehydrated()
+                            ->helperText('Se completa con la acción «Crear en Teams».'),
+                    ])
+                    ->columns(2)
+                    ->collapsible()
+                    ->collapsed(),
             ]);
     }
 
@@ -106,7 +130,7 @@ class CursoResource extends AdminOnlyResource
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('periodoAcademico.nombre')
-                    ->label('Período')
+                    ->label('Período académico')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('subcuenta.nombre')
                     ->label('Subcuenta')
@@ -125,20 +149,55 @@ class CursoResource extends AdminOnlyResource
                     ->placeholder('Sin asignar')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('cupo_maximo')
-                    ->label('Cupo')
+                    ->label('Cupos disponibles')
                     ->getStateUsing(fn (Curso $record) => $record->cupo_maximo === null
                         ? 'Sin límite'
                         : "{$record->cupoDisponible()} / {$record->cupo_maximo}"),
                 Tables\Columns\TextColumn::make('estado')
-                    ->badge(),
+                    ->label('Estado')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'planificado' => 'warning',
+                        'publicado' => 'success',
+                        'cerrado' => 'gray',
+                        default => 'gray',
+                    })
+                    ->sortable(),
             ])
             ->filters([
-                //
+                Tables\Filters\SelectFilter::make('estado')
+                    ->label('Estado')
+                    ->options([
+                        'planificado' => 'Planificado',
+                        'publicado' => 'Publicado',
+                        'cerrado' => 'Cerrado',
+                    ]),
+                Tables\Filters\SelectFilter::make('materia_id')
+                    ->label('Materia')
+                    ->options(fn (): array => Materia::query()
+                        ->whereIn('id', static::getEloquentQuery()->distinct()->pluck('materia_id'))
+                        ->orderBy('nombre')
+                        ->get()
+                        ->mapWithKeys(fn (Materia $materia): array => [
+                            $materia->id => "{$materia->codigo} · {$materia->nombre}",
+                        ])
+                        ->all())
+                    ->searchable(),
+                Tables\Filters\SelectFilter::make('periodo_academico_id')
+                    ->label('Período académico')
+                    ->options(fn (): array => PeriodoAcademico::query()
+                        ->whereIn('id', static::getEloquentQuery()->distinct()->pluck('periodo_academico_id'))
+                        ->orderByDesc('fecha_inicio')
+                        ->pluck('nombre', 'id')
+                        ->all())
+                    ->searchable(),
+                static::dateRangeFilter('created_at', 'Fecha de creación'),
             ])
             ->actions([
                 Tables\Actions\Action::make('crearEnCanvas')
                     ->label('Crear en Canvas')
                     ->icon('heroicon-o-academic-cap')
+                    ->tooltip('Crear este curso en Canvas')
                     ->color('info')
                     ->visible(fn (Curso $record) => auth()->user()?->isAdminTI() && ! $record->estaCreadoEnCanvas())
                     ->action(function (Curso $record) {
@@ -154,6 +213,7 @@ class CursoResource extends AdminOnlyResource
                 Tables\Actions\Action::make('crearEnTeams')
                     ->label('Crear en Teams')
                     ->icon('heroicon-o-user-group')
+                    ->tooltip('Crear el equipo del curso en Teams')
                     ->color('info')
                     ->visible(fn (Curso $record) => auth()->user()?->isAdminTI() && ! $record->estaCreadoEnTeams())
                     ->action(function (Curso $record) {
@@ -169,11 +229,13 @@ class CursoResource extends AdminOnlyResource
                 Tables\Actions\Action::make('asignarDocente')
                     ->label('Asignar docente')
                     ->icon('heroicon-o-user-plus')
+                    ->tooltip('Asignar al docente en Canvas y Teams')
                     ->color('success')
                     ->visible(fn (Curso $record) => auth()->user()?->isAdminTI() && $record->estaCreadoEnCanvas() && $record->estaCreadoEnTeams())
                     ->form([
                         Forms\Components\Select::make('docente_persona_id')
                             ->label('Docente')
+                            ->helperText('Selecciona una persona con perfil docente.')
                             ->options(fn () => Persona::query()->where('tipo', 'docente')->pluck('nombre_completo', 'id'))
                             ->searchable()
                             ->required(),
@@ -188,13 +250,23 @@ class CursoResource extends AdminOnlyResource
                             Notification::make()->title('Error al asignar docente')->body($e->getMessage())->danger()->send();
                         }
                     }),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->tooltip('Editar curso'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->label('Eliminar seleccionados')
+                        ->color('danger'),
                 ]),
-            ]);
+            ])
+            ->striped()
+            ->paginated([10, 25, 50])
+            ->emptyStateHeading('No hay cursos')
+            ->emptyStateDescription('Los cursos creados para Canvas y Teams aparecerán aquí.')
+            ->defaultSort('created_at', 'desc');
     }
 
     public static function getRelations(): array

@@ -24,6 +24,12 @@ class MaterialResource extends AdminOnlyResource
 
     protected static ?string $navigationGroup = 'Canvas ↔ Teams';
 
+    protected static ?int $navigationSort = 4;
+
+    protected static ?string $modelLabel = 'material';
+
+    protected static ?string $pluralModelLabel = 'materiales';
+
     public static function canViewAny(): bool
     {
         $user = static::currentUser();
@@ -60,37 +66,54 @@ class MaterialResource extends AdminOnlyResource
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('curso_id')
-                    ->label('Curso')
-                    ->relationship('curso', 'id')
-                    ->getOptionLabelFromRecordUsing(fn (Curso $record) => "{$record->materia->nombre} ({$record->periodoAcademico->nombre})")
-                    ->searchable()
-                    ->preload()
-                    ->required(),
-                Forms\Components\TextInput::make('titulo')
-                    ->required()
-                    ->maxLength(255),
-                Forms\Components\Select::make('tipo')
-                    ->options([
-                        'documento' => 'Documento',
-                        'enlace' => 'Enlace',
-                        'tarea' => 'Tarea',
-                        'anuncio' => 'Anuncio',
+                Forms\Components\Section::make('Material académico')
+                    ->description('Contenido asociado a una oferta de curso.')
+                    ->schema([
+                        Forms\Components\Select::make('curso_id')
+                            ->label('Curso')
+                            ->relationship('curso', 'id')
+                            ->getOptionLabelFromRecordUsing(fn (Curso $record): string => "{$record->materia->codigo} · {$record->materia->nombre} — {$record->periodoAcademico->nombre}")
+                            ->searchable()
+                            ->preload()
+                            ->required(),
+                        Forms\Components\TextInput::make('titulo')
+                            ->label('Título')
+                            ->required()
+                            ->maxLength(255),
+                        Forms\Components\Select::make('tipo')
+                            ->label('Tipo de material')
+                            ->options([
+                                'documento' => 'Documento',
+                                'enlace' => 'Enlace',
+                                'tarea' => 'Tarea',
+                                'anuncio' => 'Anuncio',
+                            ])
+                            ->required(),
+                        Forms\Components\TextInput::make('url')
+                            ->label('Enlace')
+                            ->url()
+                            ->maxLength(255),
+                        Forms\Components\TextInput::make('orden')
+                            ->label('Orden de publicación')
+                            ->numeric()
+                            ->default(0),
+                        Forms\Components\Textarea::make('descripcion')
+                            ->label('Descripción')
+                            ->columnSpanFull(),
                     ])
-                    ->required(),
-                Forms\Components\Textarea::make('descripcion')
-                    ->columnSpanFull(),
-                Forms\Components\TextInput::make('url')
-                    ->url()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('orden')
-                    ->numeric()
-                    ->default(0),
-                Forms\Components\TextInput::make('canvas_item_id')
-                    ->label('ID en Canvas')
-                    ->disabled()
-                    ->dehydrated()
-                    ->helperText('Se completa con el botón "Publicar en Canvas".'),
+                    ->columns(2),
+                Forms\Components\Section::make('Publicación en Canvas')
+                    ->description('El identificador se asigna al publicar el material en Canvas.')
+                    ->schema([
+                        Forms\Components\TextInput::make('canvas_item_id')
+                            ->label('ID del material en Canvas')
+                            ->disabled()
+                            ->dehydrated()
+                            ->helperText('Se completa con la acción «Publicar en Canvas».'),
+                    ])
+                    ->columns(2)
+                    ->collapsible()
+                    ->collapsed(),
             ]);
     }
 
@@ -103,25 +126,54 @@ class MaterialResource extends AdminOnlyResource
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('titulo')
+                    ->label('Título')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('tipo')
-                    ->badge(),
+                    ->label('Tipo')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'documento' => 'info',
+                        'enlace' => 'primary',
+                        'tarea' => 'warning',
+                        'anuncio' => 'success',
+                        default => 'gray',
+                    }),
                 Tables\Columns\IconColumn::make('publicado')
                     ->label('Publicado en Canvas')
                     ->boolean()
                     ->getStateUsing(fn (Material $record) => $record->estaPublicadoEnCanvas()),
                 Tables\Columns\TextColumn::make('orden')
+                    ->label('Orden')
                     ->sortable(),
             ])
-            ->defaultSort('orden')
             ->filters([
-                //
+                Tables\Filters\SelectFilter::make('tipo')
+                    ->label('Tipo de material')
+                    ->options([
+                        'documento' => 'Documento',
+                        'enlace' => 'Enlace',
+                        'tarea' => 'Tarea',
+                        'anuncio' => 'Anuncio',
+                    ]),
+                Tables\Filters\SelectFilter::make('curso_id')
+                    ->label('Curso')
+                    ->options(fn (): array => Curso::query()
+                        ->whereIn('id', static::getEloquentQuery()->distinct()->pluck('curso_id'))
+                        ->with(['materia', 'periodoAcademico'])
+                        ->get()
+                        ->mapWithKeys(fn (Curso $curso): array => [
+                            $curso->id => "{$curso->materia->codigo} · {$curso->materia->nombre} — {$curso->periodoAcademico->nombre}",
+                        ])
+                        ->all())
+                    ->searchable(),
+                static::dateRangeFilter('created_at', 'Fecha de registro'),
             ])
             ->actions([
                 Tables\Actions\Action::make('publicarEnCanvas')
                     ->label('Publicar en Canvas')
                     ->icon('heroicon-o-cloud-arrow-up')
+                    ->tooltip('Publicar este material en Canvas')
                     ->color('info')
                     ->visible(fn (Material $record) => auth()->user()?->isAdminTI() && ! $record->estaPublicadoEnCanvas())
                     ->action(function (Material $record) {
@@ -134,13 +186,23 @@ class MaterialResource extends AdminOnlyResource
                             Notification::make()->title('Error al publicar en Canvas')->body($e->getMessage())->danger()->send();
                         }
                     }),
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->tooltip('Editar material'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->label('Eliminar seleccionados')
+                        ->color('danger'),
                 ]),
-            ]);
+            ])
+            ->striped()
+            ->paginated([10, 25, 50])
+            ->emptyStateHeading('No hay materiales')
+            ->emptyStateDescription('Los materiales académicos registrados aparecerán aquí.')
+            ->defaultSort('orden');
     }
 
     public static function getRelations(): array
