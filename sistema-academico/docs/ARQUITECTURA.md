@@ -121,6 +121,12 @@ la estabilidad de lo ya entregado.
   nombrado (`app_code`) poblado automáticamente desde la imagen — no es un
   bind-mount del host, para que el despliegue sea reproducible desde
   cualquier clon del repositorio.
+- **Health check para HAProxy (Avance 3):** `GET /api/health` responde
+  `200` con `{"status":"ok","database":"connected"}` cuando la base de datos
+  está disponible, y `503` con `{"status":"degraded","database":"unavailable"}`
+  cuando no lo está. HAProxy debe usar ese endpoint (`option httpchk GET
+  /api/health`) para sacar de rotación un nodo sin base de datos y habilitar
+  el failover entre las dos arquitecturas activas.
 - **Railway:** despliegue alternativo de un solo contenedor
   (`Dockerfile` + `railway.json` en la raíz de `sistema-academico/`), con
   `php artisan serve` directo — usado para tener una URL pública rápida

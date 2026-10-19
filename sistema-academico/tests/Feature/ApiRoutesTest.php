@@ -11,6 +11,8 @@ use App\Models\PlanEstudio;
 use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Tests\TestCase;
 
 class ApiRoutesTest extends TestCase
@@ -40,6 +42,21 @@ class ApiRoutesTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('status', 'ok')
             ->assertJsonPath('database', 'connected');
+    }
+
+    public function test_api_health_responde_503_cuando_la_base_de_datos_no_responde(): void
+    {
+        DB::shouldReceive('select')
+            ->once()
+            ->andThrow(new RuntimeException('SQLSTATE[HY000] [2002] Connection refused'));
+
+        $response = $this->getJson('/api/health');
+
+        $response->assertStatus(503)
+            ->assertJsonPath('status', 'degraded')
+            ->assertJsonPath('database', 'unavailable');
+
+        $this->assertNotNull($response->json('timestamp'));
     }
 
     public function test_api_cursos_requiere_autenticacion_y_permisos(): void

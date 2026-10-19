@@ -6,21 +6,27 @@ use App\Models\Matricula;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
+/**
+ * Health check para el balanceo de HAProxy (Avance 3).
+ *
+ * Responde 200 solo si la dependencia crítica (base de datos) está
+ * disponible. Si la conexión falla devuelve 503, para que HAProxy saque el
+ * nodo de rotación y el failover funcione en lugar de enviar tráfico a una
+ * instancia que no puede atender.
+ */
 Route::get('/health', function () {
-    $dbOk = false;
-
     try {
         DB::select('SELECT 1');
         $dbOk = true;
-    } catch (\Throwable) {
+    } catch (Throwable) {
         $dbOk = false;
     }
 
     return response()->json([
-        'status' => 'ok',
+        'status' => $dbOk ? 'ok' : 'degraded',
         'database' => $dbOk ? 'connected' : 'unavailable',
         'timestamp' => now()->toISOString(),
-    ]);
+    ], $dbOk ? 200 : 503);
 });
 
 Route::middleware('auth')->group(function () {
