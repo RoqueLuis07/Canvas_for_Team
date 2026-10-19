@@ -3,9 +3,11 @@
 namespace App\Providers;
 
 use App\Contracts\CanvasClient;
+use App\Contracts\LLMClient;
 use App\Contracts\TeamsClient;
 use App\Services\Canvas\HttpCanvasClient;
 use App\Services\Canvas\NullCanvasClient;
+use App\Services\LLM\NullLLMClient;
 use App\Services\Teams\HttpTeamsClient;
 use App\Services\Teams\NullTeamsClient;
 use Illuminate\Support\ServiceProvider;
@@ -24,6 +26,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(CanvasClient::class, fn () => config('services.canvas.access_token')
             ? app(HttpCanvasClient::class)
             : app(NullCanvasClient::class));
+
+        // Hoy solo existe el LLM simulado (sin clave API ni consumo de cuota).
+        // Un cliente real (OpenAI/Anthropic) se enlazará aquí cuando se
+        // apruebe el proveedor, seleccionado por `services.llm.driver`.
+        $this->app->bind(LLMClient::class, NullLLMClient::class);
 
         $this->app->bind(TeamsClient::class, fn () => (
             config('services.azure.tenant_id') && config('services.azure.client_secret')

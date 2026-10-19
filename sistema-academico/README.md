@@ -12,6 +12,12 @@ Proyecto Integrador — **Programación IV**. Grupo N.° 3 — Canvas LMS / Micr
 - **[Guía Oficial del Equipo](docs/Guia_Equipo_Sistema_Academico.pdf)** — qué es
   la plataforma, arquitectura, reglas de la rama de trabajo, cómo levantar el
   proyecto local y qué falta por rol. Léela antes de tocar el código.
+- **[PRD — Diagnóstico asistido por IA](docs/PRD_DIAGNOSTICO_IA.md)**,
+  **[goal](docs/goal.md)** y **[ERD del diagnóstico](docs/ERD_DIAGNOSTICO_IA.md)**
+  — propuesta funcional y de datos; describen alcance futuro, no funcionalidad
+  ya implementada.
+- **[Guía del LLM simulado](docs/GUIA_MOCK_LLM.md)** — categorías de errores,
+  claves reconocidas y comandos para probar diagnósticos sin API key.
 - **[Reporte de Sprints — Avance 2](docs/REPORTE_SPRINTS_AVANCE2.md)** —
   Sprint Review, Retrospective y entregable metodológico exigido por la cátedra.
 - **[Bitácora de trabajo](docs/Bitacora_Grupo3_Canvas_for_Teams.docx)** —

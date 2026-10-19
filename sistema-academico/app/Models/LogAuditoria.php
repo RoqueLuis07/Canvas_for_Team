@@ -16,6 +16,7 @@ class LogAuditoria extends Model
 
     protected $fillable = [
         'usuario_id',
+        'diagnostico_ia_id',
         'accion',
         'entidad_afectada',
         'detalle',
@@ -32,5 +33,10 @@ class LogAuditoria extends Model
     public function usuario(): BelongsTo
     {
         return $this->belongsTo(User::class, 'usuario_id');
+    }
+
+    public function diagnosticoIA(): BelongsTo
+    {
+        return $this->belongsTo(DiagnosticoIA::class, 'diagnostico_ia_id');
     }
 }

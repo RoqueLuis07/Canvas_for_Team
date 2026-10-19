@@ -6,6 +6,13 @@ para el resumen orientado al equipo, y el
 [Informe de Avance 1](Avance_1_Informe_Planificacion.pdf) para el alcance y
 el MER formalmente entregado.
 
+El diagnóstico asistido por IA está parcialmente implementado: existe el
+cliente simulado sin cuota, la persistencia/historial base y la auditoría
+correlacionada. El panel Filament, la cola asíncrona y el proveedor real siguen
+pendientes. El alcance, controles de privacidad y diseño se documentan en el
+[PRD](PRD_DIAGNOSTICO_IA.md), el [goal](goal.md) y el
+[ERD del diagnóstico](ERD_DIAGNOSTICO_IA.md).
+
 ## Stack
 
 | Capa | Tecnología |

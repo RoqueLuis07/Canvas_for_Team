@@ -4,9 +4,11 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\JobSincronizacionResource\Pages;
 use App\Models\JobSincronizacion;
+use App\Services\HistorialService;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
@@ -117,12 +119,35 @@ class JobSincronizacionResource extends AdminOnlyResource
                     ->label('Ver')
                     ->icon('heroicon-o-eye')
                     ->tooltip('Ver detalle del trabajo'),
+                static::diagnosticarAction(),
             ])
             ->striped()
             ->paginated([10, 25, 50])
             ->emptyStateHeading('No hay trabajos de sincronización')
             ->emptyStateDescription('Las tareas de sincronización aparecerán aquí cuando se ejecuten.')
             ->defaultSort('fecha_inicio', 'desc');
+    }
+
+    public static function diagnosticarAction(): Tables\Actions\Action
+    {
+        return Tables\Actions\Action::make('diagnosticar')
+            ->label('Diagnosticar con IA')
+            ->icon('heroicon-o-sparkles')
+            ->color('info')
+            ->visible(fn (JobSincronizacion $record) => $record->estado === 'error' && (static::currentUser()?->isAdminTI() ?? false))
+            ->requiresConfirmation()
+            ->modalDescription('Se enviará al LLM solo la categoría del error, sin datos personales. La IA solo sugiere; no ejecuta cambios.')
+            ->action(function (JobSincronizacion $record) {
+                $servicio = app(HistorialService::class);
+                $diagnostico = $servicio->procesar($servicio->solicitar($record, static::currentUser()));
+
+                Notification::make()
+                    ->title($diagnostico->estado === 'completado' ? 'Diagnóstico generado' : 'No se pudo generar el diagnóstico')
+                    ->color($diagnostico->estado === 'completado' ? 'success' : 'danger')
+                    ->send();
+
+                return redirect(DiagnosticoIAResource::getUrl('view', ['record' => $diagnostico]));
+            });
     }
 
     public static function getPages(): array
