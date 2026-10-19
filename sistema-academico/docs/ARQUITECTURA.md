@@ -126,7 +126,10 @@ la estabilidad de lo ya entregado.
   está disponible, y `503` con `{"status":"degraded","database":"unavailable"}`
   cuando no lo está. HAProxy debe usar ese endpoint (`option httpchk GET
   /api/health`) para sacar de rotación un nodo sin base de datos y habilitar
-  el failover entre las dos arquitecturas activas.
+  el failover entre las dos arquitecturas activas. El stack de
+  `docker-compose.yml` ya declara ese healthcheck en el servicio `webserver`,
+  así que Portainer muestra el contenedor como `unhealthy` cuando la base no
+  responde.
 - **Railway:** despliegue alternativo de un solo contenedor
   (`Dockerfile` + `railway.json` en la raíz de `sistema-academico/`), con
   `php artisan serve` directo — usado para tener una URL pública rápida

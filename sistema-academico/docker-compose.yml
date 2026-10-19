@@ -50,6 +50,19 @@ services:
       # mismo public/ que usa php-fpm para resolver SCRIPT_FILENAME.
       - app_code:/var/www/html:ro
     depends_on: [app]
+    healthcheck:
+      # Mismo endpoint que va a consultar HAProxy (Avance 3): responde 200
+      # solo si nginx -> php-fpm -> base de datos están operativos, y 503 si
+      # la base no responde. Se usa 127.0.0.1 y no "localhost" porque dentro
+      # del contenedor localhost puede resolver a IPv6 (::1) y wget falla
+      # aunque nginx esté escuchando en IPv4. wget viene en nginx:alpine.
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1/api/health || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # El entrypoint de "app" corre las migraciones antes de levantar
+      # php-fpm; damos margen para el primer arranque.
+      start_period: 60s
     networks: [academico_net]
 
   db:
