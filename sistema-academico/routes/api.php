@@ -3,30 +3,45 @@
 use App\Models\Curso;
 use App\Models\LogAuditoria;
 use App\Models\Matricula;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 /**
  * Health check para el balanceo de HAProxy (Avance 3).
  *
- * Responde 200 solo si la dependencia crítica (base de datos) está
- * disponible. Si la conexión falla devuelve 503, para que HAProxy saque el
- * nodo de rotación y el failover funcione en lugar de enviar tráfico a una
- * instancia que no puede atender.
+ * Responde 200 solo si las dependencias que el nodo necesita para atender
+ * están disponibles: la base de datos y el store de caché/sesión (Redis en
+ * el stack de Portainer, base de datos o array en local). Si cualquiera
+ * falla devuelve 503, para que HAProxy saque el nodo de rotación en lugar
+ * de enviarle tráfico a una instancia que no puede atender.
  */
 Route::get('/health', function () {
     try {
         DB::select('SELECT 1');
-        $dbOk = true;
+        $databaseOk = true;
     } catch (Throwable) {
-        $dbOk = false;
+        $databaseOk = false;
     }
 
+    try {
+        // Se prueba el store configurado (no Redis a la fuerza): así el
+        // chequeo también vale en local y en los tests.
+        $marca = (string) now()->getTimestampMs();
+        Cache::put('health-check', $marca, 10);
+        $cacheOk = Cache::get('health-check') === $marca;
+    } catch (Throwable) {
+        $cacheOk = false;
+    }
+
+    $estaSano = $databaseOk && $cacheOk;
+
     return response()->json([
-        'status' => $dbOk ? 'ok' : 'degraded',
-        'database' => $dbOk ? 'connected' : 'unavailable',
+        'status' => $estaSano ? 'ok' : 'degraded',
+        'database' => $databaseOk ? 'connected' : 'unavailable',
+        'cache' => $cacheOk ? 'connected' : 'unavailable',
         'timestamp' => now()->toISOString(),
-    ], $dbOk ? 200 : 503);
+    ], $estaSano ? 200 : 503);
 });
 
 Route::middleware('auth')->group(function () {

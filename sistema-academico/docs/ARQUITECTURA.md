@@ -122,14 +122,15 @@ la estabilidad de lo ya entregado.
   bind-mount del host, para que el despliegue sea reproducible desde
   cualquier clon del repositorio.
 - **Health check para HAProxy (Avance 3):** `GET /api/health` responde
-  `200` con `{"status":"ok","database":"connected"}` cuando la base de datos
-  está disponible, y `503` con `{"status":"degraded","database":"unavailable"}`
-  cuando no lo está. HAProxy debe usar ese endpoint (`option httpchk GET
-  /api/health`) para sacar de rotación un nodo sin base de datos y habilitar
-  el failover entre las dos arquitecturas activas. El stack de
-  `docker-compose.yml` ya declara ese healthcheck en el servicio `webserver`,
-  así que Portainer muestra el contenedor como `unhealthy` cuando la base no
-  responde.
+  `200` con `{"status":"ok","database":"connected","cache":"connected"}` solo
+  cuando la base de datos **y** el store de caché/sesión responden. Si
+  cualquiera de los dos falla devuelve `503` con `status: "degraded"` y el
+  detalle (`database` / `cache` en `unavailable`). HAProxy debe usar ese
+  endpoint (`option httpchk GET /api/health`) para sacar de rotación un nodo
+  sin base de datos o sin Redis y habilitar el failover entre las dos
+  arquitecturas activas. El stack de `docker-compose.yml` ya declara ese
+  healthcheck en el servicio `webserver`, así que Portainer muestra el
+  contenedor como `unhealthy` cuando la base no responde.
 - **Railway:** despliegue alternativo de un solo contenedor
   (`Dockerfile` + `railway.json` en la raíz de `sistema-academico/`), con
   `php artisan serve` directo — usado para tener una URL pública rápida

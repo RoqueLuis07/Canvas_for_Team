@@ -11,6 +11,7 @@ use App\Models\PlanEstudio;
 use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Tests\TestCase;
@@ -41,7 +42,22 @@ class ApiRoutesTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('status', 'ok')
-            ->assertJsonPath('database', 'connected');
+            ->assertJsonPath('database', 'connected')
+            ->assertJsonPath('cache', 'connected');
+    }
+
+    public function test_api_health_responde_503_cuando_la_cache_no_responde(): void
+    {
+        Cache::shouldReceive('put')
+            ->once()
+            ->andThrow(new RuntimeException('Connection refused [tcp://redis:6379]'));
+
+        $response = $this->getJson('/api/health');
+
+        $response->assertStatus(503)
+            ->assertJsonPath('status', 'degraded')
+            ->assertJsonPath('database', 'connected')
+            ->assertJsonPath('cache', 'unavailable');
     }
 
     public function test_api_health_responde_503_cuando_la_base_de_datos_no_responde(): void
