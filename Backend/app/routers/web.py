@@ -159,6 +159,54 @@ async def actas_page(request: Request):
     return _r(request, "actas.html")
 
 
+STAGING_FLOW_META = {
+    "diplomados": {
+        "label": "Alta Unificada / Diplomados",
+        "description": "Altas de alumnos y docentes en Canvas y Teams, con creación de curso/equipo.",
+        "icon": "bi-person-plus-fill",
+        "color": "var(--canvas-orange)",
+    },
+    "matriculaciones": {
+        "label": "Matriculación Unificada",
+        "description": "Inscripción combinada en Canvas y Teams para alumnos ya existentes.",
+        "icon": "bi-person-lines-fill",
+        "color": "var(--canvas-blue)",
+    },
+    "egreso": {
+        "label": "Egreso / Desvinculación",
+        "description": "Baja de cuentas en Canvas (eliminación) y Teams (deshabilitado + licencias).",
+        "icon": "bi-person-dash-fill",
+        "color": "var(--canvas-red)",
+    },
+    "masivo": {
+        "label": "Carga Masiva (sin matriculación)",
+        "description": "Alta de cuentas en bloque, sin inscripción a curso/equipo.",
+        "icon": "bi-cloud-arrow-up-fill",
+        "color": "var(--canvas-teal)",
+    },
+}
+
+
+@router.get("/ui/staging/{flow_type}", response_class=HTMLResponse)
+async def staging_list_page(request: Request, flow_type: str):
+    meta = STAGING_FLOW_META.get(flow_type)
+    if not meta:
+        return HTMLResponse("Flujo no reconocido.", status_code=404)
+    return _r(request, "staging_list.html", flow_type=flow_type, flow_meta=meta)
+
+
+@router.get("/ui/staging/{flow_type}/{sheet_id}", response_class=HTMLResponse)
+async def staging_sheet_page(request: Request, flow_type: str, sheet_id: int):
+    meta = STAGING_FLOW_META.get(flow_type)
+    if not meta:
+        return HTMLResponse("Flujo no reconocido.", status_code=404)
+    from app.core import staging_db
+    sheet = await staging_db.get_sheet(sheet_id)
+    if not sheet or sheet["flow_type"] != flow_type:
+        return HTMLResponse("Borrador no encontrado.", status_code=404)
+    return _r(request, "staging_sheet.html", flow_type=flow_type, flow_meta=meta, sheet=sheet)
+
+
 @router.get("/diagnostics", tags=["Health"])
 async def diagnostics():
     """Test Canvas and Azure credentials and return status for each."""

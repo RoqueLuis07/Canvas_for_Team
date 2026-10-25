@@ -1454,3 +1454,113 @@ select.ss-cell { cursor: pointer; }
     scroll-behavior: auto !important;
   }
 }
+
+/* =====================================================================
+   Planillas en Vivo (grilla editable tipo Excel, "staging")
+   ===================================================================== */
+
+.card-surface {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 18px 22px;
+}
+
+.staging-flow-icon {
+  width: 54px; height: 54px; border-radius: var(--radius);
+  background: color-mix(in srgb, var(--flow-color, var(--canvas-blue)) 14%, transparent);
+  color: var(--flow-color, var(--canvas-blue));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; flex-shrink: 0;
+}
+
+.staging-steps {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow);
+}
+.staging-step { display: flex; align-items: center; gap: 10px; font-size: .82rem; color: var(--text-primary); }
+.staging-step-num {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--canvas-blue); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .78rem; flex-shrink: 0;
+}
+.staging-step-arrow { color: var(--text-light); flex-shrink: 0; }
+
+.staging-sheet-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px;
+}
+.staging-sheet-card {
+  display: block; text-decoration: none;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  transition: box-shadow .2s, transform .2s;
+}
+.staging-sheet-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.staging-sheet-card-title { font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.staging-sheet-card-meta { font-size: .78rem; color: var(--text-muted); margin-bottom: 4px; }
+.staging-sheet-card-date { font-size: .72rem; color: var(--text-light); }
+
+/* ── Editor ── */
+.staging-toolbar {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 14px 18px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  margin-bottom: 16px;
+}
+.staging-toolbar .form-control, .staging-toolbar .form-select {
+  background: var(--input-bg); border-color: var(--input-border); color: var(--text-primary);
+}
+.staging-status-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .76rem; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+}
+.staging-status-pendiente  { background: color-mix(in srgb, var(--text-light) 18%, transparent); color: var(--text-muted); }
+.staging-status-procesando { background: color-mix(in srgb, var(--canvas-blue) 16%, transparent); color: var(--canvas-blue); }
+.staging-status-ok         { background: color-mix(in srgb, var(--canvas-green) 16%, transparent); color: var(--canvas-green); }
+.staging-status-error      { background: color-mix(in srgb, var(--canvas-red) 16%, transparent); color: var(--canvas-red); }
+
+#stagingGridWrap {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 4px;
+  overflow: auto;
+}
+
+/* Reskin de jspreadsheet-ce para que combine con el resto del panel en vez
+   de su apariencia genérica por defecto. */
+#stagingGridWrap .jss_container { font-family: 'Outfit', system-ui, sans-serif; }
+#stagingGridWrap .jexcel > thead > tr > td,
+#stagingGridWrap .jss_container table thead td {
+  background: var(--sidebar-bg) !important;
+  color: #fff !important;
+  font-weight: 600; font-size: .8rem;
+  border-color: var(--sidebar-border) !important;
+}
+#stagingGridWrap .jexcel_content, #stagingGridWrap .jss_spreadsheet {
+  background: var(--card-bg) !important;
+}
+#stagingGridWrap td { color: var(--text-primary) !important; font-size: .84rem; border-color: var(--card-border) !important; }
+#stagingGridWrap .jexcel tbody tr td.jexcel_row,
+#stagingGridWrap .jss_container tbody tr td:first-child {
+  background: var(--header-bg) !important; color: var(--text-muted) !important; font-weight: 600;
+}
+#stagingGridWrap .jexcel_selectall, #stagingGridWrap .jss_selectall { background: var(--sidebar-bg) !important; }
+#stagingGridWrap .highlight, #stagingGridWrap .highlight-top, #stagingGridWrap .highlight-bottom,
+#stagingGridWrap .highlight-left, #stagingGridWrap .highlight-right {
+  border-color: var(--canvas-blue) !important;
+}
+#stagingGridWrap .highlight { background-color: color-mix(in srgb, var(--canvas-blue) 10%, transparent) !important; }

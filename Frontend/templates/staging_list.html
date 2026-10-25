@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{{ flow_meta.label }} · Planillas en Vivo{% endblock %}
+{% block breadcrumb %}Planillas en Vivo / {{ flow_meta.label }}{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+  <div class="d-flex align-items-center gap-3">
+    <div class="staging-flow-icon" style="--flow-color: {{ flow_meta.color }}">
+      <i class="bi {{ flow_meta.icon }}"></i>
+    </div>
+    <div>
+      <h1 class="page-title mb-0">{{ flow_meta.label }}</h1>
+      <p class="page-subtitle mb-0">{{ flow_meta.description }}</p>
+    </div>
+  </div>
+</div>
+
+<div class="staging-steps mb-4">
+  <div class="staging-step">
+    <span class="staging-step-num">1</span>
+    <div><strong>Elegí o creá un borrador</strong><br><span class="text-muted">Un borrador por lote de trabajo (ej. una cohorte)</span></div>
+  </div>
+  <div class="staging-step-arrow"><i class="bi bi-chevron-right"></i></div>
+  <div class="staging-step">
+    <span class="staging-step-num">2</span>
+    <div><strong>Traé los datos de OneDrive</strong><br><span class="text-muted">O cargalos a mano / pegalos desde Excel</span></div>
+  </div>
+  <div class="staging-step-arrow"><i class="bi bi-chevron-right"></i></div>
+  <div class="staging-step">
+    <span class="staging-step-num">3</span>
+    <div><strong>Editá como en Excel</strong><br><span class="text-muted">Celdas, filas, copiar y pegar</span></div>
+  </div>
+  <div class="staging-step-arrow"><i class="bi bi-chevron-right"></i></div>
+  <div class="staging-step">
+    <span class="staging-step-num">4</span>
+    <div><strong>Guardá y procesá</strong><br><span class="text-muted">Se sincroniza con OneDrive y se ejecuta</span></div>
+  </div>
+</div>
+
+<div class="card-surface mb-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <div class="fw-semibold"><i class="bi bi-folder2-open me-2 text-muted"></i>Tus borradores</div>
+  <button type="button" class="btn btn-primary" id="btnNewSheet">
+    <i class="bi bi-plus-lg me-1"></i>Nuevo borrador
+  </button>
+</div>
+
+<div id="sheetsList" class="staging-sheet-grid"></div>
+<div id="sheetsEmpty" class="card-surface text-center text-muted py-5" style="display:none">
+  <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+  Todavía no hay borradores de {{ flow_meta.label }}. Creá el primero con el botón de arriba.
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const FLOW_TYPE = "{{ flow_type }}";
+
+async function loadSheets() {
+  const sheets = await api.get(`/staging/sheets?flow_type=${FLOW_TYPE}`);
+  const grid = document.getElementById('sheetsList');
+  const empty = document.getElementById('sheetsEmpty');
+  if (!sheets.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  grid.innerHTML = sheets.map(s => `
+    <a href="/ui/staging/${FLOW_TYPE}/${s.id}" class="staging-sheet-card">
+      <div class="staging-sheet-card-title">${s.title || ('Borrador #' + s.id)}</div>
+      <div class="staging-sheet-card-meta">
+        ${s.onedrive_url ? '<i class="bi bi-cloud-check-fill text-success me-1"></i>Vinculado a OneDrive' : '<i class="bi bi-cloud-slash text-muted me-1"></i>Sin vincular'}
+      </div>
+      <div class="staging-sheet-card-date">Actualizado: ${new Date(s.updated_at).toLocaleString('es-PY')}</div>
+    </a>
+  `).join('');
+}
+
+document.getElementById('btnNewSheet').addEventListener('click', async () => {
+  const title = prompt('Nombre para este borrador (ej. "MBA DUAL 2026-02"):', '');
+  if (title === null) return;
+  try {
+    const sheet = await api.post('/staging/sheets', { flow_type: FLOW_TYPE, title: title || null });
+    window.location.href = `/ui/staging/${FLOW_TYPE}/${sheet.id}`;
+  } catch (e) {
+    toast(e.message, 'danger');
+  }
+});
+
+loadSheets().catch(e => toast(e.message, 'danger'));
+</script>
+{% endblock %}

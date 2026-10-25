@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}{{ sheet.title or ('Borrador #' ~ sheet.id) }} · {{ flow_meta.label }}{% endblock %}
+{% block breadcrumb %}Planillas en Vivo / {{ flow_meta.label }} / {{ sheet.title or ('Borrador #' ~ sheet.id) }}{% endblock %}
+
+{% block content %}
+<div class="page-header mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-3">
+    <a href="/ui/staging/{{ flow_type }}" class="btn btn-sm btn-icon" title="Volver a borradores">
+      <i class="bi bi-arrow-left"></i>
+    </a>
+    <div class="staging-flow-icon" style="--flow-color: {{ flow_meta.color }}">
+      <i class="bi {{ flow_meta.icon }}"></i>
+    </div>
+    <div>
+      <h1 class="page-title mb-0" id="sheetTitleHeading">{{ sheet.title or ('Borrador #' ~ sheet.id) }}</h1>
+      <p class="page-subtitle mb-0">{{ flow_meta.label }} — editado como planilla, sincronizable con OneDrive</p>
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <span id="rowCount" class="text-muted small"></span>
+  </div>
+</div>
+
+<!-- Paso 1: origen en OneDrive -->
+<div class="staging-toolbar">
+  <i class="bi bi-link-45deg text-muted"></i>
+  <input type="text" id="onedriveUrl" class="form-control form-control-sm" style="min-width:320px;flex:1"
+         placeholder="Enlace para compartir de OneDrive/SharePoint (…sharepoint.com/:x:/g/…)"
+         value="{{ sheet.onedrive_url or '' }}">
+  <select id="onedriveSheet" class="form-select form-select-sm" style="max-width:220px">
+    {% if sheet.sheet_name %}<option value="{{ sheet.sheet_name }}" selected>{{ sheet.sheet_name }}</option>{% endif %}
+  </select>
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="btnListSheets">
+    <i class="bi bi-list-ul me-1"></i>Ver pestañas
+  </button>
+  <button type="button" class="btn btn-sm btn-outline-primary" id="btnSaveConfig">
+    <i class="bi bi-check2 me-1"></i>Guardar enlace
+  </button>
+</div>
+
+<!-- Paso 2-4: acciones sobre la grilla -->
+<div class="staging-toolbar">
+  <button type="button" class="btn btn-sm btn-outline-primary" id="btnPull">
+    <i class="bi bi-cloud-download-fill me-1"></i>Traer de OneDrive
+  </button>
+  <button type="button" class="btn btn-sm btn-outline-success" id="btnPush">
+    <i class="bi bi-cloud-upload-fill me-1"></i>Guardar en OneDrive
+  </button>
+  <button type="button" class="btn btn-sm btn-outline-secondary" id="btnAddRow">
+    <i class="bi bi-plus-lg me-1"></i>Agregar fila
+  </button>
+  <div class="vr mx-1 d-none d-md-block"></div>
+  <button type="button" class="btn btn-sm btn-primary ms-auto" id="btnProcess">
+    <i class="bi bi-play-fill me-1"></i>Procesar
+  </button>
+</div>
+
+<!-- Progreso de procesamiento (oculto hasta que se dispara) -->
+<div class="staging-toolbar" id="jobProgress" style="display:none">
+  <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+  <span id="jobProgressText">Procesando…</span>
+  <span class="staging-status-pill staging-status-ok ms-auto" id="jobOkCount">0 OK</span>
+  <span class="staging-status-pill staging-status-error" id="jobErrCount">0 errores</span>
+</div>
+
+<div id="stagingGridWrap">
+  <div id="stagingGrid"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsuites/dist/jsuites.css" type="text/css" />
+<script src="https://cdn.jsdelivr.net/npm/jsuites/dist/jsuites.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspreadsheet-ce/dist/jspreadsheet.css" type="text/css" />
+<script src="https://cdn.jsdelivr.net/npm/jspreadsheet-ce/dist/index.min.js"></script>
+
+<script>
+const FLOW_TYPE = "{{ flow_type }}";
+const SHEET_ID = {{ sheet.id }};
+let spreadsheet = null;
+let currentHeaders = [];
+let jobPollTimer = null;
+
+function sheetUrl(path = '') { return `/staging/sheets/${SHEET_ID}${path}`; }
+
+function statusPillHtml(status) {
+  const labels = { pendiente: 'Pendiente', procesando: 'Procesando', ok: 'OK', error: 'Error' };
+  const cls = { pendiente: 'staging-status-pendiente', procesando: 'staging-status-procesando', ok: 'staging-status-ok', error: 'staging-status-error' };
+  const s = status || 'pendiente';
+  return `<span class="staging-status-pill ${cls[s] || cls.pendiente}">${labels[s] || s}</span>`;
+}
+
+function buildGrid(headers, rows) {
+  currentHeaders = headers;
+  const columns = headers.map(h => ({ type: 'text', title: h, width: 170 }));
+  columns.push({ type: 'html', title: 'Estado', width: 130, readOnly: true });
+
+  const data = rows.map(r => {
+    const vals = headers.map(h => (r.data && r.data[h]) || '');
+    vals.push(statusPillHtml(r.status));
+    return vals;
+  });
+
+  const container = document.getElementById('stagingGrid');
+  container.innerHTML = '';
+
+  spreadsheet = jspreadsheet(container, {
+    data: data.length ? data : [headers.map(() => '').concat([''])],
+    columns: columns,
+    minDimensions: [headers.length + 1, 12],
+    allowInsertRow: false,  // se agregan filas con el botón, para mantener row_index sincronizado con la base
+    allowDeleteRow: false,
+    contextMenu: false,
+    onafterchanges: onGridChanges,
+  });
+
+  document.getElementById('rowCount').textContent = `${rows.length} fila${rows.length === 1 ? '' : 's'}`;
+}
+
+async function loadSheet() {
+  const { sheet, rows } = await api.get(sheetUrl());
+  buildGrid(sheet.headers || [], rows);
+}
+
+// Cubre tanto editar una sola celda como pegar un rango copiado de
+// Excel/OneDrive (varias celdas a la vez) — en ambos casos se sincronizan
+// con el backend todas las filas que cambiaron.
+function onGridChanges(instance, records) {
+  if (!records || !records.length) return;
+  const rowIndexes = new Set();
+  for (const r of records) {
+    // El nombre del campo de fila varió entre versiones de la librería
+    // (y/row/rowIndex) — se prueban todas por las dudas.
+    const y = r.y ?? r.row ?? r.rowIndex;
+    if (y !== undefined && !Number.isNaN(Number(y))) rowIndexes.add(Number(y));
+  }
+  rowIndexes.forEach(pushRowToBackend);
+}
+
+let pushTimers = {};
+function pushRowToBackend(rowIndex) {
+  // Pequeño debounce por fila para no mandar un request por cada tecla
+  // cuando se pega un rango grande celda por celda.
+  clearTimeout(pushTimers[rowIndex]);
+  pushTimers[rowIndex] = setTimeout(async () => {
+    const rowVals = spreadsheet.getData()[rowIndex] || [];
+    const data = {};
+    currentHeaders.forEach((h, i) => {
+      data[h] = rowVals[i] || '';
+    });
+    try {
+      await api.put(sheetUrl('/rows'), { rows: [{ row_index: rowIndex, data }] });
+    } catch (e) {
+      toast(e.message, 'danger');
+    }
+  }, 300);
+}
+
+document.getElementById('btnAddRow').addEventListener('click', async () => {
+  try {
+    await api.post(sheetUrl('/rows'), {});
+    await loadSheet();
+  } catch (e) { toast(e.message, 'danger'); }
+});
+
+document.getElementById('btnSaveConfig').addEventListener('click', async () => {
+  const onedrive_url = document.getElementById('onedriveUrl').value.trim();
+  const sheet_name = document.getElementById('onedriveSheet').value;
+  try {
+    await api.patch(sheetUrl(), { onedrive_url, sheet_name: sheet_name || null });
+    toast('Enlace guardado.', 'success');
+  } catch (e) { toast(e.message, 'danger'); }
+});
+
+document.getElementById('btnListSheets').addEventListener('click', async () => {
+  const url = document.getElementById('onedriveUrl').value.trim();
+  if (!url) { toast('Pegá primero el enlace de OneDrive.', 'warning'); return; }
+  try {
+    await api.patch(sheetUrl(), { onedrive_url: url });
+    const sheets = await api.post(sheetUrl('/onedrive-sheets'), {});
+    const sel = document.getElementById('onedriveSheet');
+    sel.innerHTML = sheets.map(s => `<option value="${s}">${s}</option>`).join('');
+    toast(`${sheets.length} pestaña(s) encontradas.`, 'success');
+  } catch (e) { toast(e.message, 'danger'); }
+});
+
+document.getElementById('btnPull').addEventListener('click', () => {
+  confirmAction(
+    'Esto va a traer los datos de OneDrive y reemplazar lo que haya ahora mismo en esta grilla. ¿Continuar?',
+    async () => {
+      try {
+        await api.post(sheetUrl('/pull'), {});
+        await loadSheet();
+        toast('Datos traídos desde OneDrive.', 'success');
+      } catch (e) { toast(e.message, 'danger'); }
+    },
+    'Traer desde OneDrive',
+  );
+});
+
+document.getElementById('btnPush').addEventListener('click', async () => {
+  try {
+    const res = await api.post(sheetUrl('/push'), {});
+    toast(`Guardado en OneDrive (${res.rows_written} filas).`, 'success');
+  } catch (e) { toast(e.message, 'danger'); }
+});
+
+document.getElementById('btnProcess').addEventListener('click', () => {
+  confirmAction(
+    'Esto guarda la grilla en OneDrive y arranca el procesamiento real (creación de cuentas / matriculación / baja, según corresponda). ¿Continuar?',
+    async () => {
+      try {
+        const res = await api.post(sheetUrl('/process'), {});
+        if (res.status === 'processing') {
+          startJobPolling(res.job_id);
+        } else {
+          toast('Procesamiento completado.', 'success');
+          await loadSheet();
+        }
+      } catch (e) { toast(e.message, 'danger'); }
+    },
+    'Procesar',
+  );
+});
+
+function startJobPolling(jobId) {
+  const panel = document.getElementById('jobProgress');
+  panel.style.display = 'flex';
+  clearInterval(jobPollTimer);
+  jobPollTimer = setInterval(async () => {
+    try {
+      const job = await api.get(`/excel/jobs/${jobId}`);
+      document.getElementById('jobOkCount').textContent = `${job.result_count || 0} OK`;
+      document.getElementById('jobErrCount').textContent = `${job.error_count || 0} errores`;
+      document.getElementById('jobProgressText').textContent =
+        job.status === 'processing' ? 'Procesando…' : `Estado: ${job.status}`;
+      if (job.status !== 'pending' && job.status !== 'processing') {
+        clearInterval(jobPollTimer);
+        toast('Procesamiento finalizado.', job.error_count ? 'warning' : 'success');
+        await loadSheet();
+      }
+    } catch (e) {
+      clearInterval(jobPollTimer);
+      toast(e.message, 'danger');
+    }
+  }, 3000);
+}
+
+loadSheet().catch(e => toast(e.message, 'danger'));
+</script>
+{% endblock %}

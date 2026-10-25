@@ -48,6 +48,7 @@ from app.routers import (
     materias,
     cpel,
     actas,
+    staging,
 )
 from app.routers import matriculacion
 import asyncio
@@ -66,11 +67,13 @@ async def lifespan(app: FastAPI):
     from app.core.audit_log import init_audit_db
     from app.core.jobs import init_jobs_db
     from app.core.actas_db import init_actas_db
+    from app.core.staging_db import init_staging_db
     try:
         await init_db()
         await asyncio.to_thread(init_audit_db)
         await asyncio.to_thread(init_jobs_db)
         await asyncio.to_thread(init_actas_db)
+        await asyncio.to_thread(init_staging_db)
     except Exception as e:
         logger.error(f"Failed to initialize databases: {e}")
         
@@ -213,6 +216,7 @@ routers_to_load = [
     ("Materias", materias.router),
     ("CPEL", cpel.router),
     ("Actas", actas.router),
+    ("Staging", staging.router),
 ]
 
 for router_name, router_obj in routers_to_load:

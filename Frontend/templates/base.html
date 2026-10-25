@@ -116,6 +116,26 @@
   </a>
   </div>
 
+  <!-- Planillas en Vivo -->
+  <button type="button" class="sidebar-section sidebar-section-btn mt-3" data-bs-toggle="collapse"
+          data-bs-target="#grupoStaging" aria-expanded="true" aria-controls="grupoStaging">
+    <span>Planillas en Vivo</span><i class="bi bi-chevron-down"></i>
+  </button>
+  <div class="collapse show sidebar-group" id="grupoStaging">
+  <a href="/ui/staging/diplomados" class="sidebar-link {% block nav_st_dip %}{% endblock %}">
+    <i class="bi bi-person-plus-fill"></i><span>Alta / Diplomados</span>
+  </a>
+  <a href="/ui/staging/matriculaciones" class="sidebar-link {% block nav_st_mat %}{% endblock %}">
+    <i class="bi bi-person-lines-fill"></i><span>Matriculaciones</span>
+  </a>
+  <a href="/ui/staging/egreso" class="sidebar-link {% block nav_st_egr %}{% endblock %}">
+    <i class="bi bi-person-dash-fill"></i><span>Egreso</span>
+  </a>
+  <a href="/ui/staging/masivo" class="sidebar-link {% block nav_st_mas %}{% endblock %}">
+    <i class="bi bi-cloud-arrow-up-fill"></i><span>Carga Masiva</span>
+  </a>
+  </div>
+
   <!-- Administración -->
   <button type="button" class="sidebar-section sidebar-section-btn mt-3" data-bs-toggle="collapse"
           data-bs-target="#grupoAdministracion" aria-expanded="true" aria-controls="grupoAdministracion">
