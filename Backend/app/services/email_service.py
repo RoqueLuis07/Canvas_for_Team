@@ -69,8 +69,8 @@ _GRADO_ATTACHMENT_ZIP = _GRADO_ATTACHMENTS_DIR / "Manuales e Instructivos de las
 
 # Datos de contacto de TI UBS, tal como aparecen en el correo real que el
 # equipo venía enviando a mano (mismo texto, mismo WhatsApp).
-_DIPLOMADO_CONTACT_EMAILS = ["glezcano@usil.edu.py", "resteche@usil.edu.py"]
-_DIPLOMADO_WHATSAPP = "0991 856 488"
+_DIPLOMADO_CONTACT_EMAILS = ["prueba-no-responder@example.com"] if settings.disable_staff_notifications else ["glezcano@usil.edu.py", "resteche@usil.edu.py"]
+_DIPLOMADO_WHATSAPP = "— (entorno de pruebas)" if settings.disable_staff_notifications else "0991 856 488"
 _DIPLOMADO_TEAMS_LINK = "https://teams.cloud.microsoft/"
 
 # Instructivos de MBA (referencia: correo real "Accesos MBA | UBS Business
@@ -82,8 +82,8 @@ _MBA_ATTACHMENTS = [
 ]
 
 # Contacto de soporte y SLA tal como figuran en ese mismo correo real.
-_MBA_CONTACT_EMAILS = ["glezcano@usil.edu.py", "resteche@usil.edu.py"]
-_MBA_WHATSAPP = "0991 856 488"
+_MBA_CONTACT_EMAILS = ["prueba-no-responder@example.com"] if settings.disable_staff_notifications else ["glezcano@usil.edu.py", "resteche@usil.edu.py"]
+_MBA_WHATSAPP = "— (entorno de pruebas)" if settings.disable_staff_notifications else "0991 856 488"
 _MBA_TEAMS_LINK = "https://teams.cloud.microsoft/"
 _MBA_SCHEDULE = "Lunes a viernes de 08:00 a 20:00 horas."
 _MBA_SLA = "Hasta 24 horas hábiles."
@@ -333,7 +333,7 @@ def _erp_docente_canvas_link() -> str:
     return settings.canvas_base_url
 
 
-_STUDENT_CONTACTS = [
+_STUDENT_CONTACTS = [("Entorno de pruebas", "prueba-no-responder@example.com")] if settings.disable_staff_notifications else [
     ("Giovanni Lezcano", "glezcano@usil.edu.py"),
     ("Roque Esteche", "resteche@usil.edu.py"),
 ]
@@ -496,7 +496,7 @@ _ERP_DOCENTE_FEATURES = [
     "Revisar el cronograma académico",
 ]
 
-_ERP_DOCENTE_CONTACTS = [
+_ERP_DOCENTE_CONTACTS = [("Entorno de pruebas", "prueba-no-responder@example.com")] if settings.disable_staff_notifications else [
     ("Giovanni Lezcano", "glezcano@usil.edu.py"),
     ("Roque Esteche", "resteche@usil.edu.py"),
 ]

@@ -1402,11 +1402,12 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                         nickname = _safe_mail_nickname(global_team_name)
 
                         owner_ids = list(team_owner_ids)
-                        try:
-                            admin_user = await graph.get(f"/users/resteche@usil.edu.py", params={"$select": "id"})
-                            if admin_user and admin_user.get("id"):
-                                owner_ids.append(admin_user["id"])
-                        except: pass
+                        if not settings.disable_staff_notifications:
+                            try:
+                                admin_user = await graph.get(f"/users/resteche@usil.edu.py", params={"$select": "id"})
+                                if admin_user and admin_user.get("id"):
+                                    owner_ids.append(admin_user["id"])
+                            except: pass
 
                         new_team = await graph.create_team_via_group(
                             display_name=global_team_name,
@@ -3227,11 +3228,12 @@ async def _process_courses_bg(job_id: int, req: DiplomadosUrlRequest, contents: 
                 teams_id = await graph.search_group_by_name_and_nickname_prefix(nombre, base_nickname)
 
                 owner_ids = []
-                try:
-                    admin_user = await graph.get(f"/users/resteche@usil.edu.py", params={"$select": "id"})
-                    if admin_user and admin_user.get("id"):
-                        owner_ids.append(admin_user["id"])
-                except: pass
+                if not settings.disable_staff_notifications:
+                    try:
+                        admin_user = await graph.get(f"/users/resteche@usil.edu.py", params={"$select": "id"})
+                        if admin_user and admin_user.get("id"):
+                            owner_ids.append(admin_user["id"])
+                    except: pass
                 if docente_azure_id and docente_azure_id not in owner_ids:
                     owner_ids.append(docente_azure_id)
                 for coord_id in coordinador_azure_ids:
