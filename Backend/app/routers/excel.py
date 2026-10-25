@@ -1388,7 +1388,7 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
         # la fila 1 — se usa para sumar al propietario adicional de MBA en
         # cualquier Team que se cree desde esta pestaña.
         is_mba = "mba" in req.sheet_name.lower() or "mba" in (title_val or "").lower()
-        team_owner_ids = list(_DIPLOMADO_DEFAULT_OWNERS) + ([_MBA_EXTRA_OWNER] if is_mba else [])
+        team_owner_ids = [] if settings.disable_staff_notifications else list(_DIPLOMADO_DEFAULT_OWNERS) + ([_MBA_EXTRA_OWNER] if is_mba else [])
         if global_team_name and col_usuario:
             team_id_from_header = str(ws.cell(row=1, column=col_usuario).value or "").strip()
             if _UUID_RE.match(team_id_from_header):
@@ -4660,7 +4660,7 @@ async def import_diplomados_json(req: JsonDataRequest):
         nombre = str(row.get("nombre") or "").strip()
         cedula = _clean_cedula(str(row.get("cedula") or "").strip())
         curso_nombre = str(row.get("curso_nombre") or "").strip()
-        row_team_owner_ids = list(_DIPLOMADO_DEFAULT_OWNERS) + (
+        row_team_owner_ids = [] if settings.disable_staff_notifications else list(_DIPLOMADO_DEFAULT_OWNERS) + (
             [_MBA_EXTRA_OWNER] if "mba" in curso_nombre.lower() else []
         )
 

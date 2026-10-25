@@ -55,6 +55,16 @@ class Settings(BaseSettings):
     def admin_allowed_emails_set(self) -> set[str]:
         return {e.strip().lower() for e in self.admin_allowed_emails.split(",") if e.strip()}
 
+    # Apagado por defecto (False = comportamiento normal de producción: se
+    # manda copia al personal administrativo como siempre). Se activa poniendo
+    # DISABLE_STAFF_NOTIFICATIONS=true SOLO en el entorno/servicio de pruebas,
+    # para que una corrida de prueba contra datos/credenciales reales no le
+    # llene la bandeja a nadie de USIL ni agregue gente real como propietaria
+    # de un Team de prueba. El destinatario principal (el alumno/docente de la
+    # fila que se está probando) nunca se filtra acá — solo las copias/dueños
+    # "fijos" que el sistema agrega por su cuenta.
+    disable_staff_notifications: bool = False
+
 
 
     @field_validator("secret_key")

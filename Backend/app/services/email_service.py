@@ -682,7 +682,7 @@ async def send_erp_docente_email(
         raise ValueError("Correo de envío inválido o vacío.")
 
     subject, html = _build_erp_docente_message(full_name=full_name, username=username, password=password)
-    cc = list(extra_cc or [])
+    cc = [] if settings.disable_staff_notifications else list(extra_cc or [])
 
     try:
         await graph.send_mail(
@@ -745,7 +745,11 @@ async def send_credentials_email(
         builder = _build_credentials_message
     subject, html = builder(full_name=full_name, login_id=login_id, password=password, program_name=program_name)
 
-    if cc_override is not None:
+    if settings.disable_staff_notifications:
+        # Entorno de pruebas: nunca se copia a nadie del staff, sea el CC
+        # fijo del programa o uno pasado explícitamente por el caller.
+        cc = []
+    elif cc_override is not None:
         cc = cc_override
     else:
         cc = list(dict.fromkeys([*default_cc_for_program(program_type), *(extra_cc or [])]))
