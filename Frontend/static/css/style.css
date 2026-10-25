@@ -1455,9 +1455,7 @@ select.ss-cell { cursor: pointer; }
   }
 }
 
-/* =====================================================================
-   Planillas en Vivo (grilla editable tipo Excel, "staging")
-   ===================================================================== */
+/* ── 46. Planillas en Vivo (grilla editable tipo Excel, "staging") ── */
 
 .card-surface {
   background: var(--card-bg);

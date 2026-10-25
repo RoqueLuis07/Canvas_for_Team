@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ sheet.title or ('Borrador #' ~ sheet.id) }} · {{ flow_meta.label }}{% endblock %}
 {% block breadcrumb %}Planillas en Vivo / {{ flow_meta.label }} / {{ sheet.title or ('Borrador #' ~ sheet.id) }}{% endblock %}
+{% block nav_st_dip %}{% if flow_type == 'diplomados' %}active{% endif %}{% endblock %}
+{% block nav_st_mat %}{% if flow_type == 'matriculaciones' %}active{% endif %}{% endblock %}
+{% block nav_st_egr %}{% if flow_type == 'egreso' %}active{% endif %}{% endblock %}
+{% block nav_st_mas %}{% if flow_type == 'masivo' %}active{% endif %}{% endblock %}
 
 {% block content %}
 <div class="page-header mb-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
@@ -24,10 +28,10 @@
 <!-- Paso 1: origen en OneDrive -->
 <div class="staging-toolbar">
   <i class="bi bi-link-45deg text-muted"></i>
-  <input type="text" id="onedriveUrl" class="form-control form-control-sm" style="min-width:320px;flex:1"
+  <input type="text" id="onedriveUrl" class="form-control form-control-sm" style="min-width: 320px; flex: 1;"
          placeholder="Enlace para compartir de OneDrive/SharePoint (…sharepoint.com/:x:/g/…)"
          value="{{ sheet.onedrive_url or '' }}">
-  <select id="onedriveSheet" class="form-select form-select-sm" style="max-width:220px">
+  <select id="onedriveSheet" class="form-select form-select-sm" style="max-width: 220px;">
     {% if sheet.sheet_name %}<option value="{{ sheet.sheet_name }}" selected>{{ sheet.sheet_name }}</option>{% endif %}
   </select>
   <button type="button" class="btn btn-sm btn-outline-secondary" id="btnListSheets">
@@ -56,7 +60,7 @@
 </div>
 
 <!-- Progreso de procesamiento (oculto hasta que se dispara) -->
-<div class="staging-toolbar" id="jobProgress" style="display:none">
+<div class="staging-toolbar" id="jobProgress" style="display: none;">
   <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
   <span id="jobProgressText">Procesando…</span>
   <span class="staging-status-pill staging-status-ok ms-auto" id="jobOkCount">0 OK</span>

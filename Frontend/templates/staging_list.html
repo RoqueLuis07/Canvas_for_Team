@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ flow_meta.label }} · Planillas en Vivo{% endblock %}
 {% block breadcrumb %}Planillas en Vivo / {{ flow_meta.label }}{% endblock %}
+{% block nav_st_dip %}{% if flow_type == 'diplomados' %}active{% endif %}{% endblock %}
+{% block nav_st_mat %}{% if flow_type == 'matriculaciones' %}active{% endif %}{% endblock %}
+{% block nav_st_egr %}{% if flow_type == 'egreso' %}active{% endif %}{% endblock %}
+{% block nav_st_mas %}{% if flow_type == 'masivo' %}active{% endif %}{% endblock %}
 
 {% block content %}
 <div class="page-header mb-4">
@@ -45,7 +49,7 @@
 </div>
 
 <div id="sheetsList" class="staging-sheet-grid"></div>
-<div id="sheetsEmpty" class="card-surface text-center text-muted py-5" style="display:none">
+<div id="sheetsEmpty" class="card-surface text-center text-muted py-5" style="display: none;">
   <i class="bi bi-inbox fs-1 d-block mb-2"></i>
   Todavía no hay borradores de {{ flow_meta.label }}. Creá el primero con el botón de arriba.
 </div>
