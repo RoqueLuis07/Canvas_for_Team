@@ -73,10 +73,10 @@
 {% endblock %}
 
 {% block scripts %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsuites/dist/jsuites.css" type="text/css" />
-<script src="https://cdn.jsdelivr.net/npm/jsuites/dist/jsuites.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspreadsheet-ce/dist/jspreadsheet.css" type="text/css" />
-<script src="https://cdn.jsdelivr.net/npm/jspreadsheet-ce/dist/index.min.js"></script>
+<link rel="stylesheet" href="/static/vendor/jsuites/jsuites.css" type="text/css" />
+<script src="/static/vendor/jsuites/jsuites.js"></script>
+<link rel="stylesheet" href="/static/vendor/jspreadsheet/jspreadsheet.css" type="text/css" />
+<script src="/static/vendor/jspreadsheet/jspreadsheet.js"></script>
 
 <script>
 const FLOW_TYPE = "{{ flow_type }}";
@@ -108,13 +108,19 @@ function buildGrid(headers, rows) {
   const container = document.getElementById('stagingGrid');
   container.innerHTML = '';
 
+  // jspreadsheet-ce v5 agrupa la configuración de la hoja dentro de
+  // "worksheets" (en v4 iba todo plano en el objeto raíz), pero los eventos
+  // como "onafterchanges" siguen yendo en el objeto raíz, no dentro de cada
+  // worksheet.
   spreadsheet = jspreadsheet(container, {
-    data: data.length ? data : [headers.map(() => '').concat([''])],
-    columns: columns,
-    minDimensions: [headers.length + 1, 12],
-    allowInsertRow: false,  // se agregan filas con el botón, para mantener row_index sincronizado con la base
-    allowDeleteRow: false,
-    contextMenu: false,
+    worksheets: [{
+      data: data.length ? data : [headers.map(() => '').concat([''])],
+      columns: columns,
+      minDimensions: [headers.length + 1, 12],
+      allowInsertRow: false,  // se agregan filas con el botón, para mantener row_index sincronizado con la base
+      allowDeleteRow: false,
+      contextMenu: false,
+    }],
     onafterchanges: onGridChanges,
   });
 
@@ -147,7 +153,9 @@ function pushRowToBackend(rowIndex) {
   // cuando se pega un rango grande celda por celda.
   clearTimeout(pushTimers[rowIndex]);
   pushTimers[rowIndex] = setTimeout(async () => {
-    const rowVals = spreadsheet.getData()[rowIndex] || [];
+    // jspreadsheet(...) devuelve un array de instancias de hoja (una por
+    // worksheet definida) — como solo tenemos una, usamos spreadsheet[0].
+    const rowVals = (spreadsheet[0] && spreadsheet[0].getData(false, false)[rowIndex]) || [];
     const data = {};
     currentHeaders.forEach((h, i) => {
       data[h] = rowVals[i] || '';
