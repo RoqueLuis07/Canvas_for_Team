@@ -1,0 +1,909 @@
+{% extends "base.html" %}
+{% block title %}Crear / Eliminar Cursos{% endblock %}
+{% block breadcrumb %}Canvas LMS › Crear / Eliminar Cursos{% endblock %}
+{% block nav_ccm %}active{% endblock %}
+{% block nav_ccm_expanded %}true{% endblock %}
+{% block nav_ccm_show %}show{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-4 gap-3 flex-wrap">
+  <div><div class="page-title">Crear / Eliminar Cursos</div><div class="page-subtitle">Operaciones masivas por lote, separadas de la gestión diaria de cursos</div></div>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="coursesManageTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active fw-bold text-success" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab" aria-controls="create" aria-selected="true">
+      <i class="bi bi-plus-circle-fill me-2"></i>Crear
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-danger" id="delete-tab" data-bs-toggle="tab" data-bs-target="#delete" type="button" role="tab" aria-controls="delete" aria-selected="false">
+      <i class="bi bi-trash3-fill me-2"></i>Eliminar
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content" id="coursesManageTabsContent">
+  <div class="tab-pane fade show active" id="create" role="tabpanel" aria-labelledby="create-tab">
+<div class="accordion mb-4" id="accordionCoursesOneDrive">
+  <div class="accordion-item border-warning shadow-sm">
+    <h2 class="accordion-header" id="headingCoursesOd">
+      <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCoursesOd" aria-expanded="true" aria-controls="collapseCoursesOd" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1));">
+        <i class="bi bi-cloud-arrow-up me-2 text-warning"></i> Carga de Cursos desde Planilla (OneDrive)
+      </button>
+    </h2>
+    <div id="collapseCoursesOd" class="accordion-collapse collapse show" aria-labelledby="headingCoursesOd" data-bs-parent="#accordionCoursesOneDrive">
+      <div class="accordion-body p-4">
+        
+        <div id="coursesOdFormWrap">
+            <div class="alert alert-info">
+              Pega el <b>enlace compartido de OneDrive</b> de la planilla de cursos.<br>
+              <small class="text-muted">La planilla debe tener columnas: <b>Nombre del Curso</b> y <b>SIS ID</b>.
+              Opcionalmente, una columna <b>Docente</b> (inscribe como Teacher/Owner) y una columna
+              <b>Coordinadores</b> (varios correos separados por coma, punto y coma o salto de línea —
+              se inscriben como Designer en Canvas y Owner en Teams). Una columna <b>Sub-Cuenta</b>
+              (ej. "Administración", "Marketing", "Negocios") crea el curso directamente en esa
+              subcuenta de Canvas en vez de asignarle un período — si se completa esta columna, la
+              columna <b>Período</b> de esa fila se ignora.</small>
+            </div>
+            <div class="row">
+              <div class="col-md-10 offset-md-1">
+                <label class="form-label fw-bold">URL Compartida de OneDrive / SharePoint</label>
+                <div class="input-group mb-3">
+                  <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+                  <input type="url" class="form-control" id="coursesOdUrl" placeholder="https://...sharepoint.com/..." required>
+                  <button class="btn btn-primary" type="button" id="btnLoadCoursesSheets" onclick="fetchCoursesSheets()">Cargar Pestañas</button>
+                </div>
+                <label class="form-label fw-bold mt-2">URL del Excel Maestro de Reportes (Opcional)</label>
+                <div class="input-group mb-3">
+                  <span class="input-group-text"><i class="bi bi-journal-bookmark-fill"></i></span>
+                  <input type="url" class="form-control" id="coursesReportUrl" placeholder="https://...sharepoint.com/... (Bitácora)">
+                </div>
+                <label class="form-label fw-bold">Nombre de la Pestaña (Requerido)</label>
+                <div class="input-group mb-4">
+                  <span class="input-group-text"><i class="bi bi-file-spreadsheet"></i></span>
+                  <select class="form-select" id="coursesOdSheet" required onchange="doPreviewCourses()">
+                      <option value="">Primero haz clic en Cargar Pestañas...</option>
+                  </select>
+                </div>
+                
+                
+              </div>
+            </div>
+        </div>
+        
+        <div id="coursesOdPreviewWrap" style="display:none;">
+            <div id="coursesOdPreviewContent"></div>
+            <div class="d-flex justify-content-end gap-2 mt-4">
+              <button type="button" class="btn btn-outline-secondary" id="btnCancelCourses" onclick="cancelPreviewCourses()">Cancelar y Volver</button>
+              <button type="button" class="btn btn-success" id="btnConfirmCourses" onclick="executeCreateCourses()">
+                <i class="bi bi-check-circle me-1"></i>Confirmar y Crear Cursos
+              </button>
+            </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+  </div> <!-- End Tab Crear -->
+
+  <div class="tab-pane fade" id="delete" role="tabpanel" aria-labelledby="delete-tab">
+    
+    <div class="row">
+        <!-- Eliminación por Período -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-danger h-100">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-calendar-x me-2"></i>Eliminación por Período Académico</h5>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <p class="text-muted">Busca y selecciona múltiples cursos dentro de un período específico para eliminarlos en lote.</p>
+                    <div class="mt-auto">
+                        <button class="btn btn-outline-danger w-100" onclick="openPeriodDeleteModal()">
+                            <i class="bi bi-search me-2"></i>Buscar Cursos por Período
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Eliminación por lista de IDs -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-danger h-100">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-list-ol me-2"></i>Eliminación por IDs de Canvas</h5>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <p class="text-muted">Pega una lista de IDs de curso de Canvas (para depurar cursos sin uso) y elimínalos en lote.</p>
+                    <div class="mt-auto">
+                        <button class="btn btn-outline-danger w-100" onclick="openIdDeleteModal()">
+                            <i class="bi bi-input-cursor-text me-2"></i>Ingresar IDs a Eliminar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Eliminación por Excel -->
+        <div class="col-md-4 mb-4">
+            <div class="card shadow-sm border-danger h-100">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-file-earmark-excel me-2"></i>Eliminación por Excel (OneDrive)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info border-info">
+                        <strong>¿Cómo funciona?</strong>
+                        <ol class="mb-0 mt-2">
+                            <li>Crea un Excel con la columna <strong>SIS ID</strong> de los cursos a eliminar.</li>
+                            <li>Pega aquí el enlace compartido de OneDrive.</li>
+                        </ol>
+                    </div>
+
+                    <label class="form-label fw-bold">Enlace de OneDrive</label>
+                    <div class="input-group mb-3">
+                        <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+                        <input type="url" class="form-control border-danger" id="deleteOdUrl" placeholder="https://...sharepoint.com/...">
+                        <button class="btn btn-danger" type="button" id="btnLoadDeleteSheets" onclick="fetchDeleteSheets()">Cargar Pestañas</button>
+                    </div>
+
+                    <label class="form-label fw-bold">Nombre de la Pestaña</label>
+                    <select class="form-select border-danger mb-4" id="deleteOdSheet" onchange="previewDeleteOd()">
+                        <option value="">Primero carga las pestañas...</option>
+                    </select>
+
+                    <!-- Preview Wrap -->
+                    <div id="deleteOdPreviewWrap" style="display:none;" class="mb-3">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                            <label class="form-label fw-semibold mb-0 text-danger"><i class="bi bi-table me-2"></i>Previsualización</label>
+                            <div>
+                                <span class="badge bg-danger me-2" id="deleteToProcess">0 a procesar</span>
+                                <span class="badge bg-secondary" id="deleteAlreadyProcessed">0 ignorados</span>
+                            </div>
+                        </div>
+                        <div class="table-responsive border rounded bg-white" style="max-height:250px; overflow-y:auto;">
+                            <table class="table table-sm table-striped mb-0 text-nowrap">
+                                <thead class="table-light"><tr id="deleteOdHeaders"></tr></thead>
+                                <tbody id="deleteOdBody"></tbody>
+                            </table>
+                        </div>
+                        <div class="d-flex justify-content-end mt-3">
+                            <button class="btn btn-danger" id="btnConfirmDeleteOd" onclick="executeDeleteOd()">
+                                <i class="bi bi-check-circle me-1"></i>Confirmar y Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+  </div> <!-- End Tab Eliminación -->
+
+</div> <!-- End Tabs Content -->
+
+<div class="modal fade" id="periodDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-danger">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="bi bi-trash me-2"></i>Eliminar Cursos por Período</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="row align-items-end mb-4">
+            <div class="col-md-9">
+                <label class="form-label fw-bold">Seleccionar Período Académico</label>
+                <select class="form-select" id="periodSelect">
+                    <option value="">Cargando períodos...</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-danger w-100" id="btnSearchCoursesByPeriod" onclick="searchCoursesByPeriod()">
+                    <i class="bi bi-search me-1"></i>Buscar
+                </button>
+            </div>
+        </div>
+
+        <div id="periodCoursesWrap" style="display:none;">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h6 class="fw-bold mb-0">Cursos Encontrados (<span id="periodCoursesCount">0</span>)</h6>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selectAllCourses" onchange="toggleSelectAllCourses()">
+                    <label class="form-check-label fw-bold text-danger" for="selectAllCourses">Seleccionar Todos</label>
+                </div>
+            </div>
+            <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th style="width: 40px;"></th>
+                            <th>ID Canvas</th>
+                            <th>SIS ID</th>
+                            <th>Nombre del Curso</th>
+                        </tr>
+                    </thead>
+                    <tbody id="periodCoursesList">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnExecutePeriodDelete" onclick="executePeriodDelete()" disabled>
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Eliminar Seleccionados (<span id="selectedDeleteCount">0</span>)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="idDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-danger">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="bi bi-list-ol me-2"></i>Eliminar Cursos por ID de Canvas</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div id="idDeleteFormWrap">
+            <div class="alert alert-info">
+                Pega los <b>IDs de curso de Canvas</b> a eliminar (uno por línea, o separados por coma / espacio).
+                Útil para depurar cursos que no estén siendo utilizados.
+            </div>
+            <label class="form-label fw-bold">IDs de Canvas</label>
+            <textarea class="form-control mb-3" id="idDeleteTextarea" rows="6" placeholder="1234&#10;5678&#10;91011"></textarea>
+            <div class="d-flex justify-content-end">
+                <button class="btn btn-danger" id="btnPreviewIdDelete" onclick="previewIdDelete()">
+                    <i class="bi bi-search me-1"></i>Verificar Cursos
+                </button>
+            </div>
+        </div>
+
+        <div id="idDeletePreviewWrap" style="display:none;">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h6 class="fw-bold mb-0">Cursos Encontrados (<span id="idDeleteCount">0</span>)</h6>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selectAllIdCourses" onchange="toggleSelectAllIdCourses()">
+                    <label class="form-check-label fw-bold text-danger" for="selectAllIdCourses">Seleccionar Todos</label>
+                </div>
+            </div>
+            <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th style="width: 40px;"></th>
+                            <th>ID Canvas</th>
+                            <th>SIS ID</th>
+                            <th>Nombre del Curso</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="idCoursesList"></tbody>
+                </table>
+            </div>
+            <div id="idDeleteNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+                <strong>No encontrados:</strong> <span id="idDeleteNotFound"></span>
+            </div>
+            <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-outline-secondary me-2" onclick="cancelIdDeletePreview()">
+                    <i class="bi bi-arrow-left me-1"></i>Volver
+                </button>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="idDeleteFooter" style="display:none;">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnExecuteIdDelete" onclick="executeIdDelete()" disabled>
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Eliminar Seleccionados (<span id="selectedIdDeleteCount">0</span>)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   CARGA DE CURSOS DESDE PLANILLA ONEDRIVE
+   ═══════════════════════════════════════════════════════════════════ */
+
+
+// Recuperar la url maestra al cargar la página
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('coursesOdUrl').value = localStorage.getItem('coursesOdUrl') || '';
+    setTimeout(() => {
+        const el = document.getElementById('coursesReportUrl');
+        if(el) el.value = localStorage.getItem('masterReportUrl') || '';
+    }, 100);
+});
+
+function cancelPreviewCourses() {
+    document.getElementById('coursesOdPreviewWrap').style.display = 'none';
+}
+
+async function fetchCoursesSheets() {
+  localStorage.setItem('coursesOdUrl', document.getElementById('coursesOdUrl').value);
+  const urlInput = document.getElementById('coursesOdUrl').value.trim();
+  if (!urlInput) { toast('Por favor, ingresa la URL primero.', 'warning'); return; }
+
+  const btn = document.getElementById('btnLoadCoursesSheets');
+  const select = document.getElementById('coursesOdSheet');
+  const oldText = btn.innerHTML;
+
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Cargando...';
+  btn.disabled = true;
+  select.innerHTML = '<option value="">Cargando pestañas...</option>';
+
+  try {
+    const sheets = await api.post('/excel/courses/sheets', { url: urlInput });
+    if (sheets && sheets.length > 0) {
+      select.innerHTML = '<option value="">Selecciona una pestaña...</option>';
+      sheets.forEach(sheet => {
+        const opt = document.createElement('option');
+        opt.value = sheet; opt.textContent = sheet;
+        select.appendChild(opt);
+      });
+      toast('Pestañas cargadas correctamente.', 'success');
+    } else {
+      select.innerHTML = '<option value="">No se encontraron pestañas.</option>';
+    }
+  } catch (e) {
+    toast('Error al cargar pestañas: ' + (e.detail || e.message || e), 'danger');
+    select.innerHTML = '<option value="">Error al cargar.</option>';
+  } finally {
+    btn.innerHTML = oldText;
+    btn.disabled = false;
+  }
+}
+
+
+async function doPreviewCourses() {
+  const urlInput = document.getElementById('coursesOdUrl').value.trim();
+  const sheetInput = document.getElementById('coursesOdSheet').value.trim();
+  const reportUrlInput = document.getElementById('coursesReportUrl');
+  if (reportUrlInput) {
+    localStorage.setItem('masterReportUrl', reportUrlInput.value.trim());
+  }
+
+  if (!sheetInput) return; // Placeholder seleccionado, todavía no hay nada que previsualizar
+
+  if (!urlInput) {
+    toast('Por favor, ingresa la URL primero.', 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('btnConfirmCourses');
+  setLoading(btn, true);
+  toast('Analizando la planilla...', 'info');
+
+  try {
+    const preview = await api.post('/excel/courses/preview', { url: urlInput, sheet_name: sheetInput });
+
+    if (preview.courses_to_create > 100) {
+      toast(`⚠️ LÍMITE EXCEDIDO: ${preview.courses_to_create} cursos. Máximo 100 por vez.`, 'danger');
+      setLoading(btn, false);
+      return;
+    }
+
+    if (preview.courses_to_create === 0) {
+      toast('No hay cursos nuevos por crear en esta pestaña (todos ya tienen Canvas ID).', 'warning');
+      setLoading(btn, false);
+      return;
+    }
+
+    const cols = preview.headers && preview.headers.length ? preview.headers : ['Nombre del Curso', 'SIS ID', 'Docente'];
+
+    let tableHtml = `<div class="table-responsive mt-3" style="max-height:400px;overflow-y:auto">
+      <table class="table table-sm table-bordered table-striped table-hover">
+        <thead class="table-light" style="position:sticky;top:0;z-index:1">
+          <tr><th class="text-center" style="width:50px">Nº</th>${cols.map(h => `<th>${h}</th>`).join('')}</tr>
+        </thead>
+        <tbody>`;
+
+    preview.course_details.forEach((c, idx) => {
+      const row = c.row || {};
+      tableHtml += `<tr><td class="text-center">${idx + 1}</td>`;
+      cols.forEach(h => {
+        const val = row[h] ?? '';
+        const hLower = h.toLowerCase();
+        if (hLower.includes('docente') || hLower.includes('instructor') || hLower.includes('profesor')) {
+          tableHtml += `<td>${val ? `<span class="badge bg-info text-dark">${val}</span>` : '<span class="text-muted">—</span>'}</td>`;
+        } else if (hLower.includes('coordinador') || hLower.includes('diseñador') || hLower.includes('disenador')) {
+          const emails = String(val).split(/[,;/\n]+/).map(s => s.trim()).filter(Boolean);
+          tableHtml += `<td>${emails.length ? emails.map(e => `<span class="badge bg-secondary me-1 mb-1">${e}</span>`).join('') : '<span class="text-muted">—</span>'}</td>`;
+        } else {
+          tableHtml += `<td>${val || '<span class="text-muted">—</span>'}</td>`;
+        }
+      });
+      tableHtml += '</tr>';
+    });
+    tableHtml += '</tbody></table></div>';
+
+    const platformNote = preview.platform === 'canvas' ? ' (esta pestaña es solo Canvas — no se crea equipo de Teams)'
+      : preview.platform === 'teams' ? ' (esta pestaña es solo Teams — no se crea curso de Canvas)'
+      : '';
+    const docenteRoles = preview.platform === 'canvas' ? 'Teacher en Canvas'
+      : preview.platform === 'teams' ? 'Owner en Teams'
+      : 'Teacher en Canvas y Owner en Teams';
+    const coordRoles = preview.platform === 'canvas' ? 'Designer en Canvas'
+      : preview.platform === 'teams' ? 'Owner en Teams'
+      : 'Designer en Canvas y Owner en Teams';
+
+    document.getElementById('coursesOdPreviewContent').innerHTML = `
+      <div class="alert alert-warning mb-0">
+        <strong>Revisa los datos cuidadosamente antes de continuar.</strong><br>
+        Se van a crear <b>${preview.courses_to_create}</b> cursos nuevos${platformNote}.<br>
+        <small class="text-muted">Cursos ignorados (ya creados): ${preview.courses_already_created}</small><br>
+        ${preview.course_details.some(c => c.docente) ? `<small class="text-muted d-block"><i class="bi bi-person-check"></i> Los cursos con docente indicado inscribirán automáticamente a ese usuario como ${docenteRoles}.</small>` : ''}
+        ${preview.course_details.some(c => c.coordinadores) ? `<small class="text-muted d-block"><i class="bi bi-people-fill"></i> Los coordinadores/diseñadores indicados se inscribirán como ${coordRoles}.</small>` : ''}
+      </div>
+      ${tableHtml}
+    `;
+    
+    // Save state for execution
+    window._coursesOdCurrentUrl = urlInput;
+    window._coursesOdCurrentSheet = sheetInput;
+    
+    
+    document.getElementById('coursesOdPreviewWrap').style.display = 'block';
+  } catch (e) {
+    toast('Error: ' + (e.detail || e.message || e), 'danger');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+let _coursesJobPollInterval = null;
+
+async function executeCreateCourses() {
+  const urlInput = window._coursesOdCurrentUrl;
+  const sheetInput = window._coursesOdCurrentSheet;
+
+  const btn = document.getElementById('btnConfirmCourses');
+  setLoading(btn, true);
+
+  try {
+    const reportUrl = localStorage.getItem('masterReportUrl') || '';
+    const res = await api.post('/excel/courses', { url: urlInput, sheet_name: sheetInput, report_url: reportUrl });
+
+    if (!res.job_id) {
+      throw new Error('No se recibió ID del trabajo.');
+    }
+    toast('Creación de cursos iniciada en segundo plano.', 'info');
+    startCoursesJobPolling(res.job_id);
+  } catch (e) {
+    toast('Error: ' + (e.detail || e.message || e), 'danger');
+    setLoading(btn, false);
+  }
+}
+
+function startCoursesJobPolling(jobId) {
+  const btn = document.getElementById('btnConfirmCourses');
+  const cancelBtn = document.getElementById('btnCancelCourses');
+  if (cancelBtn) cancelBtn.disabled = true;
+  if (_coursesJobPollInterval) clearInterval(_coursesJobPollInterval);
+
+  document.getElementById('coursesOdPreviewContent').insertAdjacentHTML('beforeend', `
+    <div id="coursesJobProgressWrap" class="alert alert-info mt-3">
+      <div class="mb-2"><b>Procesando en segundo plano...</b> (Trabajo #${jobId})</div>
+      <div class="progress" style="height: 20px;">
+        <div id="coursesJobProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 5%;">5%</div>
+      </div>
+      <div id="coursesJobProgressDetail" class="mt-2 small text-muted">Inicializando (los equipos de Teams pueden tardar hasta 1 minuto cada uno)...</div>
+    </div>
+  `);
+
+  _coursesJobPollInterval = setInterval(async () => {
+    try {
+      const job = await api.get(`/excel/jobs/${jobId}`);
+      if (!job) return;
+
+      const total = job.data_json ? (JSON.parse(job.data_json).total_to_process || 0) : 0;
+      const processed = (job.result_count || 0) + (job.error_count || 0);
+      const percent = total > 0 ? Math.round((processed / total) * 100) : (job.status === 'completed' || job.status === 'completed_with_errors' || job.status === 'failed' ? 100 : 5);
+
+      const bar = document.getElementById('coursesJobProgressBar');
+      if (bar) { bar.style.width = `${percent}%`; bar.innerText = `${percent}%`; }
+      const detail = document.getElementById('coursesJobProgressDetail');
+      if (detail) detail.innerHTML = `Completados: ${job.result_count || 0} | Errores: ${job.error_count || 0}${total > 0 ? ' | Total: ' + total : ''}`;
+
+      if (['completed', 'completed_with_errors', 'failed'].includes(job.status)) {
+        clearInterval(_coursesJobPollInterval);
+        setLoading(btn, false);
+        if (cancelBtn) cancelBtn.disabled = false;
+
+        if (job.status === 'failed') {
+          toast('❌ El proceso falló: ' + (job.error_message || ''), 'danger');
+        } else {
+          const failCount = job.error_count || 0;
+          toast(`✅ ${job.result_count || 0} cursos creados.${failCount > 0 ? ` ⚠️ ${failCount} con advertencias/errores.` : ''} ${job.error_message || ''}`, failCount > 0 ? 'warning' : 'success');
+        }
+
+        cancelPreviewCourses();
+        document.getElementById('coursesOdUrl').value = '';
+        document.getElementById('coursesOdSheet').innerHTML = '<option value="">Primero haz clic en Cargar Pestañas...</option>';
+        loadCourses();
+      }
+    } catch (e) {
+      console.error('Error consultando estado del trabajo', e);
+    }
+  }, 4000);
+}
+
+// ==========================================
+// ELIMINACION DE CURSOS (ONEDRIVE)
+// ==========================================
+
+async function fetchDeleteSheets() {
+    const urlInput = document.getElementById('deleteOdUrl').value.trim();
+    if (!urlInput) { toast('Por favor, ingresa la URL de OneDrive.', 'warning'); return; }
+
+    const btn = document.getElementById('btnLoadDeleteSheets');
+    setLoading(btn, true);
+
+    try {
+        const sheets = await api.post('/excel/courses/sheets', { url: urlInput });
+        const select = document.getElementById('deleteOdSheet');
+        select.innerHTML = '<option value="">Selecciona una pestaña...</option>';
+        sheets.forEach(s => {
+            select.innerHTML += `<option value="${s}">${s}</option>`;
+        });
+        toast('Pestañas cargadas exitosamente', 'success');
+    } catch (e) {
+        toast('Error al cargar pestañas: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+async function previewDeleteOd() {
+    const urlInput = document.getElementById('deleteOdUrl').value.trim();
+    const sheetInput = document.getElementById('deleteOdSheet').value.trim();
+    
+    if (!urlInput || !sheetInput) return;
+    
+    toast('Analizando la planilla para eliminar...', 'info');
+    document.getElementById('deleteOdPreviewWrap').style.display = 'none';
+
+    try {
+        const preview = await api.post('/excel/courses/delete/preview', { url: urlInput, sheet_name: sheetInput });
+        
+        document.getElementById('deleteToProcess').innerText = `${preview.students_to_process} a eliminar`;
+        document.getElementById('deleteAlreadyProcessed').innerText = `${preview.students_already_processed} ignorados`;
+        
+        const thead = document.getElementById('deleteOdHeaders');
+        const tbody = document.getElementById('deleteOdBody');
+        
+        thead.innerHTML = preview.headers.map(h => `<th>${h}</th>`).join('');
+        
+        let bodyHTML = '';
+        preview.sample_rows.forEach(r => {
+            let rowHtml = '';
+            preview.headers.forEach(h => {
+                let cellVal = r[h] || '';
+                if (h.toLowerCase().includes('estado') || h.toLowerCase().includes('enviado') || h.toLowerCase().includes('eliminado')) {
+                    if (cellVal.toLowerCase() === 'ok' || cellVal.toLowerCase().includes('eliminado') || cellVal.toLowerCase().includes('baja')) {
+                        cellVal = `<span class="badge bg-warning text-dark">${cellVal}</span>`;
+                    } else if (cellVal.toLowerCase().includes('error')) {
+                        cellVal = `<span class="badge bg-danger">${cellVal}</span><span class="badge bg-success ms-1">Reintento</span>`;
+                    } else {
+                        cellVal = `<span class="badge bg-danger">A eliminar</span>`;
+                    }
+                }
+                rowHtml += `<td>${cellVal}</td>`;
+            });
+            bodyHTML += `<tr>${rowHtml}</tr>`;
+        });
+        tbody.innerHTML = bodyHTML;
+        
+        document.getElementById('deleteOdPreviewWrap').style.display = 'block';
+    } catch (e) {
+        toast('Error: ' + (e.detail || e.message || e), 'danger');
+    }
+}
+
+async function executeDeleteOd() {
+    const urlInput = document.getElementById('deleteOdUrl').value.trim();
+    const sheetInput = document.getElementById('deleteOdSheet').value.trim();
+    
+    if (!urlInput || !sheetInput) return;
+    if (!confirm('¿Estás seguro de que deseas ELIMINAR masivamente los cursos leídos en esta planilla y sus Equipos asociados en Teams? Esta acción es irreversible para Teams.')) return;
+    
+    const btn = document.getElementById('btnConfirmDeleteOd');
+    setLoading(btn, true);
+    
+    try {
+        const res = await api.post('/excel/courses/delete/import', { url: urlInput, sheet_name: sheetInput });
+        toast(`Éxito: ${res.succeeded.length} eliminados. Errores: ${res.failed.length}`, 'success');
+        previewDeleteOd(); // Reload preview
+    } catch (e) {
+        toast('Error: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+// ==========================================
+// ELIMINACION DE CURSOS (PERIODO)
+// ==========================================
+
+let periodModal = null;
+let currentPeriodCourses = [];
+
+async function openPeriodDeleteModal() {
+    if (!periodModal) {
+        periodModal = new bootstrap.Modal(document.getElementById('periodDeleteModal'));
+    }
+    periodModal.show();
+    
+    // Load terms
+    try {
+        const select = document.getElementById('periodSelect');
+        if (select.options.length <= 1) { // Not loaded yet
+            const terms = await api.get('/canvas/terms');
+            select.innerHTML = '<option value="">Seleccione un período...</option>';
+            terms.forEach(t => {
+                select.innerHTML += `<option value="${t.id}">${t.name} (SIS ID: ${t.sis_term_id || 'N/A'})</option>`;
+            });
+        }
+    } catch (e) {
+        toast('Error cargando períodos: ' + (e.detail || e.message || e), 'danger');
+    }
+}
+
+async function searchCoursesByPeriod() {
+    const termId = document.getElementById('periodSelect').value;
+    if (!termId) { toast('Seleccione un período primero', 'warning'); return; }
+    
+    const btn = document.getElementById('btnSearchCoursesByPeriod');
+    setLoading(btn, true);
+    document.getElementById('periodCoursesWrap').style.display = 'none';
+    
+    try {
+        currentPeriodCourses = await api.get(`/canvas/courses/by-term/${termId}?per_page=100`);
+        document.getElementById('periodCoursesCount').innerText = currentPeriodCourses.length;
+        
+        const tbody = document.getElementById('periodCoursesList');
+        let html = '';
+        currentPeriodCourses.forEach(c => {
+            html += `
+            <tr>
+                <td><input class="form-check-input course-checkbox" type="checkbox" value="${c.id}" onchange="updateSelectedDeleteCount()"></td>
+                <td>${c.id}</td>
+                <td><span class="badge bg-secondary">${c.sis_course_id || 'N/A'}</span></td>
+                <td>${c.name}</td>
+            </tr>`;
+        });
+        
+        if (currentPeriodCourses.length === 0) {
+            html = `<tr><td colspan="4" class="text-center text-muted">No se encontraron cursos en este período.</td></tr>`;
+        }
+        
+        tbody.innerHTML = html;
+        document.getElementById('selectAllCourses').checked = false;
+        updateSelectedDeleteCount();
+        
+        document.getElementById('periodCoursesWrap').style.display = 'block';
+    } catch (e) {
+        toast('Error buscando cursos: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function toggleSelectAllCourses() {
+    const selectAll = document.getElementById('selectAllCourses').checked;
+    const checkboxes = document.querySelectorAll('.course-checkbox');
+    checkboxes.forEach(cb => cb.checked = selectAll);
+    updateSelectedDeleteCount();
+}
+
+function updateSelectedDeleteCount() {
+    const selected = document.querySelectorAll('.course-checkbox:checked').length;
+    document.getElementById('selectedDeleteCount').innerText = selected;
+    document.getElementById('btnExecutePeriodDelete').disabled = selected === 0;
+}
+
+async function executePeriodDelete() {
+    const checkboxes = document.querySelectorAll('.course-checkbox:checked');
+    const courseIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (courseIds.length === 0) return;
+    
+    if (!confirm(`¿Está absolutamente seguro de ELIMINAR los ${courseIds.length} cursos seleccionados y sus respectivos Equipos en Teams? Esta acción NO SE PUEDE DESHACER para Microsoft Teams.`)) return;
+    
+    const btn = document.getElementById('btnExecutePeriodDelete');
+    setLoading(btn, true);
+    
+    try {
+        const res = await api.post('/canvas/courses/bulk-delete', { course_ids: courseIds, delete_teams: true });
+        
+        let msg = `Éxito: ${res.succeeded.length} eliminados.`;
+        if (res.failed.length > 0) {
+            msg += ` Errores: ${res.failed.length}. Revisa la consola para detalles.`;
+            console.error("Cursos fallidos:", res.failed);
+            toast(msg, 'warning');
+        } else {
+            toast(msg, 'success');
+        }
+        
+        // Refresh list
+        searchCoursesByPeriod();
+    } catch (e) {
+        toast('Error durante la eliminación masiva: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+// ==========================================
+// ELIMINACION DE CURSOS (POR LISTA DE IDs)
+// ==========================================
+
+let idDeleteModal = null;
+let currentIdCourses = [];
+
+function openIdDeleteModal() {
+    if (!idDeleteModal) {
+        idDeleteModal = new bootstrap.Modal(document.getElementById('idDeleteModal'));
+    }
+    document.getElementById('idDeleteTextarea').value = '';
+    document.getElementById('idDeleteFormWrap').style.display = 'block';
+    document.getElementById('idDeletePreviewWrap').style.display = 'none';
+    document.getElementById('idDeleteFooter').style.display = 'none';
+    currentIdCourses = [];
+    idDeleteModal.show();
+}
+
+function _parseIdList(raw) {
+    return [...new Set(
+        raw.split(/[\s,;]+/)
+            .map(s => s.trim())
+            .filter(s => /^\d+$/.test(s))
+    )];
+}
+
+async function previewIdDelete() {
+    const raw = document.getElementById('idDeleteTextarea').value;
+    const ids = _parseIdList(raw);
+
+    if (ids.length === 0) {
+        toast('Ingresa al menos un ID de curso válido.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnPreviewIdDelete');
+    setLoading(btn, true);
+
+    currentIdCourses = [];
+    const notFound = [];
+
+    try {
+        const results = await Promise.all(ids.map(async id => {
+            try {
+                const c = await api.get(`/canvas/courses/${id}`);
+                return { ok: true, course: c };
+            } catch (e) {
+                return { ok: false, id };
+            }
+        }));
+
+        results.forEach(r => {
+            if (r.ok) currentIdCourses.push(r.course);
+            else notFound.push(r.id);
+        });
+
+        const tbody = document.getElementById('idCoursesList');
+        let html = '';
+        currentIdCourses.forEach(c => {
+            const cfg = _STATE_CFG[c.workflow_state] || { label: c.workflow_state || '—', bg: '#6C7982' };
+            html += `
+            <tr>
+                <td><input class="form-check-input id-course-checkbox" type="checkbox" value="${c.id}" onchange="updateSelectedIdDeleteCount()"></td>
+                <td>${c.id}</td>
+                <td><span class="badge bg-secondary">${c.sis_course_id || 'N/A'}</span></td>
+                <td>${c.name}</td>
+                <td><span class="badge" style="background:${cfg.bg};">${cfg.label}</span></td>
+            </tr>`;
+        });
+        if (currentIdCourses.length === 0) {
+            html = `<tr><td colspan="5" class="text-center text-muted">Ningún curso encontrado.</td></tr>`;
+        }
+        tbody.innerHTML = html;
+        document.getElementById('idDeleteCount').innerText = currentIdCourses.length;
+        document.getElementById('selectAllIdCourses').checked = false;
+
+        if (notFound.length > 0) {
+            document.getElementById('idDeleteNotFoundWrap').style.display = 'block';
+            document.getElementById('idDeleteNotFound').innerText = notFound.join(', ');
+        } else {
+            document.getElementById('idDeleteNotFoundWrap').style.display = 'none';
+        }
+
+        document.getElementById('idDeleteFormWrap').style.display = 'none';
+        document.getElementById('idDeletePreviewWrap').style.display = 'block';
+        document.getElementById('idDeleteFooter').style.display = 'flex';
+        updateSelectedIdDeleteCount();
+    } catch (e) {
+        toast('Error verificando cursos: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function cancelIdDeletePreview() {
+    document.getElementById('idDeleteFormWrap').style.display = 'block';
+    document.getElementById('idDeletePreviewWrap').style.display = 'none';
+    document.getElementById('idDeleteFooter').style.display = 'none';
+}
+
+function toggleSelectAllIdCourses() {
+    const selectAll = document.getElementById('selectAllIdCourses').checked;
+    document.querySelectorAll('.id-course-checkbox').forEach(cb => cb.checked = selectAll);
+    updateSelectedIdDeleteCount();
+}
+
+function updateSelectedIdDeleteCount() {
+    const selected = document.querySelectorAll('.id-course-checkbox:checked').length;
+    document.getElementById('selectedIdDeleteCount').innerText = selected;
+    document.getElementById('btnExecuteIdDelete').disabled = selected === 0;
+}
+
+async function executeIdDelete() {
+    const checkboxes = document.querySelectorAll('.id-course-checkbox:checked');
+    const courseIds = Array.from(checkboxes).map(cb => cb.value);
+
+    if (courseIds.length === 0) return;
+
+    if (!confirm(`¿Está absolutamente seguro de ELIMINAR los ${courseIds.length} cursos seleccionados y sus respectivos Equipos en Teams? Esta acción NO SE PUEDE DESHACER para Microsoft Teams.`)) return;
+
+    const btn = document.getElementById('btnExecuteIdDelete');
+    setLoading(btn, true);
+
+    try {
+        const res = await api.post('/canvas/courses/bulk-delete', { course_ids: courseIds, delete_teams: true });
+
+        let msg = `Éxito: ${res.succeeded.length} eliminados.`;
+        if (res.failed.length > 0) {
+            msg += ` Errores: ${res.failed.length}. Revisa la consola para detalles.`;
+            console.error("Cursos fallidos:", res.failed);
+            toast(msg, 'warning');
+        } else {
+            toast(msg, 'success');
+        }
+
+        idDeleteModal.hide();
+    } catch (e) {
+        toast('Error durante la eliminación masiva: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+// ==========================================
+// LIBERAR SIS ID BLOQUEADO
+// ==========================================
+
+let currentReleaseSisCandidates = [];
+
+function _parseReleaseSisEntries(raw) {
+    // Solo separa por línea o ";" — NO por coma: algunos nombres de curso/período
+    // contienen comas de verdad (ej. "Sociedad, Estado y Empresa (GA) 2026-02"),
+    // y separar por coma los partía en fragmentos que no matcheaban nada.
+    return [...new Set(
+        raw.split(/[\n;]+/)
+            .map(s => s.trim())
+            .filter(s => s.length > 0)
+    )];
+}
+
+
+// Activa la pestaña indicada por ?tab= (llegando desde el submenú del sidebar)
+(function activateTabFromQuery() {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (!tab) return;
+    const btn = document.getElementById(tab + '-tab');
+    if (btn) new bootstrap.Tab(btn).show();
+})();
+</script>
+{% endblock %}

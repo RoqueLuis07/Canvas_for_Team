@@ -69,31 +69,25 @@
     <span>Gestión Académica</span><i class="bi bi-chevron-down"></i>
   </button>
   <div class="collapse show sidebar-group" id="grupoAcademica">
+  <a href="/ui/canvas/courses" class="sidebar-link {% block nav_cc %}{% endblock %}">
+    <i class="bi bi-book-fill"></i><span>Cursos (Canvas)</span>
+  </a>
   <div class="sidebar-link-group">
-    <a href="/ui/canvas/courses" class="sidebar-link {% block nav_cc %}{% endblock %}">
-      <i class="bi bi-book-fill"></i><span>Cursos (Canvas)</span>
+    <a href="/ui/canvas/courses/manage" class="sidebar-link {% block nav_ccm %}{% endblock %}">
+      <i class="bi bi-plus-slash-minus"></i><span>Crear / Eliminar Cursos</span>
     </a>
-    <button type="button" class="sidebar-caret-btn" data-bs-toggle="collapse" data-bs-target="#submenuCursos"
-            aria-expanded="{% block nav_cc_expanded %}false{% endblock %}" aria-controls="submenuCursos"
-            aria-label="Mostrar herramientas de Cursos Canvas">
+    <button type="button" class="sidebar-caret-btn" data-bs-toggle="collapse" data-bs-target="#submenuCursosManage"
+            aria-expanded="{% block nav_ccm_expanded %}false{% endblock %}" aria-controls="submenuCursosManage"
+            aria-label="Mostrar herramientas de Crear/Eliminar Cursos">
       <i class="bi bi-chevron-down"></i>
     </button>
   </div>
-  <div class="collapse {% block nav_cc_show %}{% endblock %}" id="submenuCursos">
-    <a href="/ui/canvas/courses?tab=create" class="sidebar-sublink" data-tab="create">
-      <i class="bi bi-plus-circle-fill"></i><span>Creación Masiva</span>
+  <div class="collapse {% block nav_ccm_show %}{% endblock %}" id="submenuCursosManage">
+    <a href="/ui/canvas/courses/manage?tab=create" class="sidebar-sublink" data-tab="create">
+      <i class="bi bi-plus-circle-fill"></i><span>Crear Cursos</span>
     </a>
-    <a href="/ui/canvas/courses?tab=delete" class="sidebar-sublink" data-tab="delete">
-      <i class="bi bi-trash3-fill"></i><span>Eliminación Masiva</span>
-    </a>
-    <a href="/ui/canvas/courses?tab=release-sis" class="sidebar-sublink" data-tab="release-sis">
-      <i class="bi bi-unlock-fill"></i><span>Liberar SIS ID</span>
-    </a>
-    <a href="/ui/canvas/courses?tab=release-term-sis" class="sidebar-sublink" data-tab="release-term-sis">
-      <i class="bi bi-unlock-fill"></i><span>Liberar Período</span>
-    </a>
-    <a href="/ui/canvas/courses?tab=fix-coord-role" class="sidebar-sublink" data-tab="fix-coord-role">
-      <i class="bi bi-person-gear"></i><span>Corregir Rol Coordinador</span>
+    <a href="/ui/canvas/courses/manage?tab=delete" class="sidebar-sublink" data-tab="delete">
+      <i class="bi bi-trash3-fill"></i><span>Eliminar Cursos</span>
     </a>
   </div>
   <a href="/ui/teams/teams" class="sidebar-link {% block nav_tt %}{% endblock %}">
@@ -122,6 +116,30 @@
     <span>Administración</span><i class="bi bi-chevron-down"></i>
   </button>
   <div class="collapse show sidebar-group" id="grupoAdministracion">
+  <div class="sidebar-link-group">
+    <a href="/ui/canvas/courses/maintenance" class="sidebar-link {% block nav_ccmt %}{% endblock %}">
+      <i class="bi bi-tools"></i><span>Mantenimiento de Cursos</span>
+    </a>
+    <button type="button" class="sidebar-caret-btn" data-bs-toggle="collapse" data-bs-target="#submenuCursosMaint"
+            aria-expanded="{% block nav_ccmt_expanded %}false{% endblock %}" aria-controls="submenuCursosMaint"
+            aria-label="Mostrar herramientas de Mantenimiento de Cursos">
+      <i class="bi bi-chevron-down"></i>
+    </button>
+  </div>
+  <div class="collapse {% block nav_ccmt_show %}{% endblock %}" id="submenuCursosMaint">
+    <a href="/ui/canvas/courses/maintenance?tab=release-sis" class="sidebar-sublink" data-tab="release-sis">
+      <i class="bi bi-unlock-fill"></i><span>Liberar SIS ID</span>
+    </a>
+    <a href="/ui/canvas/courses/maintenance?tab=release-term-sis" class="sidebar-sublink" data-tab="release-term-sis">
+      <i class="bi bi-unlock-fill"></i><span>Liberar Período</span>
+    </a>
+    <a href="/ui/canvas/courses/maintenance?tab=fix-coord-role" class="sidebar-sublink" data-tab="fix-coord-role">
+      <i class="bi bi-person-gear"></i><span>Corregir Rol Coordinador</span>
+    </a>
+    <a href="/ui/canvas/courses/maintenance?tab=fix-sis-id" class="sidebar-sublink" data-tab="fix-sis-id">
+      <i class="bi bi-pencil-square"></i><span>Corregir SIS ID</span>
+    </a>
+  </div>
   <a href="/ui/actas" class="sidebar-link {% block nav_actas %}{% endblock %}">
     <i class="bi bi-file-earmark-text-fill"></i><span>Actas</span>
   </a>

@@ -38,6 +38,16 @@ async def canvas_courses(request: Request):
     return _r(request, "canvas/courses.html")
 
 
+@router.get("/ui/canvas/courses/manage", response_class=HTMLResponse)
+async def canvas_courses_manage(request: Request):
+    return _r(request, "canvas/courses_manage.html")
+
+
+@router.get("/ui/canvas/courses/maintenance", response_class=HTMLResponse)
+async def canvas_courses_maintenance(request: Request):
+    return _r(request, "canvas/courses_maintenance.html")
+
+
 @router.get("/ui/canvas/attendance", response_class=HTMLResponse)
 async def canvas_attendance(request: Request):
     return _r(request, "attendance_reports.html")
