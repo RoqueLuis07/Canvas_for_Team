@@ -53,6 +53,14 @@ async def canvas_attendance(request: Request):
     return _r(request, "attendance_reports.html")
 
 
+@router.get("/ui/preview/workbook", response_class=HTMLResponse)
+async def workbook_preview(request: Request):
+    """Maqueta visual de la 'Planilla Viva' (libro único con pestañas de
+    hoja). Datos ficticios, sin guardado real — solo para validar la forma
+    antes de conectarla a las tablas de producción."""
+    return _r(request, "canvas/workbook_preview.html")
+
+
 
 
 
