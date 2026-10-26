@@ -61,6 +61,15 @@ async def workbook_preview(request: Request):
     return _r(request, "canvas/workbook_preview.html")
 
 
+@router.get("/ui/preview/diplomado", response_class=HTMLResponse)
+async def diplomado_sheet_preview(request: Request):
+    """Maqueta visual de la planilla de un diplomado puntual: encabezado
+    (diplomado/equipo/propietarios) + candidatos de solo lectura desde PL
+    Comercial + planilla de trabajo editable. Datos ficticios, sin guardado
+    real todavía."""
+    return _r(request, "canvas/diplomados_sheet_preview.html")
+
+
 
 
 
