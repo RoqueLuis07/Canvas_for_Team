@@ -43,7 +43,13 @@
     <i class="bi bi-cloud-arrow-down text-muted"></i>
     <span class="fw-semibold">Candidatos — PL Comercial (Datos UBS)</span>
     <span class="badge-readonly ms-1"><i class="bi bi-lock-fill"></i> solo lectura</span>
+    <span class="dip-cross-badge ms-1"><i class="bi bi-arrow-left-right"></i> Cruce automático por cédula</span>
     <span class="ms-auto text-muted small">Filtrado por programa · 3 encontrados</span>
+  </div>
+  <div class="dip-cross-note">
+    El sistema compara cada candidato de Datos UBS contra la planilla de este diplomado por <strong>cédula</strong>.
+    <span class="dip-tag dip-tag-ok">Ya tiene credenciales</span> = ya está en la planilla de abajo, no hace falta tocarlo.
+    Lo demás es lo que falta enviar — tildá y traspasá.
   </div>
   <div class="table-responsive">
     <table class="dip-source-table">
@@ -55,7 +61,7 @@
           <th>Correo</th>
           <th>Teléfono</th>
           <th>Vendedor</th>
-          <th>Situación</th>
+          <th>Cruce</th>
         </tr>
       </thead>
       <tbody>
@@ -66,7 +72,7 @@
           <td class="text-muted">allendemmic@demo.com.py</td>
           <td>0981 647145</td>
           <td>Ninoska Cerrada</td>
-          <td><span class="dip-tag dip-tag-ok">Contado</span></td>
+          <td><span class="dip-tag dip-tag-pend">Falta enviar</span></td>
         </tr>
         <tr>
           <td><input type="checkbox" checked></td>
@@ -75,22 +81,22 @@
           <td class="text-muted">manuchocampos@demo.es</td>
           <td>0982 376435</td>
           <td>Yeruti Recalde</td>
-          <td><span class="dip-tag dip-tag-ok">Contado</span></td>
+          <td><span class="dip-tag dip-tag-pend">Falta enviar</span></td>
         </tr>
         <tr class="dip-row-dim">
-          <td><input type="checkbox"></td>
+          <td><input type="checkbox" disabled></td>
           <td>Lilian Leguizamón (demo)</td>
           <td>2.355.788</td>
           <td class="text-muted">lilian_demo@demo.com</td>
           <td>0971 512051</td>
           <td>Ninoska Cerrada</td>
-          <td><span class="dip-tag dip-tag-pend">Ya procesado</span></td>
+          <td><span class="dip-tag dip-tag-ok"><i class="bi bi-check-circle-fill"></i> Ya tiene credenciales</span></td>
         </tr>
       </tbody>
     </table>
   </div>
   <div class="dip-source-actions">
-    <span class="text-muted small">2 seleccionados</span>
+    <span class="text-muted small">2 seleccionados · 1 ya cruzado, se oculta de la selección</span>
     <button type="button" class="btn btn-sm btn-primary ms-auto" disabled>
       <i class="bi bi-arrow-down-circle-fill me-1"></i> Traspasar seleccionados a la planilla ↓
     </button>
@@ -217,6 +223,8 @@
 
 /* ── Badge de solo-lectura (fuente comercial protegida) ── */
 .badge-readonly { font-size: .68rem; color: var(--canvas-yellow); background: rgba(198,138,10,.1); border-radius: 999px; padding: 2px 9px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+.dip-cross-badge { font-size: .68rem; color: var(--canvas-blue); background: var(--brand-blue-soft, #E6F2F8); border-radius: 999px; padding: 2px 9px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+.dip-cross-note { font-size: .8rem; color: var(--text-muted); padding: 10px 14px; background: var(--header-bg); border-bottom: 1px solid var(--card-border); }
 
 /* ── Tabla de candidatos (fuente, compacta, tenue) ── */
 .dip-source-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
