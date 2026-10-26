@@ -34,9 +34,6 @@
     <span>Directorio & Ingresos</span><i class="bi bi-chevron-down"></i>
   </button>
   <div class="collapse show sidebar-group" id="grupoDirectorio">
-  <a href="/ui/unified-users" class="sidebar-link {% block nav_uu %}{% endblock %}">
-    <i class="bi bi-search"></i><span>Buscar Usuarios</span>
-  </a>
   <a href="/ui/ingreso" class="sidebar-link {% block nav_ni %}{% endblock %}">
     <i class="bi bi-person-plus-fill"></i><span>Alta Unificada</span>
   </a>
@@ -70,7 +67,7 @@
   </button>
   <div class="collapse show sidebar-group" id="grupoAcademica">
   <a href="/ui/canvas/courses" class="sidebar-link {% block nav_cc %}{% endblock %}">
-    <i class="bi bi-book-fill"></i><span>Cursos (Canvas)</span>
+    <i class="bi bi-book-fill"></i><span>Cursos y Equipos</span>
   </a>
   <div class="sidebar-link-group">
     <a href="/ui/canvas/courses/manage" class="sidebar-link {% block nav_ccm %}{% endblock %}">
@@ -90,23 +87,11 @@
       <i class="bi bi-trash3-fill"></i><span>Eliminar Cursos</span>
     </a>
   </div>
-  <a href="/ui/teams/teams" class="sidebar-link {% block nav_tt %}{% endblock %}">
-    <i class="bi bi-microsoft-teams"></i><span>Equipos (Teams)</span>
-  </a>
   <a href="/ui/unified-enrollments" class="sidebar-link {% block nav_ue %}{% endblock %}">
     <i class="bi bi-person-lines-fill"></i><span>Matriculaciones</span>
   </a>
-  <a href="/ui/materias" class="sidebar-link {% block nav_mm %}{% endblock %}">
-    <i class="bi bi-journal-check"></i><span>Matriculación por Materias</span>
-  </a>
-  <a href="/ui/cpel" class="sidebar-link {% block nav_cpel %}{% endblock %}">
-    <i class="bi bi-diagram-3-fill"></i><span>Matriculación CPEL por Carrera</span>
-  </a>
   <a href="/ui/canvas/attendance" class="sidebar-link {% block nav_ca %}{% endblock %}">
     <i class="bi bi-clipboard-check-fill"></i><span>Asistencias</span>
-  </a>
-  <a href="/ui/sync" class="sidebar-link {% block nav_sy %}{% endblock %}">
-    <i class="bi bi-arrow-left-right"></i><span>Sincronización</span>
   </a>
   </div>
 
@@ -116,66 +101,12 @@
     <span>Administración</span><i class="bi bi-chevron-down"></i>
   </button>
   <div class="collapse show sidebar-group" id="grupoAdministracion">
-  <div class="sidebar-link-group">
-    <a href="/ui/canvas/courses/maintenance" class="sidebar-link {% block nav_ccmt %}{% endblock %}">
-      <i class="bi bi-tools"></i><span>Mantenimiento de Cursos</span>
-    </a>
-    <button type="button" class="sidebar-caret-btn" data-bs-toggle="collapse" data-bs-target="#submenuCursosMaint"
-            aria-expanded="{% block nav_ccmt_expanded %}false{% endblock %}" aria-controls="submenuCursosMaint"
-            aria-label="Mostrar herramientas de Mantenimiento de Cursos">
-      <i class="bi bi-chevron-down"></i>
-    </button>
-  </div>
-  <div class="collapse {% block nav_ccmt_show %}{% endblock %}" id="submenuCursosMaint">
-    <a href="/ui/canvas/courses/maintenance?tab=release-sis" class="sidebar-sublink" data-tab="release-sis">
-      <i class="bi bi-unlock-fill"></i><span>Liberar SIS ID</span>
-    </a>
-    <a href="/ui/canvas/courses/maintenance?tab=release-term-sis" class="sidebar-sublink" data-tab="release-term-sis">
-      <i class="bi bi-unlock-fill"></i><span>Liberar Período</span>
-    </a>
-    <a href="/ui/canvas/courses/maintenance?tab=fix-coord-role" class="sidebar-sublink" data-tab="fix-coord-role">
-      <i class="bi bi-person-gear"></i><span>Corregir Rol Coordinador</span>
-    </a>
-    <a href="/ui/canvas/courses/maintenance?tab=fix-sis-id" class="sidebar-sublink" data-tab="fix-sis-id">
-      <i class="bi bi-pencil-square"></i><span>Corregir SIS ID</span>
-    </a>
-  </div>
-  <a href="/ui/actas" class="sidebar-link {% block nav_actas %}{% endblock %}">
-    <i class="bi bi-file-earmark-text-fill"></i><span>Actas</span>
-  </a>
   <a href="/ui/jobs" class="sidebar-link {% block nav_jh %}{% endblock %}">
     <i class="bi bi-clipboard-data-fill"></i><span>Historial Trabajos</span>
   </a>
   <a href="/ui/audit" class="sidebar-link {% block nav_au %}{% endblock %}">
     <i class="bi bi-shield-lock-fill"></i><span>Auditoría</span>
   </a>
-  <div class="sidebar-link-group">
-    <a href="/ui/reports" class="sidebar-link {% block nav_rp %}{% endblock %}">
-      <i class="bi bi-graph-up-arrow"></i><span>Reportes</span>
-    </a>
-    <button type="button" class="sidebar-caret-btn" data-bs-toggle="collapse" data-bs-target="#submenuReportes"
-            aria-expanded="{% block nav_rp_expanded %}false{% endblock %}" aria-controls="submenuReportes"
-            aria-label="Mostrar secciones de Reportes">
-      <i class="bi bi-chevron-down"></i>
-    </button>
-  </div>
-  <div class="collapse {% block nav_rp_show %}{% endblock %}" id="submenuReportes">
-    <a href="/ui/reports#licencias-huerfanas" class="sidebar-sublink">
-      <i class="bi bi-key-fill"></i><span>Licencias Huérfanas</span>
-    </a>
-    <a href="/ui/reports#teams-inactivas" class="sidebar-sublink">
-      <i class="bi bi-person-x-fill"></i><span>Cuentas Inactivas</span>
-    </a>
-    <a href="/ui/reports#actividad-teams" class="sidebar-sublink">
-      <i class="bi bi-graph-up"></i><span>Actividad de Teams</span>
-    </a>
-    <a href="/ui/reports#verificar-envio" class="sidebar-sublink">
-      <i class="bi bi-envelope-check"></i><span>Verificar Envío</span>
-    </a>
-    <a href="/ui/reports#cuentas-sin-uso" class="sidebar-sublink">
-      <i class="bi bi-person-slash"></i><span>Cuentas sin Uso</span>
-    </a>
-  </div>
   </div>
 
   <button type="button" class="sidebar-section sidebar-section-btn mt-3" data-bs-toggle="collapse"

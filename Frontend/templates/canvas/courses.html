@@ -1,38 +1,582 @@
 {% extends "base.html" %}
-{% block title %}Cursos Canvas{% endblock %}
-{% block breadcrumb %}Canvas LMS › Cursos{% endblock %}
+{% block title %}Cursos y Equipos{% endblock %}
+{% block breadcrumb %}Canvas LMS › Cursos y Equipos{% endblock %}
 {% block nav_cc %}active{% endblock %}
 {% block content %}
 <div class="d-flex align-items-center mb-4 gap-3 flex-wrap">
-  <div><div class="page-title">Cursos Canvas</div><div class="page-subtitle">Listado y gestión de cursos de la plataforma</div></div>
+  <div><div class="page-title">Cursos y Equipos</div><div class="page-subtitle">Cursos de Canvas y equipos de Teams activos, en un mismo lugar</div></div>
 </div>
 
-<div class="canvas-panel">
-  <div class="card-header flex-wrap gap-2">
-    <input type="text" id="searchCourse" class="form-control search-box" placeholder="🔍 ID, nombre, código, SIS..." oninput="applyFilters()">
-    <select id="stateFilter" class="form-select filter-select-sm" title="Filtrar por estado" onchange="applyFilters()">
-      <option value="">Todos los estados</option>
-      <option value="available">✅ Publicado</option>
-      <option value="unpublished">⬜ No publicado</option>
-      <option value="completed">🔵 Concluido</option>
-      <option value="deleted">🔴 Eliminado</option>
-      <option value="created">📝 Borrador</option>
-    </select>
-    <select id="termFilter" class="form-select filter-select-md" title="Filtrar por período" onchange="applyFilters()">
-      <option value="">Todos los períodos</option>
-    </select>
-    <span class="ms-auto text-muted small" id="courseCount"></span>
-    <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToExcel('tableWrap','canvas_cursos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadCourses()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise"></i></button>
+<ul class="nav nav-tabs mb-3" id="cursosEquiposTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="tab-cursos-btn" data-bs-toggle="tab" data-bs-target="#tab-cursos" type="button" role="tab" aria-controls="tab-cursos" aria-selected="true">
+      <i class="bi bi-book-fill me-1"></i>Cursos (Canvas)
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-equipos-btn" data-bs-toggle="tab" data-bs-target="#tab-equipos" type="button" role="tab" aria-controls="tab-equipos" aria-selected="false">
+      <i class="bi bi-microsoft-teams me-1"></i>Equipos (Teams)
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content" id="cursosEquiposTabsContent">
+
+  <!-- ── Tab: Cursos (Canvas) ── -->
+  <div class="tab-pane fade show active" id="tab-cursos" role="tabpanel" aria-labelledby="tab-cursos-btn">
+    <div class="canvas-panel">
+      <div class="card-header flex-wrap gap-2">
+        <input type="text" id="searchCourse" class="form-control search-box" placeholder="🔍 ID, nombre, código, SIS..." oninput="applyFilters()">
+        <select id="stateFilter" class="form-select filter-select-sm" title="Filtrar por estado" onchange="applyFilters()">
+          <option value="">Todos los estados</option>
+          <option value="available">✅ Publicado</option>
+          <option value="unpublished">⬜ No publicado</option>
+          <option value="completed">🔵 Concluido</option>
+          <option value="deleted">🔴 Eliminado</option>
+          <option value="created">📝 Borrador</option>
+        </select>
+        <select id="termFilter" class="form-select filter-select-md" title="Filtrar por período" onchange="applyFilters()">
+          <option value="">Todos los períodos</option>
+        </select>
+        <span class="ms-auto text-muted small" id="courseCount"></span>
+        <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToExcel('coursesTableWrap','canvas_cursos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadCourses()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise"></i></button>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-tools me-1"></i>Más acciones
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><button class="dropdown-item" onclick="openReleaseSisModal()"><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID (curso)</button></li>
+            <li><button class="dropdown-item" onclick="openReleaseTermSisModal()"><i class="bi bi-unlock-fill me-2"></i>Liberar Período</button></li>
+            <li><button class="dropdown-item" onclick="openFixCoordRoleModal()"><i class="bi bi-person-gear me-2"></i>Corregir Rol Coordinador</button></li>
+            <li><button class="dropdown-item" onclick="openFixSisIdModal()"><i class="bi bi-pencil-square me-2"></i>Corregir SIS ID</button></li>
+          </ul>
+        </div>
+      </div>
+      <div id="coursesTableWrap" class="table-responsive">
+        <div class="text-center py-5"><span class="spinner-border"></span></div>
+      </div>
+    </div>
   </div>
-  <div id="tableWrap" class="table-responsive">
-    <div class="text-center py-5"><span class="spinner-border"></span></div>
+
+  <!-- ── Tab: Equipos (Teams) ── -->
+  <div class="tab-pane fade" id="tab-equipos" role="tabpanel" aria-labelledby="tab-equipos-btn">
+    <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
+      <button class="btn btn-primary" onclick="openExcelMembers()"><i class="bi bi-file-earmark-excel-fill me-1"></i>Añadir miembros Excel</button>
+      <a href="/excel/template/teams-members" class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
+      <div class="dropdown ms-auto">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="bi bi-tools me-1"></i>Más acciones
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item text-danger" onclick="openTeamsIdDeleteModal()"><i class="bi bi-list-ol me-2"></i>Eliminación Masiva</button></li>
+          <li><button class="dropdown-item" onclick="openDeletedGroupsModal()"><i class="bi bi-recycle me-2"></i>Grupos Eliminados (Papelera)</button></li>
+          <li><button class="dropdown-item" onclick="openGroupMembersModal()"><i class="bi bi-person-plus-fill me-2"></i>Agregar a Grupo por ID</button></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="canvas-panel">
+      <div class="card-header flex-wrap gap-2">
+        <input type="text" id="searchTeam" class="form-control search-box" placeholder="🔍 Buscar Team por nombre..." oninput="debouncedLoadTeams(this.value)">
+        <span class="ms-auto text-muted small" id="teamCount"></span>
+        <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToExcel('teamsTableWrap','teams_equipos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadTeams()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise"></i></button>
+      </div>
+      <div id="teamsTableWrap" class="table-responsive">
+        <div class="text-center py-5"><span class="spinner-border"></span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════ Modales: mantenimiento de Cursos (antes página aparte) ═══════════ -->
+
+<!-- Modal: Liberar SIS ID de curso -->
+<div class="modal fade" id="releaseSisModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-warning">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title"><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID bloqueado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          Cuando un curso se elimina en Canvas, el <b>SIS ID no se libera automáticamente</b> —
+          el curso desaparece de los listados normales pero sigue reservando ese ID, bloqueando la
+          creación de un curso nuevo con el mismo SIS ID (típico al recrear una materia en un período nuevo).
+          Esto limpia el campo SIS ID de esos cursos viejos <b>sin tocar su contenido</b>.
+        </div>
+
+        <div id="releaseSisFormWrap">
+          <label class="form-label fw-bold">SIS IDs o IDs de Canvas bloqueados</label>
+          <textarea class="form-control mb-3" id="releaseSisTextarea" rows="6" placeholder="GA26050&#10;GA26051&#10;4321"></textarea>
+          <div class="d-flex justify-content-end">
+            <button class="btn btn-warning" id="btnPreviewReleaseSis" onclick="previewReleaseSis()">
+              <i class="bi bi-search me-1"></i>Verificar Cursos
+            </button>
+          </div>
+        </div>
+
+        <div id="releaseSisPreviewWrap" style="display:none;">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h6 class="fw-bold mb-0">Cursos Encontrados (<span id="releaseSisCount">0</span>)</h6>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="selectAllReleaseSis" onchange="toggleSelectAllReleaseSis()">
+              <label class="form-check-label fw-bold text-warning" for="selectAllReleaseSis">Seleccionar Todos</label>
+            </div>
+          </div>
+          <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th>ID Canvas</th>
+                  <th>Nombre</th>
+                  <th>SIS ID actual</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="releaseSisList"></tbody>
+            </table>
+          </div>
+          <div id="releaseSisNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+            <strong>No encontrados:</strong> <span id="releaseSisNotFound"></span>
+          </div>
+          <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-outline-secondary me-2" onclick="cancelReleaseSisPreview()">
+              <i class="bi bi-arrow-left me-1"></i>Volver
+            </button>
+            <button class="btn btn-warning" id="btnExecuteReleaseSis" onclick="executeReleaseSis()" disabled>
+              <i class="bi bi-unlock-fill me-1"></i>Liberar Seleccionados (<span id="selectedReleaseSisCount">0</span>)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
+
+<!-- Modal: Liberar SIS ID de período -->
+<div class="modal fade" id="releaseTermSisModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-warning">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title"><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID de un Período bloqueado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          Igual que con los cursos: cuando un <b>período académico</b> se elimina en Canvas, su SIS ID
+          no se libera automáticamente — el período desaparece de los listados normales pero sigue
+          reservando ese ID, bloqueando la creación de un período nuevo con el mismo SIS ID. Esto limpia
+          el campo SIS ID de esos períodos viejos <b>sin tocar los cursos</b> que tuvieron.
+        </div>
+
+        <div id="releaseTermSisFormWrap">
+          <label class="form-label fw-bold">SIS IDs o IDs de Canvas de períodos bloqueados</label>
+          <textarea class="form-control mb-3" id="releaseTermSisTextarea" rows="6" placeholder="GA2026-02&#10;10"></textarea>
+          <div class="d-flex justify-content-end">
+            <button class="btn btn-warning" id="btnPreviewReleaseTermSis" onclick="previewReleaseTermSis()">
+              <i class="bi bi-search me-1"></i>Verificar Períodos
+            </button>
+          </div>
+        </div>
+
+        <div id="releaseTermSisPreviewWrap" style="display:none;">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h6 class="fw-bold mb-0">Períodos Encontrados (<span id="releaseTermSisCount">0</span>)</h6>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="selectAllReleaseTermSis" onchange="toggleSelectAllReleaseTermSis()">
+              <label class="form-check-label fw-bold text-warning" for="selectAllReleaseTermSis">Seleccionar Todos</label>
+            </div>
+          </div>
+          <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th>ID Canvas</th>
+                  <th>Nombre</th>
+                  <th>SIS ID actual</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="releaseTermSisList"></tbody>
+            </table>
+          </div>
+          <div id="releaseTermSisNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+            <strong>No encontrados:</strong> <span id="releaseTermSisNotFound"></span>
+          </div>
+          <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-outline-secondary me-2" onclick="cancelReleaseTermSisPreview()">
+              <i class="bi bi-arrow-left me-1"></i>Volver
+            </button>
+            <button class="btn btn-warning" id="btnExecuteReleaseTermSis" onclick="executeReleaseTermSis()" disabled>
+              <i class="bi bi-unlock-fill me-1"></i>Liberar Seleccionados (<span id="selectedReleaseTermSisCount">0</span>)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Corregir Rol Coordinador -->
+<div class="modal fade" id="fixCoordRoleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-primary">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-person-gear me-2"></i>Corregir Rol de Coordinador (Diseñador → Coordinador)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          Los coordinadores/diseñadores cargados desde la planilla se inscribieron con el rol
+          base <b>Diseñador</b> antes de que existiera el rol personalizado <b>Coordinador</b> en Canvas.
+          Esto lee la misma planilla de cursos, detecta esas inscripciones y las migra al rol
+          <b>Coordinador</b> (se quita la inscripción de Diseñador y se crea una nueva como Coordinador,
+          porque Canvas no permite cambiar el rol de una inscripción existente).
+        </div>
+
+        <div id="fixCoordRoleFormWrap">
+          <div class="btn-group mb-3" role="group" aria-label="Modo de búsqueda">
+            <button type="button" class="btn btn-primary" id="btnFixCoordModeExcel" onclick="setFixCoordRoleMode('excel')">
+              <i class="bi bi-file-earmark-spreadsheet me-1"></i>Por Planilla
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="btnFixCoordModeCourse" onclick="setFixCoordRoleMode('course')">
+              <i class="bi bi-hash me-1"></i>Por ID de Curso
+            </button>
+          </div>
+
+          <div id="fixCoordRoleExcelMode">
+            <label class="form-label fw-bold">URL de OneDrive de la planilla de cursos</label>
+            <div class="input-group mb-2">
+              <input type="url" id="fixCoordRoleUrl" class="form-control" placeholder="https://usilpy-my.sharepoint.com/:x:/g/personal/...">
+              <button class="btn btn-outline-primary" id="btnLoadFixCoordRoleSheets" onclick="fetchFixCoordRoleSheets()">
+                <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
+              </button>
+            </div>
+            <label class="form-label fw-bold">Pestaña</label>
+            <select class="form-select mb-3" id="fixCoordRoleSheet">
+              <option value="">Selecciona una pestaña...</option>
+            </select>
+            <div class="d-flex justify-content-end">
+              <button class="btn btn-primary" id="btnPreviewFixCoordRole" onclick="previewFixCoordRole()">
+                <i class="bi bi-search me-1"></i>Detectar Coordinadores
+              </button>
+            </div>
+          </div>
+
+          <div id="fixCoordRoleCourseMode" style="display:none;">
+            <label class="form-label fw-bold">IDs de Canvas o SIS IDs de los cursos a corregir</label>
+            <textarea class="form-control mb-3" id="fixCoordRoleCourseTextarea" rows="6" placeholder="1963&#10;GA26050&#10;1970"></textarea>
+            <div class="alert alert-secondary small py-2 mb-3">
+              Busca <b>todos</b> los inscritos como Diseñador en cada curso indicado (sin necesitar
+              la planilla) — útil para corregir solo algunos cursos puntuales.
+            </div>
+            <div class="d-flex justify-content-end">
+              <button class="btn btn-primary" id="btnPreviewFixCoordRoleByCourse" onclick="previewFixCoordRoleByCourse()">
+                <i class="bi bi-search me-1"></i>Buscar en esos Cursos
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="fixCoordRolePreviewWrap" style="display:none;">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h6 class="fw-bold mb-0">Inscripciones a migrar (<span id="fixCoordRoleCount">0</span>)</h6>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="selectAllFixCoordRole" onchange="toggleSelectAllFixCoordRole()">
+              <label class="form-check-label fw-bold text-primary" for="selectAllFixCoordRole">Seleccionar Todos</label>
+            </div>
+          </div>
+          <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th>Curso</th>
+                  <th>Coordinador</th>
+                  <th>Rol actual</th>
+                </tr>
+              </thead>
+              <tbody id="fixCoordRoleList"></tbody>
+            </table>
+          </div>
+          <div id="fixCoordRoleAlreadyOkWrap" style="display:none;" class="alert alert-success mt-3 mb-0 py-2 small">
+            <span id="fixCoordRoleAlreadyOk"></span> coordinador(es) ya tenían el rol Coordinador correcto — no requieren cambios.
+          </div>
+          <div id="fixCoordRoleNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+            <strong>No encontrados / sin cambios:</strong> <span id="fixCoordRoleNotFound"></span>
+          </div>
+          <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-outline-secondary me-2" onclick="cancelFixCoordRolePreview()">
+              <i class="bi bi-arrow-left me-1"></i>Volver
+            </button>
+            <button class="btn btn-primary" id="btnExecuteFixCoordRole" onclick="executeFixCoordRole()" disabled>
+              <i class="bi bi-person-gear me-1"></i>Migrar Seleccionados (<span id="selectedFixCoordRoleCount">0</span>)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Corregir SIS ID -->
+<div class="modal fade" id="fixSisIdModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-primary">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Corregir SIS ID de cursos ya creados</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          Para cursos que ya se crearon en Canvas con un SIS ID mal cargado. Lee la misma planilla
+          de cursos: usa <b>ID CANVAS (Autogenerado)</b> para identificar el curso ya existente, y
+          <b>Identificación del SIS (Canvas)</b> como el valor <b>correcto</b> al que debe quedar.
+          Corregí la columna del SIS en la planilla primero, después ejecutá esto — el valor
+          anterior se libera solo (un curso solo puede tener un SIS ID a la vez).
+        </div>
+
+        <div id="fixSisIdFormWrap">
+          <label class="form-label fw-bold">URL de OneDrive de la planilla de cursos</label>
+          <div class="input-group mb-2">
+            <input type="url" id="fixSisIdUrl" class="form-control" placeholder="https://usilpy-my.sharepoint.com/:x:/g/personal/...">
+            <button class="btn btn-outline-primary" id="btnLoadFixSisIdSheets" onclick="fetchFixSisIdSheets()">
+              <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
+            </button>
+          </div>
+          <label class="form-label fw-bold">Pestaña</label>
+          <select class="form-select mb-3" id="fixSisIdSheet">
+            <option value="">Selecciona una pestaña...</option>
+          </select>
+          <div class="d-flex justify-content-end">
+            <button class="btn btn-primary" id="btnPreviewFixSisId" onclick="previewFixSisId()">
+              <i class="bi bi-search me-1"></i>Detectar Cursos a Corregir
+            </button>
+          </div>
+        </div>
+
+        <div id="fixSisIdPreviewWrap" style="display:none;">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h6 class="fw-bold mb-0">Cursos a corregir (<span id="fixSisIdCount">0</span>)</h6>
+          </div>
+          <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th>Curso</th>
+                  <th>ID Canvas</th>
+                  <th>SIS actual</th>
+                  <th>SIS nuevo</th>
+                </tr>
+              </thead>
+              <tbody id="fixSisIdList"></tbody>
+            </table>
+          </div>
+          <div id="fixSisIdAlreadyOkWrap" style="display:none;" class="alert alert-success mt-3 mb-0 py-2 small">
+            <span id="fixSisIdAlreadyOk"></span> curso(s) ya tenían el SIS ID correcto — no requieren cambios.
+          </div>
+          <div id="fixSisIdNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0 py-2 small">
+            <span id="fixSisIdNotFound"></span> fila(s) con ID Canvas que no se encontró en Canvas — revisalas antes de reintentar.
+          </div>
+          <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-outline-secondary me-2" onclick="cancelFixSisIdPreview()">
+              <i class="bi bi-arrow-left me-1"></i>Volver
+            </button>
+            <button class="btn btn-primary" id="btnExecuteFixSisId" onclick="executeFixSisId()">
+              <i class="bi bi-pencil-square me-1"></i>Corregir Todos
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Modales: Equipos (Teams) ═══════════ -->
+
+<!-- Modal: Eliminación masiva de Teams por ID o nombre -->
+<div class="modal fade" id="teamsIdDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-danger">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="bi bi-list-ol me-2"></i>Eliminar Equipos por ID o Nombre</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div id="teamsIdDeleteFormWrap">
+            <div class="alert alert-info">
+                Pega <b>IDs de grupo/Team</b> o <b>nombres exactos de equipo</b> a eliminar (uno por línea, o separados por coma). Se puede mezclar IDs y nombres en la misma lista.
+            </div>
+            <label class="form-label fw-bold">IDs o Nombres de Equipo</label>
+            <textarea class="form-control mb-3" id="teamsIdDeleteTextarea" rows="6" placeholder="a1b2c3d4-...&#10;Gestión de Empresas GA2026&#10;Matemática II"></textarea>
+            <div class="d-flex justify-content-end">
+                <button class="btn btn-danger" id="btnPreviewTeamsIdDelete" onclick="previewTeamsIdDelete()">
+                    <i class="bi bi-search me-1"></i>Verificar Equipos
+                </button>
+            </div>
+        </div>
+
+        <div id="teamsIdDeletePreviewWrap" style="display:none;">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h6 class="fw-bold mb-0">Equipos Encontrados (<span id="teamsIdDeleteCount">0</span>)</h6>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selectAllTeamsIdDelete" onchange="toggleSelectAllTeamsIdDelete()">
+                    <label class="form-check-label fw-bold text-danger" for="selectAllTeamsIdDelete">Seleccionar Todos</label>
+                </div>
+            </div>
+            <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th style="width: 40px;"></th>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Ingresado como</th>
+                        </tr>
+                    </thead>
+                    <tbody id="teamsIdDeleteList"></tbody>
+                </table>
+            </div>
+            <div id="teamsIdDeleteNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+                <strong>No encontrados:</strong> <span id="teamsIdDeleteNotFound"></span>
+            </div>
+            <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-outline-secondary me-2" onclick="cancelTeamsIdDeletePreview()">
+                    <i class="bi bi-arrow-left me-1"></i>Volver
+                </button>
+            </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="teamsIdDeleteFooter" style="display:none;">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnExecuteTeamsIdDelete" onclick="executeTeamsIdDelete()" disabled>
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Eliminar Seleccionados (<span id="selectedTeamsIdDeleteCount">0</span>)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Grupos Eliminados (Papelera de 30 días) -->
+<div class="modal fade" id="deletedGroupsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content border-warning">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title"><i class="bi bi-recycle me-2"></i>Grupos Eliminados (Papelera de 30 días)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          Los grupos eliminados de Microsoft 365 quedan recuperables durante <b>30 días</b> antes de purgarse
+          definitivamente. Seleccioná los que quieras verificar — el sistema los <b>restaura</b> y cuenta sus
+          propietarios y miembros reales, para que decidas cuáles conservar (tenían gente matriculada) y cuáles
+          volver a eliminar (estaban vacíos).
+        </div>
+
+        <div id="deletedGroupsListWrap">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="selectAllDeletedGroups" onchange="toggleSelectAllDeletedGroups()">
+              <label class="form-check-label fw-bold text-warning" for="selectAllDeletedGroups">Seleccionar Todos</label>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadDeletedGroups()"><i class="bi bi-arrow-clockwise me-1"></i>Recargar</button>
+          </div>
+          <div class="table-responsive border rounded bg-white" style="max-height:350px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th>Nombre</th>
+                  <th>Eliminado el</th>
+                </tr>
+              </thead>
+              <tbody id="deletedGroupsList">
+                <tr><td colspan="3" class="text-center py-4"><span class="spinner-border spinner-border-sm"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="deletedGroupsResultsWrap" style="display:none;" class="mt-3">
+          <h6 class="fw-bold">Resultado de la verificación</h6>
+          <div class="table-responsive border rounded bg-white" style="max-height:350px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th>Nombre</th>
+                  <th>Propietarios</th>
+                  <th>Miembros</th>
+                  <th>¿Tenía gente matriculada?</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="deletedGroupsResults"></tbody>
+            </table>
+          </div>
+          <small class="text-muted d-block mt-2">
+            "Miembros" incluye a los propietarios — si Miembros &gt; Propietarios, hay gente matriculada además del
+            admin/docente/coordinadores. Todos los grupos verificados ya quedaron <b>restaurados y activos</b>;
+            los que marques como vacíos podés volver a eliminarlos con "Eliminación Masiva" pegando su ID.
+          </small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-warning" id="btnRestoreAndCheck" onclick="executeRestoreAndCheck()" disabled>
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Restaurar y Verificar (<span id="selectedDeletedGroupsCount">0</span>)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Agregar miembros existentes a CUALQUIER grupo (Team, lista de distribución, etc.) por ID -->
+<div class="modal fade" id="groupMembersModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-info">
+      <div class="modal-header bg-info text-dark">
+        <h5 class="modal-title"><i class="bi bi-person-plus-fill me-2"></i>Agregar Miembros Existentes a un Grupo por ID</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          A diferencia de "Añadir miembros Excel" (que solo funciona con equipos de Teams reales),
+          esta herramienta agrega usuarios existentes como miembros por ID a <b>Teams reales y a
+          grupos de seguridad/Microsoft 365 sin correo habilitado</b>.
+        </div>
+        <div class="alert alert-warning">
+          <b>No funciona</b> con listas de distribución ni grupos de seguridad
+          <b>con correo habilitado</b> — Microsoft Graph no permite gestionar su membresía
+          en absoluto (hay que hacerlo desde Exchange Online o el centro de administración
+          de Microsoft 365).
+        </div>
+        <label class="form-label fw-bold">ID del grupo (Azure AD / Microsoft 365)</label>
+        <input type="text" class="form-control mb-3" id="groupMembersGroupId" placeholder="Ej: 976a5ad1-2559-4c58-acf9-047819473b3e">
+        <label class="form-label fw-bold">Correos de los usuarios a agregar</label>
+        <textarea class="form-control mb-3" id="groupMembersEmails" rows="6" placeholder="usuario1@usil.edu.py&#10;usuario2@usil.edu.py"></textarea>
+        <div id="groupMembersResultsWrap" style="display:none;" class="mt-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-info text-dark" id="btnExecuteGroupMembers" onclick="executeGroupMembersAdd()">
+          <i class="bi bi-person-plus-fill me-1"></i>Agregar Miembros
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
+/* ══════════════════════════ CURSOS (Canvas) ══════════════════════════ */
 let _allCourses = [];
 
 /* ── Estado: etiqueta + colores Canvas-style ── */
@@ -71,7 +615,7 @@ function applyFilters() {
 
   document.getElementById('courseCount').textContent =
     filtered.length + (filtered.length !== _allCourses.length ? ` / ${_allCourses.length}` : '') + ' cursos';
-  pgInit('tableWrap', filtered, renderCoursesTable);
+  pgInit('coursesTableWrap', filtered, renderCoursesTable);
 }
 
 /* ── Tabla estilo Canvas LMS ── */
@@ -79,7 +623,7 @@ function renderCoursesTable(courses) {
   const esc  = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#x27;');
   const fmtDate = d => d ? new Date(d).toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
 
-  document.getElementById('tableWrap').innerHTML = `
+  document.getElementById('coursesTableWrap').innerHTML = `
     <table class="table table-sm table-hover mb-0">
       <thead>
         <tr>
@@ -96,7 +640,6 @@ function renderCoursesTable(courses) {
       <tbody>
         ${courses.map(row => {
           const termName = row.term?.name || '—';
-          const termId   = row.enrollment_term_id || '';
           return `
           <tr class="course-row" data-course='${esc(JSON.stringify(row))}'>
             <td>
@@ -145,25 +688,25 @@ function renderCoursesTable(courses) {
       </tbody>
     </table>`;
 
-  document.querySelectorAll('#tableWrap .copy-btn').forEach(btn =>
+  document.querySelectorAll('#coursesTableWrap .copy-btn').forEach(btn =>
     btn.addEventListener('click', e => { e.stopPropagation(); copyToClipboard(btn.dataset.copyId, btn.dataset.copyLabel); })
   );
-  document.querySelectorAll('#tableWrap .course-row').forEach(row =>
+  document.querySelectorAll('#coursesTableWrap .course-row').forEach(row =>
     row.addEventListener('click', () => openEditCourse(JSON.parse(row.dataset.course.replace(/&#x27;/g,"'"))))
   );
-  document.querySelectorAll('#tableWrap .view-enrollments-btn').forEach(btn =>
+  document.querySelectorAll('#coursesTableWrap .view-enrollments-btn').forEach(btn =>
     btn.addEventListener('click', e => { e.stopPropagation(); viewEnrollments(btn.dataset.courseId, btn.dataset.courseName); })
   );
-  document.querySelectorAll('#tableWrap .attendance-btn').forEach(btn =>
+  document.querySelectorAll('#coursesTableWrap .attendance-btn').forEach(btn =>
     btn.addEventListener('click', e => { e.stopPropagation(); openAttendanceModal(btn.dataset.courseId, btn.dataset.courseName); })
   );
-  document.querySelectorAll('#tableWrap .delete-course-btn').forEach(btn =>
+  document.querySelectorAll('#coursesTableWrap .delete-course-btn').forEach(btn =>
     btn.addEventListener('click', e => { e.stopPropagation(); deleteCourse(btn.dataset.courseId, btn.dataset.courseName); })
   );
 }
 
 async function loadCourses() {
-  document.getElementById('tableWrap').innerHTML =
+  document.getElementById('coursesTableWrap').innerHTML =
     '<div class="text-center py-5"><span class="spinner-border"></span><div class="text-muted small mt-2">Cargando todos los cursos…</div></div>';
   try {
     const courses = await api.get('/canvas/courses');
@@ -180,9 +723,9 @@ async function loadCourses() {
     });
 
     document.getElementById('courseCount').textContent = courses.length + ' cursos';
-    pgInit('tableWrap', _allCourses, renderCoursesTable);
+    pgInit('coursesTableWrap', _allCourses, renderCoursesTable);
   } catch(e) {
-    document.getElementById('tableWrap').innerHTML = `
+    document.getElementById('coursesTableWrap').innerHTML = `
       <div class="text-center py-5 text-muted">
         <i class="bi bi-exclamation-triangle fs-1 d-block mb-2 text-warning"></i>
         <div class="mb-3">No se pudieron cargar los cursos: ${e.message}</div>
@@ -405,8 +948,1325 @@ function downloadAttendanceExcel(courseId, courseName) {
   XLSX.writeFile(wb, `REPORTE_ASISTENCIA_${courseId}_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
+/* ══════════════════ Mantenimiento de Cursos (modales del dropdown) ══════════════════ */
+
+let releaseSisModalInst = null;
+function openReleaseSisModal() {
+  if (!releaseSisModalInst) releaseSisModalInst = new bootstrap.Modal(document.getElementById('releaseSisModal'));
+  cancelReleaseSisPreview();
+  document.getElementById('releaseSisTextarea').value = '';
+  releaseSisModalInst.show();
+}
+
+let currentReleaseSisCandidates = [];
+
+async function previewReleaseSis() {
+    const raw = document.getElementById('releaseSisTextarea').value;
+    const entries = _parseReleaseSisEntries(raw);
+
+    if (entries.length === 0) {
+        toast('Ingresa al menos un SIS ID o ID de Canvas.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnPreviewReleaseSis');
+    setLoading(btn, true);
+
+    try {
+        const resolved = await api.post('/canvas/courses/release-sis-id/resolve', { entries });
+        currentReleaseSisCandidates = resolved.filter(r => r.found);
+        const notFound = resolved.filter(r => !r.found);
+
+        const tbody = document.getElementById('releaseSisList');
+        let html = '';
+        currentReleaseSisCandidates.forEach(r => {
+            const cfg = _STATE_CFG[r.workflow_state] || { label: r.workflow_state || '—', bg: '#6C7982' };
+            html += `
+            <tr>
+                <td><input class="form-check-input release-sis-checkbox" type="checkbox" value="${r.course_id}" onchange="updateSelectedReleaseSisCount()"></td>
+                <td>${r.course_id}</td>
+                <td>${r.name}</td>
+                <td><span class="badge bg-secondary">${r.current_sis_id || '—'}</span></td>
+                <td><span class="badge" style="background:${cfg.bg};">${cfg.label}</span></td>
+            </tr>`;
+        });
+        if (currentReleaseSisCandidates.length === 0) {
+            html = `<tr><td colspan="5" class="text-center text-muted">Ningún curso encontrado.</td></tr>`;
+        }
+        tbody.innerHTML = html;
+        document.getElementById('releaseSisCount').innerText = currentReleaseSisCandidates.length;
+        document.getElementById('selectAllReleaseSis').checked = false;
+
+        if (notFound.length > 0) {
+            document.getElementById('releaseSisNotFoundWrap').style.display = 'block';
+            document.getElementById('releaseSisNotFound').innerText = notFound.map(r => r.input).join(', ');
+        } else {
+            document.getElementById('releaseSisNotFoundWrap').style.display = 'none';
+        }
+
+        document.getElementById('releaseSisFormWrap').style.display = 'none';
+        document.getElementById('releaseSisPreviewWrap').style.display = 'block';
+        updateSelectedReleaseSisCount();
+    } catch (e) {
+        toast('Error verificando cursos: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function cancelReleaseSisPreview() {
+    document.getElementById('releaseSisFormWrap').style.display = 'block';
+    document.getElementById('releaseSisPreviewWrap').style.display = 'none';
+}
+
+function toggleSelectAllReleaseSis() {
+    const selectAll = document.getElementById('selectAllReleaseSis').checked;
+    document.querySelectorAll('.release-sis-checkbox').forEach(cb => cb.checked = selectAll);
+    updateSelectedReleaseSisCount();
+}
+
+function updateSelectedReleaseSisCount() {
+    const selected = document.querySelectorAll('.release-sis-checkbox:checked').length;
+    document.getElementById('selectedReleaseSisCount').innerText = selected;
+    document.getElementById('btnExecuteReleaseSis').disabled = selected === 0;
+}
+
+function _parseReleaseSisEntries(raw) {
+    return [...new Set((raw || '').split(/[\n;]+/).map(s => s.trim()).filter(Boolean))];
+}
+
+async function executeReleaseSis() {
+    const checkboxes = document.querySelectorAll('.release-sis-checkbox:checked');
+    const courseIds = Array.from(checkboxes).map(cb => cb.value);
+
+    if (courseIds.length === 0) return;
+
+    if (!confirm(`¿Liberar el SIS ID de los ${courseIds.length} cursos seleccionados? No se toca su contenido, solo se les quita el SIS ID para que quede disponible para un curso nuevo.`)) return;
+
+    const btn = document.getElementById('btnExecuteReleaseSis');
+    setLoading(btn, true);
+
+    try {
+        const res = await api.post('/canvas/courses/release-sis-id', { course_ids: courseIds });
+
+        renderReleaseErrorDetails('releaseSisErrorsWrap', res.failed, 'course_id');
+
+        if (res.failed.length > 0) {
+            toast(`Éxito: ${res.succeeded.length} SIS ID liberados. Errores: ${res.failed.length} (detalle abajo).`, 'warning');
+        } else {
+            toast(`Éxito: ${res.succeeded.length} SIS ID liberados.`, 'success');
+            document.getElementById('releaseSisTextarea').value = '';
+            cancelReleaseSisPreview();
+        }
+    } catch (e) {
+        toast('Error liberando SIS ID: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+let releaseTermSisModalInst = null;
+function openReleaseTermSisModal() {
+  if (!releaseTermSisModalInst) releaseTermSisModalInst = new bootstrap.Modal(document.getElementById('releaseTermSisModal'));
+  cancelReleaseTermSisPreview();
+  document.getElementById('releaseTermSisTextarea').value = '';
+  releaseTermSisModalInst.show();
+}
+
+let currentReleaseTermSisCandidates = [];
+
+async function previewReleaseTermSis() {
+    const raw = document.getElementById('releaseTermSisTextarea').value;
+    const entries = _parseReleaseSisEntries(raw);
+
+    if (entries.length === 0) {
+        toast('Ingresa al menos un SIS ID o ID de período.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnPreviewReleaseTermSis');
+    setLoading(btn, true);
+
+    try {
+        const resolved = await api.post('/canvas/terms/release-sis-id/resolve', { entries });
+        currentReleaseTermSisCandidates = resolved.filter(r => r.found);
+        const notFound = resolved.filter(r => !r.found);
+
+        const tbody = document.getElementById('releaseTermSisList');
+        let html = '';
+        currentReleaseTermSisCandidates.forEach(r => {
+            const cfg = _STATE_CFG[r.workflow_state] || { label: r.workflow_state || '—', bg: '#6C7982' };
+            html += `
+            <tr>
+                <td><input class="form-check-input release-term-sis-checkbox" type="checkbox" value="${r.term_id}" onchange="updateSelectedReleaseTermSisCount()"></td>
+                <td>${r.term_id}</td>
+                <td>${r.name}</td>
+                <td><span class="badge bg-secondary">${r.current_sis_id || '—'}</span></td>
+                <td><span class="badge" style="background:${cfg.bg};">${cfg.label}</span></td>
+            </tr>`;
+        });
+        if (currentReleaseTermSisCandidates.length === 0) {
+            html = `<tr><td colspan="5" class="text-center text-muted">Ningún período encontrado.</td></tr>`;
+        }
+        tbody.innerHTML = html;
+        document.getElementById('releaseTermSisCount').innerText = currentReleaseTermSisCandidates.length;
+        document.getElementById('selectAllReleaseTermSis').checked = false;
+
+        if (notFound.length > 0) {
+            document.getElementById('releaseTermSisNotFoundWrap').style.display = 'block';
+            document.getElementById('releaseTermSisNotFound').innerText = notFound.map(r => r.input).join(', ');
+        } else {
+            document.getElementById('releaseTermSisNotFoundWrap').style.display = 'none';
+        }
+
+        document.getElementById('releaseTermSisFormWrap').style.display = 'none';
+        document.getElementById('releaseTermSisPreviewWrap').style.display = 'block';
+        updateSelectedReleaseTermSisCount();
+    } catch (e) {
+        toast('Error verificando períodos: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function cancelReleaseTermSisPreview() {
+    document.getElementById('releaseTermSisFormWrap').style.display = 'block';
+    document.getElementById('releaseTermSisPreviewWrap').style.display = 'none';
+}
+
+function toggleSelectAllReleaseTermSis() {
+    const selectAll = document.getElementById('selectAllReleaseTermSis').checked;
+    document.querySelectorAll('.release-term-sis-checkbox').forEach(cb => cb.checked = selectAll);
+    updateSelectedReleaseTermSisCount();
+}
+
+function updateSelectedReleaseTermSisCount() {
+    const selected = document.querySelectorAll('.release-term-sis-checkbox:checked').length;
+    document.getElementById('selectedReleaseTermSisCount').innerText = selected;
+    document.getElementById('btnExecuteReleaseTermSis').disabled = selected === 0;
+}
+
+async function executeReleaseTermSis() {
+    const checkboxes = document.querySelectorAll('.release-term-sis-checkbox:checked');
+    const termIds = Array.from(checkboxes).map(cb => cb.value);
+
+    if (termIds.length === 0) return;
+
+    if (!confirm(`¿Liberar el SIS ID de los ${termIds.length} períodos seleccionados? No se tocan los cursos que tuvieron, solo se les quita el SIS ID para que quede disponible para un período nuevo.`)) return;
+
+    const btn = document.getElementById('btnExecuteReleaseTermSis');
+    setLoading(btn, true);
+
+    try {
+        const res = await api.post('/canvas/terms/release-sis-id', { term_ids: termIds });
+
+        renderReleaseErrorDetails('releaseTermSisErrorsWrap', res.failed, 'term_id');
+
+        if (res.failed.length > 0) {
+            toast(`Éxito: ${res.succeeded.length} SIS ID liberados. Errores: ${res.failed.length} (detalle abajo).`, 'warning');
+        } else {
+            toast(`Éxito: ${res.succeeded.length} SIS ID liberados.`, 'success');
+            document.getElementById('releaseTermSisTextarea').value = '';
+            cancelReleaseTermSisPreview();
+        }
+    } catch (e) {
+        toast('Error liberando SIS ID: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+// Muestra el detalle de errores de una operación en lote directamente en
+// pantalla (en vez de solo en la consola del navegador, que muchos usuarios
+// no llegan a abrir).
+function renderReleaseErrorDetails(containerId, failed, idKey) {
+    let container = document.getElementById(containerId);
+    if (!container) {
+        container = document.createElement('div');
+        container.id = containerId;
+        const anchorId = containerId === 'releaseTermSisErrorsWrap' ? 'releaseTermSisPreviewWrap'
+            : containerId === 'fixCoordRoleErrorsWrap' ? 'fixCoordRolePreviewWrap'
+            : 'releaseSisPreviewWrap';
+        document.getElementById(anchorId).appendChild(container);
+    }
+    if (!failed || failed.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    container.innerHTML = `
+        <div class="alert alert-danger mt-3 mb-0">
+            <strong>Detalle de errores:</strong>
+            <ul class="mb-0 mt-2">
+                ${failed.map(f => `<li><b>${f.name || f[idKey]}</b> (ID ${f[idKey]}): ${f.error}</li>`).join('')}
+            </ul>
+        </div>`;
+}
+
+// ==========================================
+// CORREGIR ROL DE COORDINADOR (Diseñador -> Coordinador)
+// ==========================================
+
+let fixCoordRoleModalInst = null;
+function openFixCoordRoleModal() {
+  if (!fixCoordRoleModalInst) fixCoordRoleModalInst = new bootstrap.Modal(document.getElementById('fixCoordRoleModal'));
+  cancelFixCoordRolePreview();
+  fixCoordRoleModalInst.show();
+}
+
+let currentFixCoordRoleItems = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('fixCoordRoleUrl');
+    if (el) el.value = localStorage.getItem('coursesOdUrl') || '';
+});
+
+async function fetchFixCoordRoleSheets() {
+    const urlInput = document.getElementById('fixCoordRoleUrl').value.trim();
+    if (!urlInput) { toast('Por favor, ingresa la URL primero.', 'warning'); return; }
+    localStorage.setItem('coursesOdUrl', urlInput);
+
+    const btn = document.getElementById('btnLoadFixCoordRoleSheets');
+    const select = document.getElementById('fixCoordRoleSheet');
+    setLoading(btn, true);
+    select.innerHTML = '<option value="">Cargando pestañas...</option>';
+
+    try {
+        const sheets = await api.post('/excel/courses/sheets', { url: urlInput });
+        select.innerHTML = '<option value="">Selecciona una pestaña...</option>';
+        (sheets || []).forEach(sheet => {
+            const opt = document.createElement('option');
+            opt.value = sheet; opt.textContent = sheet;
+            select.appendChild(opt);
+        });
+        toast('Pestañas cargadas correctamente.', 'success');
+    } catch (e) {
+        toast('Error al cargar pestañas: ' + (e.detail || e.message || e), 'danger');
+        select.innerHTML = '<option value="">Error al cargar.</option>';
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function setFixCoordRoleMode(mode) {
+    const isExcel = mode === 'excel';
+    document.getElementById('fixCoordRoleExcelMode').style.display = isExcel ? 'block' : 'none';
+    document.getElementById('fixCoordRoleCourseMode').style.display = isExcel ? 'none' : 'block';
+    document.getElementById('btnFixCoordModeExcel').classList.toggle('btn-primary', isExcel);
+    document.getElementById('btnFixCoordModeExcel').classList.toggle('btn-outline-primary', !isExcel);
+    document.getElementById('btnFixCoordModeCourse').classList.toggle('btn-primary', !isExcel);
+    document.getElementById('btnFixCoordModeCourse').classList.toggle('btn-outline-primary', isExcel);
+}
+
+function _renderFixCoordRolePreview(res) {
+    currentFixCoordRoleItems = res.items || [];
+
+    const tbody = document.getElementById('fixCoordRoleList');
+    let html = '';
+    currentFixCoordRoleItems.forEach((it, idx) => {
+        html += `
+        <tr>
+            <td><input class="form-check-input fix-coord-role-checkbox" type="checkbox" value="${idx}" onchange="updateSelectedFixCoordRoleCount()"></td>
+            <td>${it.course_name || it.course_id}</td>
+            <td>${it.email}</td>
+            <td><span class="badge bg-secondary">${it.current_role || 'Diseñador'}</span></td>
+        </tr>`;
+    });
+    if (currentFixCoordRoleItems.length === 0) {
+        html = `<tr><td colspan="4" class="text-center text-muted">Ninguna inscripción de Diseñador pendiente de migrar.</td></tr>`;
+    }
+    tbody.innerHTML = html;
+    document.getElementById('fixCoordRoleCount').innerText = currentFixCoordRoleItems.length;
+    document.getElementById('selectAllFixCoordRole').checked = false;
+
+    if (res.already_correct > 0) {
+        document.getElementById('fixCoordRoleAlreadyOkWrap').style.display = 'block';
+        document.getElementById('fixCoordRoleAlreadyOk').innerText = res.already_correct;
+    } else {
+        document.getElementById('fixCoordRoleAlreadyOkWrap').style.display = 'none';
+    }
+
+    if (res.not_found && res.not_found.length > 0) {
+        document.getElementById('fixCoordRoleNotFoundWrap').style.display = 'block';
+        document.getElementById('fixCoordRoleNotFound').innerText = res.not_found.join('; ');
+    } else {
+        document.getElementById('fixCoordRoleNotFoundWrap').style.display = 'none';
+    }
+
+    document.getElementById('fixCoordRoleFormWrap').style.display = 'none';
+    document.getElementById('fixCoordRolePreviewWrap').style.display = 'block';
+    updateSelectedFixCoordRoleCount();
+}
+
+async function previewFixCoordRole() {
+    const urlInput = document.getElementById('fixCoordRoleUrl').value.trim();
+    const sheetInput = document.getElementById('fixCoordRoleSheet').value.trim();
+    if (!urlInput) { toast('Por favor, ingresa la URL primero.', 'warning'); return; }
+    if (!sheetInput) { toast('Selecciona una pestaña primero.', 'warning'); return; }
+
+    const btn = document.getElementById('btnPreviewFixCoordRole');
+    setLoading(btn, true);
+    toast('Analizando la planilla...', 'info');
+
+    try {
+        const res = await api.post('/excel/courses/fix-coordinador-role/preview', { url: urlInput, sheet_name: sheetInput });
+        _renderFixCoordRolePreview(res);
+    } catch (e) {
+        toast('Error detectando coordinadores: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function _parseFixCoordRoleCourseEntries(raw) {
+    return (raw || '').split(/[\n;]+/).map(s => s.trim()).filter(Boolean);
+}
+
+async function previewFixCoordRoleByCourse() {
+    const raw = document.getElementById('fixCoordRoleCourseTextarea').value;
+    const entries = _parseFixCoordRoleCourseEntries(raw);
+    if (entries.length === 0) {
+        toast('Ingresa al menos un ID de Canvas o SIS ID de curso.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnPreviewFixCoordRoleByCourse');
+    setLoading(btn, true);
+    toast('Buscando inscripciones de Diseñador...', 'info');
+
+    try {
+        const res = await api.post('/excel/courses/fix-coordinador-role/resolve-by-course', { entries });
+        _renderFixCoordRolePreview(res);
+    } catch (e) {
+        toast('Error buscando en los cursos: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function cancelFixCoordRolePreview() {
+    document.getElementById('fixCoordRoleFormWrap').style.display = 'block';
+    document.getElementById('fixCoordRolePreviewWrap').style.display = 'none';
+}
+
+function toggleSelectAllFixCoordRole() {
+    const selectAll = document.getElementById('selectAllFixCoordRole').checked;
+    document.querySelectorAll('.fix-coord-role-checkbox').forEach(cb => cb.checked = selectAll);
+    updateSelectedFixCoordRoleCount();
+}
+
+function updateSelectedFixCoordRoleCount() {
+    const selected = document.querySelectorAll('.fix-coord-role-checkbox:checked').length;
+    document.getElementById('selectedFixCoordRoleCount').innerText = selected;
+    document.getElementById('btnExecuteFixCoordRole').disabled = selected === 0;
+}
+
+async function executeFixCoordRole() {
+    const checkboxes = document.querySelectorAll('.fix-coord-role-checkbox:checked');
+    const items = Array.from(checkboxes).map(cb => currentFixCoordRoleItems[parseInt(cb.value, 10)]);
+    if (items.length === 0) return;
+
+    if (!confirm(`¿Migrar ${items.length} inscripción(es) de Diseñador a Coordinador? Se quita la inscripción de Diseñador y se crea una nueva como Coordinador para cada uno.`)) return;
+
+    const btn = document.getElementById('btnExecuteFixCoordRole');
+    setLoading(btn, true);
+
+    try {
+        const res = await api.post('/excel/courses/fix-coordinador-role/execute', { items });
+
+        let errWrap = document.getElementById('fixCoordRoleErrorsWrap');
+        if (!errWrap) {
+            errWrap = document.createElement('div');
+            errWrap.id = 'fixCoordRoleErrorsWrap';
+            document.getElementById('fixCoordRolePreviewWrap').appendChild(errWrap);
+        }
+        if (res.failed && res.failed.length > 0) {
+            errWrap.innerHTML = `
+                <div class="alert alert-danger mt-3 mb-0">
+                    <strong>Detalle de errores:</strong>
+                    <ul class="mb-0 mt-2">
+                        ${res.failed.map(f => `<li><b>${f.item}</b>: ${f.error}</li>`).join('')}
+                    </ul>
+                </div>`;
+            toast(`Éxito: ${res.succeeded.length} migrados. Errores: ${res.failed.length} (detalle abajo).`, 'warning');
+        } else {
+            errWrap.innerHTML = '';
+            toast(`Éxito: ${res.succeeded.length} coordinador(es) migrados a Coordinador.`, 'success');
+            cancelFixCoordRolePreview();
+        }
+    } catch (e) {
+        toast('Error migrando coordinadores: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+// ==========================================
+// CORREGIR SIS ID (POR PLANILLA)
+// ==========================================
+
+let fixSisIdModalInst = null;
+function openFixSisIdModal() {
+  if (!fixSisIdModalInst) fixSisIdModalInst = new bootstrap.Modal(document.getElementById('fixSisIdModal'));
+  cancelFixSisIdPreview();
+  fixSisIdModalInst.show();
+}
+
+let _fixSisIdJobPollInterval = null;
+let _fixSisIdUrl = '';
+let _fixSisIdSheet = '';
+
+async function fetchFixSisIdSheets() {
+    const urlInput = document.getElementById('fixSisIdUrl').value.trim();
+    if (!urlInput) { toast('Por favor, ingresa la URL primero.', 'warning'); return; }
+
+    const btn = document.getElementById('btnLoadFixSisIdSheets');
+    const select = document.getElementById('fixSisIdSheet');
+    setLoading(btn, true);
+    select.innerHTML = '<option value="">Cargando pestañas...</option>';
+
+    try {
+        const sheets = await api.post('/excel/courses/sheets', { url: urlInput });
+        if (sheets && sheets.length > 0) {
+            select.innerHTML = '<option value="">Selecciona una pestaña...</option>';
+            sheets.forEach(sheet => {
+                const opt = document.createElement('option');
+                opt.value = sheet; opt.textContent = sheet;
+                select.appendChild(opt);
+            });
+            toast('Pestañas cargadas correctamente.', 'success');
+        } else {
+            select.innerHTML = '<option value="">No se encontraron pestañas.</option>';
+        }
+    } catch (e) {
+        toast('Error al cargar pestañas: ' + (e.detail || e.message || e), 'danger');
+        select.innerHTML = '<option value="">Error al cargar.</option>';
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+async function previewFixSisId() {
+    const urlInput = document.getElementById('fixSisIdUrl').value.trim();
+    const sheetInput = document.getElementById('fixSisIdSheet').value.trim();
+    if (!urlInput || !sheetInput) { toast('Completá la URL y elegí una pestaña.', 'warning'); return; }
+
+    _fixSisIdUrl = urlInput;
+    _fixSisIdSheet = sheetInput;
+
+    const btn = document.getElementById('btnPreviewFixSisId');
+    setLoading(btn, true);
+
+    try {
+        const res = await api.post('/excel/courses/fix-sis-id/preview', { url: urlInput, sheet_name: sheetInput });
+
+        document.getElementById('fixSisIdCount').innerText = res.to_fix;
+        document.getElementById('fixSisIdList').innerHTML = res.sample_rows.map(r => `
+            <tr>
+                <td>${r.nombre || '<span class="text-muted">—</span>'}</td>
+                <td>${r.canvas_id}</td>
+                <td><span class="badge bg-danger">${r.sis_actual}</span></td>
+                <td><span class="badge bg-success">${r.sis_nuevo}</span></td>
+            </tr>
+        `).join('') || '<tr><td colspan="4" class="text-center text-muted p-3">No hay cursos pendientes de corrección.</td></tr>';
+
+        if (res.already_correct > 0) {
+            document.getElementById('fixSisIdAlreadyOkWrap').style.display = 'block';
+            document.getElementById('fixSisIdAlreadyOk').innerText = res.already_correct;
+        } else {
+            document.getElementById('fixSisIdAlreadyOkWrap').style.display = 'none';
+        }
+        if (res.no_course_found > 0) {
+            document.getElementById('fixSisIdNotFoundWrap').style.display = 'block';
+            document.getElementById('fixSisIdNotFound').innerText = res.no_course_found;
+        } else {
+            document.getElementById('fixSisIdNotFoundWrap').style.display = 'none';
+        }
+
+        document.getElementById('btnExecuteFixSisId').disabled = res.to_fix === 0;
+        document.getElementById('fixSisIdFormWrap').style.display = 'none';
+        document.getElementById('fixSisIdPreviewWrap').style.display = 'block';
+    } catch (e) {
+        toast('Error: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function cancelFixSisIdPreview() {
+    document.getElementById('fixSisIdFormWrap').style.display = 'block';
+    document.getElementById('fixSisIdPreviewWrap').style.display = 'none';
+    const progressWrap = document.getElementById('fixSisIdJobProgressWrap');
+    if (progressWrap) progressWrap.remove();
+}
+
+async function executeFixSisId() {
+    if (!confirm('¿Corregir el SIS ID de todos los cursos detectados? El valor anterior de cada uno se libera automáticamente al reemplazarlo.')) return;
+
+    const btn = document.getElementById('btnExecuteFixSisId');
+    setLoading(btn, true);
+
+    try {
+        const res = await api.post('/excel/courses/fix-sis-id', { url: _fixSisIdUrl, sheet_name: _fixSisIdSheet });
+        toast('Corrección de SIS ID iniciada en segundo plano.', 'info');
+        startFixSisIdJobPolling(res.job_id);
+    } catch (e) {
+        toast('Error: ' + (e.detail || e.message || e), 'danger');
+        setLoading(btn, false);
+    }
+}
+
+function startFixSisIdJobPolling(jobId) {
+    const btn = document.getElementById('btnExecuteFixSisId');
+    if (_fixSisIdJobPollInterval) clearInterval(_fixSisIdJobPollInterval);
+
+    let progressWrap = document.getElementById('fixSisIdJobProgressWrap');
+    if (progressWrap) progressWrap.remove();
+    document.getElementById('fixSisIdPreviewWrap').insertAdjacentHTML('beforeend', `
+        <div id="fixSisIdJobProgressWrap" class="alert alert-info mt-3">
+            <div class="mb-2"><b>Procesando en segundo plano...</b> (Trabajo #${jobId})</div>
+            <div class="progress" style="height: 20px;">
+                <div id="fixSisIdJobProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 5%;">5%</div>
+            </div>
+            <div id="fixSisIdJobProgressDetail" class="mt-2 small text-muted">Inicializando...</div>
+        </div>
+    `);
+
+    _fixSisIdJobPollInterval = setInterval(async () => {
+        try {
+            const job = await api.get(`/excel/jobs/${jobId}`);
+            if (!job) return;
+
+            const processed = (job.result_count || 0) + (job.error_count || 0);
+            const total = parseInt(document.getElementById('fixSisIdCount').innerText, 10) || 0;
+            const percent = total > 0 ? Math.round((processed / total) * 100) : (['completed', 'completed_with_errors', 'failed'].includes(job.status) ? 100 : 5);
+
+            const bar = document.getElementById('fixSisIdJobProgressBar');
+            if (bar) { bar.style.width = `${percent}%`; bar.innerText = `${percent}%`; }
+            const detail = document.getElementById('fixSisIdJobProgressDetail');
+            if (detail) detail.innerHTML = `Completados: ${job.result_count || 0} | Errores: ${job.error_count || 0}`;
+
+            if (['completed', 'completed_with_errors', 'failed'].includes(job.status)) {
+                clearInterval(_fixSisIdJobPollInterval);
+                setLoading(btn, false);
+
+                if (job.status === 'failed') {
+                    toast('❌ El proceso falló: ' + (job.error_message || ''), 'danger');
+                } else {
+                    const failCount = job.error_count || 0;
+                    toast(`✅ ${job.result_count || 0} curso(s) corregido(s).${failCount > 0 ? ` ⚠️ ${failCount} con errores.` : ''}`, failCount > 0 ? 'warning' : 'success');
+                }
+
+                cancelFixSisIdPreview();
+                document.getElementById('fixSisIdUrl').value = '';
+                document.getElementById('fixSisIdSheet').innerHTML = '<option value="">Selecciona una pestaña...</option>';
+            }
+        } catch (e) {
+            console.error('Error consultando estado del trabajo', e);
+        }
+    }, 4000);
+}
+
+/* ══════════════════════════ EQUIPOS (Teams) ══════════════════════════ */
+
+let _teamSearchTimer = null;
+function debouncedLoadTeams(query) {
+  clearTimeout(_teamSearchTimer);
+  _teamSearchTimer = setTimeout(() => loadTeams(query), 400);
+}
+
+async function loadTeams(query = '') {
+  try {
+    document.getElementById('teamsTableWrap').innerHTML = '<div class="text-center py-5"><span class="spinner-border text-primary"></span></div>';
+    const url = query ? `/teams/teams?search_term=${encodeURIComponent(query)}&top=100` : '/teams/teams?top=100';
+    const teams = await api.get(url);
+    document.getElementById('teamCount').textContent = teams.length + ' Teams';
+
+    const html = `<table class="table table-sm table-hover mb-0">
+      <thead style="background:var(--card-border);position:sticky;top:0;z-index:10">
+        <tr>
+          <th style="max-width:150px">ID</th>
+          <th>Nombre</th>
+          <th>Descripción</th>
+          <th>Visibilidad</th>
+          <th style="width:180px">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${teams.map(row => `
+          <tr>
+            <td style="display:flex;align-items:center;gap:0.5rem;flex-wrap:nowrap" title="${row.id}">
+              <span class="small text-muted" style="min-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong>${row.id.substring(0, 20)}...</strong></span>
+              <button type="button" class="btn btn-sm btn-link p-0 copy-btn" style="color:var(--text-muted);padding:0!important;flex-shrink:0" title="Copiar ID" data-copy-id="${row.id}" data-copy-label="Team ID"><i class="bi bi-files"></i></button>
+            </td>
+            <td class="fw-semibold small" style="color:var(--sidebar-accent)">${row.displayName}</td>
+            <td class="small text-muted">${(row.description || '').substring(0, 50)}${(row.description || '').length > 50 ? '...' : ''}</td>
+            <td class="small"><span class="badge ${row.visibility === 'Public' ? 'bg-success' : 'bg-warning text-dark'}">${row.visibility || '—'}</span></td>
+            <td>
+              <button class="btn btn-sm btn-outline-info me-1 view-team-btn" title="Miembros" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-people"></i></button>
+              <button class="btn btn-sm btn-outline-secondary me-1 channels-btn" title="Canales" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-hash"></i></button>
+              <button class="btn btn-sm btn-outline-danger delete-team-btn" title="Eliminar" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+
+    document.getElementById('teamsTableWrap').innerHTML = html;
+
+    document.querySelectorAll('#teamsTableWrap .copy-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyToClipboard(btn.dataset.copyId, btn.dataset.copyLabel);
+      });
+    });
+
+    document.querySelectorAll('#teamsTableWrap .view-team-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        viewTeamDetail(btn.dataset.teamId, btn.dataset.teamName);
+      });
+    });
+
+    document.querySelectorAll('#teamsTableWrap .channels-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        viewChannels(btn.dataset.teamId, btn.dataset.teamName);
+      });
+    });
+
+    document.querySelectorAll('#teamsTableWrap .delete-team-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        deleteTeam(btn.dataset.teamId, btn.dataset.teamName);
+      });
+    });
+
+  } catch(e) {
+    document.getElementById('teamsTableWrap').innerHTML = `
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-exclamation-triangle fs-1 d-block mb-2 text-warning"></i>
+        <div class="mb-3">No se pudieron cargar los Teams: ${e.message}</div>
+        <button class="btn btn-sm btn-outline-primary" onclick="loadTeams()"><i class="bi bi-arrow-clockwise me-1"></i>Reintentar</button>
+      </div>`;
+    toast('Error cargando Teams: ' + e.message, 'danger');
+  }
+}
+
+function viewTeamDetail(teamId, name) {
+  showModal('Miembros: ' + name, `
+    <div class="mb-3 d-flex gap-2 flex-wrap">
+
+      <button class="btn btn-outline-primary" onclick="openBulkAddModal('${teamId}')"><i class="bi bi-people"></i> Carga Múltiple</button>
+      <button class="btn btn-outline-warning text-dark" onclick="openBulkEmailModal('${teamId}', '${name}')"><i class="bi bi-envelope-paper"></i> Carga por Correos</button>
+    </div>
+    <div id="memberTable"><div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div></div>`,
+    `<button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>`);
 
 
+
+  loadMembers(teamId);
+}
+
+async function loadMembers(teamId) {
+  try {
+    const members = await api.get(`/teams/teams/${teamId}/members`);
+
+    const html = `<table class="table table-sm table-hover mb-0">
+      <thead style="background:var(--card-border)">
+        <tr>
+          <th style="max-width:120px">User ID</th>
+          <th>Nombre</th>
+          <th>Rol</th>
+          <th style="width:80px">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${members.map(row => `
+          <tr>
+            <td style="display:flex;align-items:center;gap:0.5rem;flex-wrap:nowrap" title="${row.userId}">
+              <span class="small text-muted" style="min-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong>${row.userId ? row.userId.substring(0, 15) + '...' : '—'}</strong></span>
+              ${row.userId ? `<button type="button" class="btn btn-sm btn-link p-0 copy-btn" style="color:var(--text-muted);padding:0!important;flex-shrink:0" title="Copiar ID" data-copy-id="${row.userId}" data-copy-label="User ID"><i class="bi bi-files"></i></button>` : ''}
+            </td>
+            <td class="small fw-semibold">${row.displayName}</td>
+            <td class="small"><span class="badge ${row.roles && row.roles.includes('owner') ? 'bg-warning text-dark' : 'bg-primary'}">${row.roles && row.roles.includes('owner') ? 'Owner' : 'Miembro'}</span></td>
+            <td>
+              <button class="btn btn-sm btn-outline-danger remove-member-btn" title="Quitar" data-team-id="${teamId}" data-member-id="${row.id}" data-member-name="${row.displayName}"><i class="bi bi-person-dash"></i></button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+
+    document.getElementById('memberTable').innerHTML = html;
+
+    document.querySelectorAll('#memberTable .copy-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyToClipboard(btn.dataset.copyId, btn.dataset.copyLabel);
+      });
+    });
+
+    document.querySelectorAll('#memberTable .remove-member-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        removeMember(btn.dataset.teamId, btn.dataset.memberId, btn.dataset.memberName);
+      });
+    });
+  } catch(e) { document.getElementById('memberTable').innerHTML = `<p class="text-danger p-3">${e.message}</p>`; }
+}
+
+
+
+function removeMember(teamId, membershipId, name) {
+  confirmAction(`¿Quitar a <strong>${name}</strong> del Team?`, async () => {
+    try {
+      await api.del(`/teams/teams/${teamId}/members/${membershipId}`);
+      toast('Miembro eliminado', 'success'); loadMembers(teamId);
+    } catch(e) { toast('Error: ' + e.message, 'danger'); }
+  });
+}
+
+function viewChannels(teamId, name) {
+  showModal('Canales: ' + name, `
+    <div class="mb-3 d-flex gap-2 flex-wrap">
+      <input class="form-control" id="channelName" placeholder="Nombre del canal" style="max-width:240px">
+      <input class="form-control" id="channelDesc" placeholder="Descripción (opcional)" style="max-width:240px">
+      <select class="form-select" id="channelType" style="max-width:140px">
+        <option value="standard">Estándar</option>
+        <option value="private">Privado</option>
+      </select>
+      <button class="btn btn-success" onclick="createChannel('${teamId}')"><i class="bi bi-plus"></i> Crear</button>
+    </div>
+    <div id="channelTable"><div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div></div>`,
+    `<button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>`);
+  loadChannels(teamId);
+}
+
+async function loadChannels(teamId) {
+  try {
+    const channels = await api.get(`/teams/teams/${teamId}/channels`);
+
+    const html = `<table class="table table-sm table-hover mb-0">
+      <thead style="background:var(--card-border)">
+        <tr>
+          <th style="max-width:120px">ID</th>
+          <th>Nombre</th>
+          <th>Descripción</th>
+          <th>Tipo</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${channels.map(row => `
+          <tr>
+            <td style="display:flex;align-items:center;gap:0.5rem;flex-wrap:nowrap" title="${row.id}">
+              <span class="small text-muted" style="min-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong>${row.id.substring(0, 15)}...</strong></span>
+              <button type="button" class="btn btn-sm btn-link p-0 copy-btn" style="color:var(--text-muted);padding:0!important;flex-shrink:0" title="Copiar ID" data-copy-id="${row.id}" data-copy-label="Channel ID"><i class="bi bi-files"></i></button>
+            </td>
+            <td class="small fw-semibold"># ${row.displayName}</td>
+            <td class="small text-muted">${(row.description || '').substring(0, 40)}${(row.description || '').length > 40 ? '...' : ''}</td>
+            <td class="small"><span class="badge ${row.membershipType === 'private' ? 'bg-danger' : 'bg-secondary'}">${row.membershipType === 'private' ? 'Privado' : 'Estándar'}</span></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+
+    document.getElementById('channelTable').innerHTML = html;
+
+    document.querySelectorAll('#channelTable .copy-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyToClipboard(btn.dataset.copyId, btn.dataset.copyLabel);
+      });
+    });
+  } catch(e) { document.getElementById('channelTable').innerHTML = `<p class="text-danger p-3">${e.message}</p>`; }
+}
+
+async function createChannel(teamId) {
+  const name = document.getElementById('channelName').value.trim();
+  const desc = document.getElementById('channelDesc').value.trim();
+  const type = document.getElementById('channelType').value;
+  if (!name) { toast('Ingresa un nombre para el canal', 'warning'); return; }
+  try {
+    await api.post(`/teams/teams/${teamId}/channels`, { display_name: name, description: desc || null, membership_type: type });
+    toast('Canal creado', 'success'); loadChannels(teamId);
+  } catch(e) { toast('Error: ' + e.message, 'danger'); }
+}
+
+function deleteTeam(id, name) {
+  confirmAction(`¿Eliminar el Team <strong>${name}</strong>? Esta acción no se puede deshacer.`, async () => {
+    try { await api.del('/teams/teams/' + id); toast('Team eliminado', 'success'); loadTeams(); }
+    catch(e) { toast('Error: ' + e.message, 'danger'); }
+  });
+}
+
+// ==========================================
+// ELIMINACION MASIVA DE TEAMS (POR ID O NOMBRE)
+// ==========================================
+
+let teamsIdDeleteModal = null;
+let currentTeamsIdCandidates = [];
+
+function openTeamsIdDeleteModal() {
+  if (!teamsIdDeleteModal) {
+    teamsIdDeleteModal = new bootstrap.Modal(document.getElementById('teamsIdDeleteModal'));
+  }
+  document.getElementById('teamsIdDeleteTextarea').value = '';
+  document.getElementById('teamsIdDeleteFormWrap').style.display = 'block';
+  document.getElementById('teamsIdDeletePreviewWrap').style.display = 'none';
+  document.getElementById('teamsIdDeleteFooter').style.display = 'none';
+  currentTeamsIdCandidates = [];
+  teamsIdDeleteModal.show();
+}
+
+function _parseTeamsEntryList(raw) {
+  return [...new Set(
+    raw.split(/[\n;]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+  )];
+}
+
+async function previewTeamsIdDelete() {
+  const raw = document.getElementById('teamsIdDeleteTextarea').value;
+  const entries = _parseTeamsEntryList(raw);
+
+  if (entries.length === 0) {
+    toast('Ingresa al menos un ID o nombre de equipo.', 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('btnPreviewTeamsIdDelete');
+  setLoading(btn, true);
+
+  try {
+    const resolved = await api.post('/teams/teams/resolve', { entries });
+    currentTeamsIdCandidates = resolved.filter(r => r.found);
+    const notFound = resolved.filter(r => !r.found);
+
+    const tbody = document.getElementById('teamsIdDeleteList');
+    let html = '';
+    currentTeamsIdCandidates.forEach(r => {
+      html += `
+      <tr>
+        <td><input class="form-check-input teams-id-checkbox" type="checkbox" value="${r.team_id}" onchange="updateSelectedTeamsIdDeleteCount()"></td>
+        <td class="small text-muted">${r.team_id}</td>
+        <td>${r.name}</td>
+        <td><span class="badge bg-secondary">${r.input}</span></td>
+      </tr>`;
+    });
+    if (currentTeamsIdCandidates.length === 0) {
+      html = `<tr><td colspan="4" class="text-center text-muted">Ningún equipo encontrado.</td></tr>`;
+    }
+    tbody.innerHTML = html;
+    document.getElementById('teamsIdDeleteCount').innerText = currentTeamsIdCandidates.length;
+    document.getElementById('selectAllTeamsIdDelete').checked = false;
+
+    if (notFound.length > 0) {
+      document.getElementById('teamsIdDeleteNotFoundWrap').style.display = 'block';
+      document.getElementById('teamsIdDeleteNotFound').innerText = notFound.map(r => r.input).join(', ');
+    } else {
+      document.getElementById('teamsIdDeleteNotFoundWrap').style.display = 'none';
+    }
+
+    document.getElementById('teamsIdDeleteFormWrap').style.display = 'none';
+    document.getElementById('teamsIdDeletePreviewWrap').style.display = 'block';
+    document.getElementById('teamsIdDeleteFooter').style.display = 'flex';
+    updateSelectedTeamsIdDeleteCount();
+  } catch (e) {
+    toast('Error verificando equipos: ' + (e.detail || e.message || e), 'danger');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+function cancelTeamsIdDeletePreview() {
+  document.getElementById('teamsIdDeleteFormWrap').style.display = 'block';
+  document.getElementById('teamsIdDeletePreviewWrap').style.display = 'none';
+  document.getElementById('teamsIdDeleteFooter').style.display = 'none';
+}
+
+function toggleSelectAllTeamsIdDelete() {
+  const selectAll = document.getElementById('selectAllTeamsIdDelete').checked;
+  document.querySelectorAll('.teams-id-checkbox').forEach(cb => cb.checked = selectAll);
+  updateSelectedTeamsIdDeleteCount();
+}
+
+function updateSelectedTeamsIdDeleteCount() {
+  const selected = document.querySelectorAll('.teams-id-checkbox:checked').length;
+  document.getElementById('selectedTeamsIdDeleteCount').innerText = selected;
+  document.getElementById('btnExecuteTeamsIdDelete').disabled = selected === 0;
+}
+
+async function executeTeamsIdDelete() {
+  const checkboxes = document.querySelectorAll('.teams-id-checkbox:checked');
+  const teamIds = Array.from(checkboxes).map(cb => cb.value);
+
+  if (teamIds.length === 0) return;
+
+  if (!confirm(`¿Está absolutamente seguro de ELIMINAR los ${teamIds.length} equipos seleccionados? Esta acción NO SE PUEDE DESHACER.`)) return;
+
+  const btn = document.getElementById('btnExecuteTeamsIdDelete');
+  setLoading(btn, true);
+
+  try {
+    const res = await api.post('/teams/teams/bulk-delete', { team_ids: teamIds });
+
+    let msg = `Éxito: ${res.succeeded.length} eliminados.`;
+    if (res.failed.length > 0) {
+      msg += ` Errores: ${res.failed.length}. Revisa la consola para detalles.`;
+      console.error("Equipos fallidos:", res.failed);
+      toast(msg, 'warning');
+    } else {
+      toast(msg, 'success');
+    }
+
+    teamsIdDeleteModal.hide();
+    loadTeams();
+  } catch (e) {
+    toast('Error durante la eliminación masiva: ' + (e.detail || e.message || e), 'danger');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+// ==========================================
+// GRUPOS ELIMINADOS (PAPELERA DE 30 DIAS)
+// ==========================================
+
+let deletedGroupsModal = null;
+let currentDeletedGroups = [];
+
+function openDeletedGroupsModal() {
+  if (!deletedGroupsModal) {
+    deletedGroupsModal = new bootstrap.Modal(document.getElementById('deletedGroupsModal'));
+  }
+  document.getElementById('deletedGroupsListWrap').style.display = 'block';
+  document.getElementById('deletedGroupsResultsWrap').style.display = 'none';
+  document.getElementById('btnRestoreAndCheck').style.display = 'inline-block';
+  deletedGroupsModal.show();
+  loadDeletedGroups();
+}
+
+async function loadDeletedGroups() {
+  const tbody = document.getElementById('deletedGroupsList');
+  tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4"><span class="spinner-border spinner-border-sm"></span></td></tr>';
+  document.getElementById('selectAllDeletedGroups').checked = false;
+  updateSelectedDeletedGroupsCount();
+
+  try {
+    currentDeletedGroups = await api.get('/teams/teams/deleted');
+    if (currentDeletedGroups.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">No hay grupos eliminados en la papelera.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = currentDeletedGroups.map(g => `
+      <tr>
+        <td><input class="form-check-input deleted-group-checkbox" type="checkbox" value="${g.id}" onchange="updateSelectedDeletedGroupsCount()"></td>
+        <td>${g.displayName || '—'}</td>
+        <td class="small text-muted">${g.deletedDateTime ? new Date(g.deletedDateTime).toLocaleString('es-ES') : '—'}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger py-4">Error cargando grupos eliminados: ${e.detail || e.message || e}</td></tr>`;
+  }
+}
+
+function toggleSelectAllDeletedGroups() {
+  const selectAll = document.getElementById('selectAllDeletedGroups').checked;
+  document.querySelectorAll('.deleted-group-checkbox').forEach(cb => cb.checked = selectAll);
+  updateSelectedDeletedGroupsCount();
+}
+
+function updateSelectedDeletedGroupsCount() {
+  const selected = document.querySelectorAll('.deleted-group-checkbox:checked').length;
+  document.getElementById('selectedDeletedGroupsCount').innerText = selected;
+  document.getElementById('btnRestoreAndCheck').disabled = selected === 0;
+}
+
+async function executeRestoreAndCheck() {
+  const checkboxes = document.querySelectorAll('.deleted-group-checkbox:checked');
+  const groupIds = Array.from(checkboxes).map(cb => cb.value);
+  if (groupIds.length === 0) return;
+
+  if (!confirm(`¿Restaurar y verificar ${groupIds.length} grupo(s)? Quedarán activos de nuevo mientras se cuentan sus miembros — los que resulten vacíos los podés volver a eliminar después con "Eliminación Masiva".`)) return;
+
+  const btn = document.getElementById('btnRestoreAndCheck');
+  setLoading(btn, true);
+
+  try {
+    const results = await api.post('/teams/teams/deleted/restore-and-check', { group_ids: groupIds });
+
+    const tbody = document.getElementById('deletedGroupsResults');
+    tbody.innerHTML = results.map(r => {
+      if (r.error && !r.restored) {
+        return `<tr><td>${r.name || r.group_id}</td><td colspan="2" class="text-danger small">${r.error}</td><td colspan="2"></td></tr>`;
+      }
+      const hasExtra = (r.members_count ?? 0) > (r.owners_count ?? 0);
+      const badge = hasExtra
+        ? '<span class="badge bg-success">Sí — tenía gente matriculada</span>'
+        : '<span class="badge bg-secondary">No — solo owners (parece duplicado vacío)</span>';
+      return `
+        <tr>
+          <td>${r.name || r.group_id}</td>
+          <td>${r.owners_count ?? '—'}</td>
+          <td>${r.members_count ?? '—'}</td>
+          <td>${badge}</td>
+          <td><button class="btn btn-sm btn-link p-0" onclick="copyToClipboard('${r.group_id}', 'ID')">Copiar ID</button></td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('deletedGroupsListWrap').style.display = 'none';
+    document.getElementById('deletedGroupsResultsWrap').style.display = 'block';
+    document.getElementById('btnRestoreAndCheck').style.display = 'none';
+
+    const withMembers = results.filter(r => (r.members_count ?? 0) > (r.owners_count ?? 0)).length;
+    toast(`${results.length} restaurados y verificados. ${withMembers} tenían gente matriculada.`, withMembers > 0 ? 'warning' : 'success');
+    loadTeams();
+  } catch (e) {
+    toast('Error restaurando/verificando: ' + (e.detail || e.message || e), 'danger');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+function openExcelMembers() {
+  showSpreadsheet({
+    title: 'Añadir miembros a Teams masivamente',
+    columns: [
+      { key: 'team_id', label: 'ID Team', required: true, width: 220 },
+      { key: 'user_id', label: 'ID Usuario (Email/UPN)', required: true, width: 220 },
+      { key: 'role', label: 'Rol', required: false, width: 100,
+        options: [
+          { value: 'member', label: 'Miembro' },
+          { value: 'owner', label: 'Owner' }
+        ] }
+    ],
+    onImport: async (rows) => {
+      const result = { succeeded: [], failed: [] };
+      for (const m of rows) {
+        try {
+          const res = await api.post(`/teams/teams/${m.team_id}/members/bulk-add-emails`, { emails: [m.user_id], role: m.role || 'member' });
+          result.succeeded.push(res);
+        } catch(e) {
+          result.failed.push({ input: { team_id: m.team_id, user_id: m.user_id }, error: e.message });
+        }
+      }
+      return result;
+    }
+  });
+}
+
+// --- BULK ADD MULTIPLE USERS ---
+let _bulkAddPicked = [];
+let _currentTeamId = null;
+
+function openBulkAddModal(teamId) {
+    _currentTeamId = teamId;
+    _bulkAddPicked = [];
+    showModal('Añadir Múltiples Miembros', `
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Buscar usuarios para agregar</label>
+        <div class="d-flex gap-2">
+            <div class="autocomplete-container" style="flex:1;">
+                <input type="text" class="form-control" id="bulk_search_user" placeholder="Buscar por nombre o email..." autocomplete="off">
+                <input type="hidden" id="bulk_add_user_id">
+                <div class="autocomplete-dropdown" id="bulk_add_user_results"></div>
+            </div>
+            <select class="form-select" id="bulkRole" style="max-width:140px">
+                <option value="member">Miembro</option>
+                <option value="owner">Owner</option>
+            </select>
+            <button class="btn btn-primary" onclick="addBulkPickedUser()"><i class="bi bi-plus"></i> Seleccionar</button>
+        </div>
+      </div>
+      <div class="mb-3">
+        <h6>Usuarios Seleccionados:</h6>
+        <div id="bulkPickedContainer" class="p-3 bg-light rounded" style="min-height:60px">
+           <span class="text-muted small">No hay usuarios seleccionados</span>
+        </div>
+      </div>
+    `, `
+      <button class="btn btn-secondary" onclick="viewTeamDetail('${teamId}', 'Equipo')">Volver</button>
+      <button class="btn btn-success" onclick="saveBulkAdd()"><i class="bi bi-save"></i> Guardar Cambios</button>
+    `);
+
+    setupAutocomplete('bulk_search_user', 'bulk_add_user_id', 'bulk_add_user_results', '/teams/users',
+        (u) => `<div class="autocomplete-title">${u.displayName}</div><div class="autocomplete-sub">${u.userPrincipalName || 'Sin email'}</div>`,
+        (u, input, hidden) => { input.value = u.displayName; hidden.value = u.id; input.dataset.upn = u.userPrincipalName; }
+    );
+}
+
+function addBulkPickedUser() {
+    const hidden = document.getElementById('bulk_add_user_id');
+    const input = document.getElementById('bulk_search_user');
+    const roleSel = document.getElementById('bulkRole');
+    if(!hidden.value) { toast('Debe seleccionar un usuario', 'warning'); return; }
+    const id = hidden.value;
+    const name = input.value;
+    const upn = input.dataset.upn;
+    const role = roleSel.value;
+    if (!_bulkAddPicked.find(u => u.id === id)) { _bulkAddPicked.push({id, name, upn, role}); renderBulkPicked(); }
+    hidden.value = ''; input.value = ''; input.dataset.upn = '';
+}
+
+function renderBulkPicked() {
+    const container = document.getElementById('bulkPickedContainer');
+    if (_bulkAddPicked.length === 0) { container.innerHTML = '<span class="text-muted small">No hay usuarios seleccionados</span>'; return; }
+    container.innerHTML = _bulkAddPicked.map(u =>
+        `<span class="badge bg-${u.role === 'owner' ? 'warning text-dark' : 'primary'} me-1 mb-1" style="font-size:.78rem">${u.name} (${u.role}) <button type="button" class="btn-close ms-1" style="font-size:.5rem" onclick="removeBulkPicked('${u.id}')"></button></span>`
+    ).join('');
+}
+
+function removeBulkPicked(id) { _bulkAddPicked = _bulkAddPicked.filter(u => u.id !== id); renderBulkPicked(); }
+
+async function saveBulkAdd() {
+    if (_bulkAddPicked.length === 0) { toast('No has seleccionado a nadie.', 'warning'); return; }
+    try {
+        const payload = { team_id: _currentTeamId, members: _bulkAddPicked.map(u => ({ user_id: u.id, role: u.role })) };
+        await api.post(`/teams/teams/${_currentTeamId}/members/bulk-add`, payload);
+        toast('Añadidos en lote con éxito.', 'success');
+        viewTeamDetail(_currentTeamId, 'Equipo');
+    } catch(e) { toast('Error agregando: ' + e.message, 'danger'); }
+}
+
+// --- BULK ADD BY EMAILS ---
+function openBulkEmailModal(teamId, teamName) {
+    _currentTeamId = teamId;
+    showModal('Carga masiva por Correos: ' + teamName, `
+      <div class="alert alert-info">
+        Pega la lista de correos electrónicos (uno por línea). El sistema los buscará y añadirá automáticamente al equipo.
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-bold">Lista de Correos</label>
+        <textarea class="form-control" id="bulkEmailList" rows="8" placeholder="usuario1@usil.edu.py\nusuario2@usil.edu.py"></textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-bold">Rol a asignar</label>
+        <select class="form-select" id="bulkEmailRole">
+            <option value="member">Miembro</option>
+            <option value="owner">Owner (Propietario)</option>
+        </select>
+      </div>
+      <div id="bulkEmailResultContainer" class="mt-3"></div>
+    `, `
+      <button class="btn btn-secondary" onclick="viewTeamDetail('${teamId}', '${teamName}')">Volver</button>
+      <button class="btn btn-success" id="btnSaveBulkEmails" onclick="saveBulkEmails('${teamName}')"><i class="bi bi-cloud-arrow-up"></i> Procesar Correos</button>
+    `);
+}
+
+async function saveBulkEmails(teamName) {
+    const emailText = document.getElementById('bulkEmailList').value;
+    const role = document.getElementById('bulkEmailRole').value;
+
+    const emails = emailText.split(/[\n,]+/).map(e => e.trim()).filter(e => e.length > 0);
+
+    if (emails.length === 0) {
+        toast('No has ingresado ningún correo válido.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnSaveBulkEmails');
+    const resultContainer = document.getElementById('bulkEmailResultContainer');
+
+    setLoading(btn, true);
+    toast(`Procesando ${emails.length} correos...`, 'info');
+    resultContainer.innerHTML = '<div class="text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Buscando en Azure AD y asignando...</div>';
+
+    try {
+        const payload = { emails: emails, role: role };
+        const res = await api.post(`/teams/teams/${_currentTeamId}/members/bulk-add-emails`, payload);
+
+        const successCount = res.succeeded ? res.succeeded.length : 0;
+        const failedCount = res.failed ? res.failed.length : 0;
+
+        let resultHtml = `<div class="alert alert-${successCount > 0 ? 'success' : 'warning'}">
+            <strong>Proceso completado.</strong><br>
+            Añadidos con éxito: ${successCount}<br>
+            Fallidos / No encontrados: ${failedCount}
+        </div>`;
+
+        if (failedCount > 0) {
+            resultHtml += `<div class="mt-2">
+                <p class="mb-1 fw-bold text-danger">Errores:</p>
+                <ul class="list-group list-group-sm" style="max-height: 150px; overflow-y: auto;">
+                    ${res.failed.map(f => `<li class="list-group-item py-1 px-2 text-danger small"><b>${f.input}</b>: ${f.error}</li>`).join('')}
+                </ul>
+            </div>`;
+        }
+
+        resultContainer.innerHTML = resultHtml;
+        toast(`Se procesaron los correos. ${successCount} añadidos.`, successCount > 0 ? 'success' : 'warning');
+
+        if (successCount > 0 && failedCount === 0) {
+            document.getElementById('bulkEmailList').value = '';
+        }
+
+    } catch(e) {
+        toast('Error procesando correos: ' + (e.detail || e.message || e), 'danger');
+        resultContainer.innerHTML = `<div class="alert alert-danger">Error: ${e.detail || e.message || e}</div>`;
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+// ==========================================
+// AGREGAR MIEMBROS A CUALQUIER GRUPO POR ID
+// (Teams, listas de distribución, grupos de seguridad, etc.)
+// ==========================================
+
+let groupMembersModal = null;
+
+function openGroupMembersModal() {
+    if (!groupMembersModal) {
+        groupMembersModal = new bootstrap.Modal(document.getElementById('groupMembersModal'));
+    }
+    document.getElementById('groupMembersResultsWrap').style.display = 'none';
+    groupMembersModal.show();
+}
+
+async function executeGroupMembersAdd() {
+    const groupId = document.getElementById('groupMembersGroupId').value.trim();
+    const emails = document.getElementById('groupMembersEmails').value
+        .split(/[\n;,]+/).map(s => s.trim()).filter(Boolean);
+
+    if (!groupId) { toast('Ingresá el ID del grupo.', 'warning'); return; }
+    if (emails.length === 0) { toast('Ingresá al menos un correo.', 'warning'); return; }
+
+    const btn = document.getElementById('btnExecuteGroupMembers');
+    setLoading(btn, true);
+    const resultWrap = document.getElementById('groupMembersResultsWrap');
+    resultWrap.style.display = 'none';
+
+    try {
+        const res = await api.post(`/teams/teams/${groupId}/members/bulk-add-to-group`, { emails });
+        const successCount = res.succeeded.length;
+        const failedCount = res.failed.length;
+
+        let html = `<div class="alert ${failedCount > 0 ? 'alert-warning' : 'alert-success'} mb-0">
+            Agregados: ${successCount} | Fallidos: ${failedCount}
+        </div>`;
+        if (failedCount > 0) {
+            html += `<div class="mt-2">
+                <p class="mb-1 fw-bold text-danger">Errores:</p>
+                <ul class="list-group list-group-sm" style="max-height: 150px; overflow-y: auto;">
+                    ${res.failed.map(f => `<li class="list-group-item py-1 px-2 text-danger small"><b>${f.input}</b>: ${f.error}</li>`).join('')}
+                </ul>
+            </div>`;
+        }
+        resultWrap.innerHTML = html;
+        resultWrap.style.display = 'block';
+        toast(`Se procesaron los correos. ${successCount} añadidos.`, successCount > 0 ? 'success' : 'warning');
+
+        if (successCount > 0 && failedCount === 0) {
+            document.getElementById('groupMembersEmails').value = '';
+        }
+    } catch (e) {
+        toast('Error agregando miembros: ' + (e.detail || e.message || e), 'danger');
+        resultWrap.innerHTML = `<div class="alert alert-danger">Error: ${e.detail || e.message || e}</div>`;
+        resultWrap.style.display = 'block';
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+/* ══════════════════ Carga inicial de ambas pestañas ══════════════════ */
 loadCourses();
+loadTeams();
 </script>
 {% endblock %}
