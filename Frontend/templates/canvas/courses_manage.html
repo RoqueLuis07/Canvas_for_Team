@@ -303,6 +303,17 @@
 
 {% block scripts %}
 <script>
+/* ── Estado: etiqueta + colores Canvas-style (misma config que canvas/courses.html,
+   duplicada acá porque esta página carga sola, sin ese script). ── */
+const _STATE_CFG = {
+  available:   { label: 'Publicado',     bg: '#0B874B', icon: 'bi-broadcast'         },
+  unpublished: { label: 'No publicado',  bg: '#6C7982', icon: 'bi-eye-slash'          },
+  completed:   { label: 'Concluido',     bg: '#0770A3', icon: 'bi-check-circle'       },
+  deleted:     { label: 'Eliminado',     bg: '#C7003D', icon: 'bi-trash'              },
+  created:     { label: 'Borrador',      bg: '#C68A0A', icon: 'bi-pencil'             },
+  claimed:     { label: 'Borrador',      bg: '#C68A0A', icon: 'bi-pencil'             },
+};
+
 /* ═══════════════════════════════════════════════════════════════════
    CARGA DE CURSOS DESDE PLANILLA ONEDRIVE
    ═══════════════════════════════════════════════════════════════════ */
