@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Planillas de Diplomado{% endblock %}
+{% block breadcrumb %}Directorio & Ingresos / Planillas de Diplomado{% endblock %}
+{% block nav_dip %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4 gap-3 flex-wrap justify-content-between">
+  <div>
+    <div class="page-title">Planillas de Diplomado</div>
+    <div class="page-subtitle">Alta de alumnos y envío de credenciales, un lote por diplomado</div>
+  </div>
+  <button type="button" class="btn btn-primary" id="btnNewSheet">
+    <i class="bi bi-plus-lg me-1"></i> Nueva planilla
+  </button>
+</div>
+
+<div class="canvas-panel">
+  <div id="sheetsList"></div>
+  <div id="sheetsEmpty" class="text-center text-muted py-5" style="display: none;">
+    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+    Todavía no hay planillas de diplomado. Creá la primera con el botón de arriba.
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.dipsheet-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--card-border); text-decoration: none; color: var(--text-primary); transition: background .12s; }
+.dipsheet-row:hover { background: var(--table-hover-bg); color: var(--text-primary); }
+.dipsheet-row:last-child { border-bottom: none; }
+.dipsheet-icon { width: 38px; height: 38px; border-radius: 8px; background: var(--brand-blue-soft, #E6F2F8); color: var(--canvas-blue); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.dipsheet-title { font-weight: 600; }
+.dipsheet-meta { font-size: .8rem; color: var(--text-muted); }
+</style>
+<script>
+async function loadSheets() {
+  const sheets = await api.get('/diplomado-sheets/sheets');
+  const list = document.getElementById('sheetsList');
+  const empty = document.getElementById('sheetsEmpty');
+  if (!sheets.length) { list.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  list.innerHTML = sheets.map(s => `
+    <a href="/ui/diplomados/${s.id}" class="dipsheet-row">
+      <div class="dipsheet-icon"><i class="bi bi-mortarboard-fill"></i></div>
+      <div class="flex-grow-1">
+        <div class="dipsheet-title">${s.diplomado_name}</div>
+        <div class="dipsheet-meta">${s.row_count} alumno${s.row_count == 1 ? '' : 's'} · actualizado ${new Date(s.updated_at).toLocaleString('es-PY')}</div>
+      </div>
+      <i class="bi bi-chevron-right text-muted"></i>
+    </a>
+  `).join('');
+}
+
+document.getElementById('btnNewSheet').addEventListener('click', async () => {
+  const diplomado_name = prompt('Nombre del diplomado (ej. "Diplomado en Gerencia de Procesos - Febrero"):', '');
+  if (!diplomado_name) return;
+  try {
+    const sheet = await api.post('/diplomado-sheets/sheets', { diplomado_name });
+    window.location.href = `/ui/diplomados/${sheet.id}`;
+  } catch (e) { toast(e.message, 'danger'); }
+});
+
+loadSheets().catch(e => toast(e.message, 'danger'));
+</script>
+{% endblock %}

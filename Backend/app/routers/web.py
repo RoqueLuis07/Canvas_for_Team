@@ -70,6 +70,16 @@ async def diplomado_sheet_preview(request: Request):
 
 
 
+@router.get("/ui/diplomados", response_class=HTMLResponse)
+async def diplomados_list(request: Request):
+    return _r(request, "canvas/diplomados_list.html")
+
+
+@router.get("/ui/diplomados/{sheet_id}", response_class=HTMLResponse)
+async def diplomados_sheet(request: Request, sheet_id: int):
+    return _r(request, "canvas/diplomados_sheet.html", sheet={"id": sheet_id, "diplomado_name": "", "team_id": None, "owners": []})
+
+
 @router.get("/ui/teams", response_class=HTMLResponse)
 async def teams_root(request: Request):
     return RedirectResponse(url="/ui/teams/teams", status_code=302)

@@ -55,6 +55,15 @@ class Settings(BaseSettings):
     def admin_allowed_emails_set(self) -> set[str]:
         return {e.strip().lower() for e in self.admin_allowed_emails.split(",") if e.strip()}
 
+    # Planilla comercial maestra de OneDrive ("PL. COMERCIAL 2026.xlsx", hoja
+    # "Datos UBS") — fuente de candidatos para las planillas de diplomado.
+    # Se lee en SOLO LECTURA (nunca se escribe ahí, ni para marcar nada): el
+    # panel de "candidatos" la usa para mostrar quién falta traspasar a la
+    # planilla real del diplomado. Vacío por defecto porque es un enlace
+    # interno de la universidad — se configura por .env, nunca hardcodeado.
+    comercial_onedrive_url: str = ""
+    comercial_sheet_name: str = "Datos UBS"
+
 
 
     @field_validator("secret_key")
