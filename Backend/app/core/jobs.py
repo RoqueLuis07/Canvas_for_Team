@@ -11,17 +11,34 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+_CONNECT_TIMEOUT = 5
+_STATEMENT_TIMEOUT_MS = 8000
+_RUN_TIMEOUT = 10
+
+
 async def _run(fn):
     """Abre una conexión nueva, ejecuta `fn(conn)` en un hilo aparte (para no
     bloquear el event loop con I/O de red síncrono) y garantiza el cierre de
-    la conexión incluso si `fn` lanza una excepción a mitad de camino."""
+    la conexión incluso si `fn` lanza una excepción a mitad de camino.
+
+    Tiene timeout de conexión y de consulta (del lado del servidor) más un
+    timeout general de la operación, para no dejar la pantalla de Historial
+    de Trabajos colgada indefinidamente si la DB no responde."""
     def _wrapped():
-        conn = psycopg2.connect(settings.supabase_database_url)
+        conn = psycopg2.connect(
+            settings.supabase_database_url,
+            connect_timeout=_CONNECT_TIMEOUT,
+            options=f"-c statement_timeout={_STATEMENT_TIMEOUT_MS}",
+        )
         try:
             return fn(conn)
         finally:
             conn.close()
-    return await asyncio.to_thread(_wrapped)
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(_wrapped), timeout=_RUN_TIMEOUT)
+    except asyncio.TimeoutError:
+        logger.error(f"Jobs DB operation timed out after {_RUN_TIMEOUT}s")
+        raise
 
 
 def init_jobs_db():

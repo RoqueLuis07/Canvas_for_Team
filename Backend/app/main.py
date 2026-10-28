@@ -1,4 +1,5 @@
 """Canvas for Teams - Main FastAPI Application"""
+import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -141,16 +142,27 @@ if STATIC_DIR.exists():
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # Health check endpoints
+#
+# Timeout de respaldo: la capa de DB (app/core/database.py) ya tiene su
+# propio timeout por consulta, pero estos dos endpoints los consume
+# directamente el dashboard — un backstop acá evita que vuelvan a quedar
+# colgados aunque se agregue en el futuro una llamada sin timeout propio.
+_STATS_TIMEOUT = 12
+
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Basic health check."""
     try:
-        stats = await get_stats()
+        stats = await asyncio.wait_for(get_stats(), timeout=_STATS_TIMEOUT)
         return {
             "status": "ok",
             "environment": settings.environment,
             **stats
         }
+    except asyncio.TimeoutError:
+        logger.error(f"Health check timed out after {_STATS_TIMEOUT}s")
+        return {"status": "degraded", "error": "timeout"}
     except Exception as e:
         logger.error(f"Health check error: {e}")
         return {
@@ -163,12 +175,15 @@ async def health_check():
 async def get_stats():
     """Get application statistics."""
     try:
-        courses = await database.count_courses()
+        return await asyncio.wait_for(_get_stats_inner(), timeout=_STATS_TIMEOUT)
+    except asyncio.TimeoutError:
+        logger.error(f"Stats timed out after {_STATS_TIMEOUT}s")
         return {
-            "courses": courses,
-            "canvas_courses": courses,
-            "canvas_users": await database.count_canvas_users(),
-            "azure_users": await database.count_azure_users(),
+            "courses": 0,
+            "canvas_courses": 0,
+            "canvas_users": 0,
+            "azure_users": 0,
+            "error": "timeout"
         }
     except Exception as e:
         logger.error(f"Stats error: {e}", exc_info=True)
@@ -179,6 +194,16 @@ async def get_stats():
             "azure_users": 0,
             "error": str(e)
         }
+
+
+async def _get_stats_inner():
+    courses = await database.count_courses()
+    return {
+        "courses": courses,
+        "canvas_courses": courses,
+        "canvas_users": await database.count_canvas_users(),
+        "azure_users": await database.count_azure_users(),
+    }
 
 
 @app.get("/ping", tags=["Health"])

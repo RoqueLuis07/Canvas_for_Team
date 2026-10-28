@@ -11,18 +11,35 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+_CONNECT_TIMEOUT = 5
+_STATEMENT_TIMEOUT_MS = 8000
+_RUN_TIMEOUT = 10
+
+
 async def _run(fn):
     """Abre una conexión nueva, ejecuta `fn(conn)` en un hilo aparte (para no
     bloquear el event loop con I/O de red síncrono — relevante sobre todo
     para log_activity(), que corre en el middleware de CADA request) y
-    garantiza el cierre de la conexión incluso si `fn` lanza una excepción."""
+    garantiza el cierre de la conexión incluso si `fn` lanza una excepción.
+
+    Tiene timeout de conexión y de consulta (del lado del servidor) más un
+    timeout general de la operación: sin esto, una DB colgada frena el
+    middleware de auditoría y, con él, CADA request de la app."""
     def _wrapped():
-        conn = psycopg2.connect(settings.supabase_database_url)
+        conn = psycopg2.connect(
+            settings.supabase_database_url,
+            connect_timeout=_CONNECT_TIMEOUT,
+            options=f"-c statement_timeout={_STATEMENT_TIMEOUT_MS}",
+        )
         try:
             return fn(conn)
         finally:
             conn.close()
-    return await asyncio.to_thread(_wrapped)
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(_wrapped), timeout=_RUN_TIMEOUT)
+    except asyncio.TimeoutError:
+        logger.error(f"Audit DB operation timed out after {_RUN_TIMEOUT}s")
+        raise
 
 
 def init_audit_db():
