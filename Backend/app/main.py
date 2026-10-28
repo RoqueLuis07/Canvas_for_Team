@@ -156,16 +156,17 @@ _STATS_TIMEOUT = 12
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Basic health check."""
+    # get_stats() ya se autolimita con _STATS_TIMEOUT y nunca lanza
+    # (devuelve un dict con "error" en vez de propagar) — no hace falta
+    # envolverla en otro wait_for acá, sería una carrera con el mismo plazo.
     try:
-        stats = await asyncio.wait_for(get_stats(), timeout=_STATS_TIMEOUT)
+        stats = await get_stats()
+        status = "degraded" if stats.get("error") else "ok"
         return {
-            "status": "ok",
+            "status": status,
             "environment": settings.environment,
             **stats
         }
-    except asyncio.TimeoutError:
-        logger.error(f"Health check timed out after {_STATS_TIMEOUT}s")
-        return {"status": "degraded", "error": "timeout"}
     except Exception as e:
         logger.error(f"Health check error: {e}")
         return {
