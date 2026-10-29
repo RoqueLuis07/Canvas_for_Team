@@ -148,6 +148,41 @@
     </div>
   </div>
 
+  <!-- Cuentas de una sola plataforma (Canvas O Teams, no ambas) -->
+  <div id="una-plataforma" class="table-card mb-4" style="scroll-margin-top: calc(var(--topbar-h) + 16px);">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h5 class="mb-0"><i class="bi bi-shuffle me-2"></i>Cuentas de una Sola Plataforma</h5>
+      <button class="btn btn-outline-secondary btn-sm" id="btnScanSinglePlatform" onclick="loadSinglePlatform()"><i class="bi bi-search me-1"></i>Cruzar Cuentas</button>
+    </div>
+    <p class="px-3 pt-2 mb-0 small text-muted">
+      Solo lectura — no modifica nada. Cuenta cuántas cuentas institucionales existen en Canvas <em>o</em> en
+      Teams/Azure AD pero no en ambas. Es la precondición que el equipo dejó pendiente en el backlog para
+      automatizar la reconciliación entre plataformas: mientras este caso no exista en la práctica, construir
+      esa lógica resolvería un problema que todavía no pasa.
+    </p>
+    <div id="singlePlatformSummary" class="px-3 py-3 small text-muted">Presioná "Cruzar Cuentas" para calcular.</div>
+    <div id="singlePlatformDetail" style="display:none;">
+      <div class="row g-0">
+        <div class="col-md-6 border-end">
+          <div class="px-3 py-2 fw-semibold small text-muted border-bottom">Solo en Canvas</div>
+          <div class="table-scroll" style="max-height:300px;">
+            <table class="table table-sm mb-0">
+              <tbody id="onlyCanvasBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="px-3 py-2 fw-semibold small text-muted border-bottom">Solo en Teams/Azure AD</div>
+          <div class="table-scroll" style="max-height:300px;">
+            <table class="table table-sm mb-0">
+              <tbody id="onlyAzureBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script>
 let orphanedUsers = [];
 let unusedAccounts = [];
@@ -349,6 +384,44 @@ document.addEventListener('change', (e) => {
         updateDeleteUnusedButton();
     }
 });
+
+async function loadSinglePlatform() {
+    const btn = document.getElementById('btnScanSinglePlatform');
+    setLoading(btn, true);
+    document.getElementById('singlePlatformSummary').innerHTML =
+        '<span class="spinner-border spinner-border-sm me-2"></span>Cruzando cuentas de Canvas y Teams/Azure AD...';
+    document.getElementById('singlePlatformDetail').style.display = 'none';
+    try {
+        const res = await api.get('/reports/single-platform-accounts');
+
+        document.getElementById('singlePlatformSummary').innerHTML = `
+            <span class="badge bg-success me-2">${res.total_both_platforms} en ambas plataformas</span>
+            <span class="badge bg-warning text-dark me-2">${res.total_only_canvas} solo en Canvas</span>
+            <span class="badge bg-warning text-dark">${res.total_only_azure} solo en Teams/Azure AD</span>
+            <div class="mt-1">Total: ${res.total_canvas_users} en Canvas, ${res.total_azure_users} en Teams/Azure AD.</div>
+        `;
+
+        const fmtCanvas = (a) => `<tr><td class="font-monospace small">${a.email}</td><td class="small">${a.name || '-'}</td><td class="small text-muted">SIS: ${a.sis_user_id || '—'}</td></tr>`;
+        const fmtAzure = (a) => `<tr><td class="font-monospace small">${a.email}</td><td class="small">${a.name || '-'}</td><td class="small">${a.account_enabled === false ? '<span class="badge bg-secondary">Deshabilitada</span>' : ''}</td></tr>`;
+
+        document.getElementById('onlyCanvasBody').innerHTML = res.only_canvas_sample.length
+            ? res.only_canvas_sample.map(fmtCanvas).join('') + (res.total_only_canvas > res.only_canvas_sample.length ? `<tr><td colspan="3" class="text-muted small p-2">… y ${res.total_only_canvas - res.only_canvas_sample.length} más</td></tr>` : '')
+            : '<tr><td class="text-muted small p-2">Ninguna</td></tr>';
+
+        document.getElementById('onlyAzureBody').innerHTML = res.only_azure_sample.length
+            ? res.only_azure_sample.map(fmtAzure).join('') + (res.total_only_azure > res.only_azure_sample.length ? `<tr><td colspan="3" class="text-muted small p-2">… y ${res.total_only_azure - res.only_azure_sample.length} más</td></tr>` : '')
+            : '<tr><td class="text-muted small p-2">Ninguna</td></tr>';
+
+        document.getElementById('singlePlatformDetail').style.display = 'block';
+        toast(`${res.total_only_canvas + res.total_only_azure} cuenta(s) de una sola plataforma`, (res.total_only_canvas + res.total_only_azure) ? 'warning' : 'success');
+    } catch (e) {
+        document.getElementById('singlePlatformSummary').innerHTML =
+            `<span class="text-danger">${e.detail || e.message || e}</span>`;
+        toast('Error cruzando cuentas: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
 
 async function deleteSelectedUnused() {
     const idxs = Array.from(document.querySelectorAll('.chk-unused:checked')).map(c => parseInt(c.value, 10));
