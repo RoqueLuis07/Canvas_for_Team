@@ -71,9 +71,9 @@
       </div>
     </div>
     <p class="px-3 pt-2 mb-0 small text-muted">
-      Requiere el permiso de aplicación <code>Reports.Read.All</code> con consentimiento de administrador (no concedido
-      todavía). Además, si el tenant tiene activado el ocultamiento de datos de reportes, hay que desactivarlo en el
-      Admin Center para ver nombres/correos reales.
+      Usa el permiso de aplicación <code>Reports.Read.All</code> ya concedido en Azure Portal. Si el tenant tiene
+      activado el ocultamiento de datos de reportes, hay que desactivarlo en el Admin Center para ver nombres/correos
+      reales.
     </p>
     <div class="table-scroll">
       <table class="table table-sm mb-0">
@@ -90,8 +90,8 @@
     </div>
     <p class="px-3 pt-2 mb-0 small text-muted">
       Confirma en la carpeta "Enviados" del buzón SMTP si un correo de credenciales realmente salió, más allá de que el
-      sistema lo haya marcado como enviado. Requiere el permiso de aplicación <code>Mail.Read</code> con consentimiento
-      de administrador sobre ese buzón (no concedido todavía).
+      sistema lo haya marcado como enviado. Usa <code>Mail.ReadWrite</code> (ya concedido para otro flujo), que como
+      permiso de aplicación ya incluye lectura — no debería hacer falta pedir <code>Mail.Read</code> aparte.
     </p>
     <div class="p-3">
       <div class="row g-2">

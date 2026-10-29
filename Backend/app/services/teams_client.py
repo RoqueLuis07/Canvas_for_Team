@@ -768,10 +768,10 @@ async def get_teams_activity_report(period: str = "D90") -> list[dict]:
     de los últimos `period` (D7/D30/D90/D180).
 
     Requiere el permiso de aplicación 'Reports.Read.All' con consentimiento de
-    administrador — NO está incluido en el scope actual. Además, si el tenant
-    tiene activado el "ocultamiento de datos de reportes" (Reports concealment)
-    en el Admin Center, los nombres/UPN vienen anonimizados y hay que
-    desactivar esa opción para poder identificar a los usuarios.
+    administrador — ya concedido en Azure Portal. Si el tenant tiene activado
+    el "ocultamiento de datos de reportes" (Reports concealment) en el Admin
+    Center, los nombres/UPN vienen anonimizados y hay que desactivar esa
+    opción para poder identificar a los usuarios.
     """
     import csv
     import io as _io
@@ -792,8 +792,11 @@ async def search_sent_email(to_email: str, since_iso: str) -> bool:
     realmente salió del buzón.
 
     Requiere el permiso de aplicación 'Mail.Read' (o 'Mail.ReadBasic.All') con
-    consentimiento de administrador, con acceso al buzón SMTP_FROM — NO está
-    incluido en el scope actual.
+    consentimiento de administrador, con acceso al buzón SMTP_FROM. No está
+    concedido explícitamente, pero 'Mail.ReadWrite' sí lo está (se agregó para
+    los adjuntos grandes de Alumnos de Grado) y, como permiso de aplicación,
+    ya incluye lectura — en la práctica esta función debería funcionar sin
+    pedir nada nuevo.
     """
     mailbox = settings.smtp_from
     if not mailbox:
