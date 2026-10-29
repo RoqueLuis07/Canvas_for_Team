@@ -10,11 +10,12 @@ OneDrive) porque acá el modelo es distinto a propósito: no hay
 no un borrador de ida y vuelta con un archivo externo.
 
 El envío real de credenciales / creación de cuentas (app.routers.excel)
-sigue dependiendo hoy de leer y escribir un archivo real de OneDrive (así
-es como ese código ya probado en producción decide qué filas ya están
-procesadas). Conectar esta tabla a ese flujo real requiere un paso de
-"espejo a OneDrive" que todavía no existe — ver el TODO en
-app.routers.diplomado_sheets.process_sheet.
+depende de leer y escribir un archivo real de OneDrive (así es como ese
+código ya probado en producción decide qué filas ya están procesadas).
+`mirror_url` guarda el link del archivo-espejo que app.routers.diplomado_sheets
+genera a partir de esta tabla en cada "Procesar" — la tabla sigue siendo la
+fuente de verdad; el archivo es solo el formato que esa lógica ya probada
+necesita para funcionar sin reimplementarla en paralelo.
 """
 import asyncio
 import json
@@ -54,10 +55,16 @@ def init_diplomado_sheets_db():
                 team_id TEXT,
                 owners JSONB NOT NULL DEFAULT '[]',
                 created_by TEXT,
+                mirror_url TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # mirror_url se agregó después de que la tabla ya existía en producción
+        # en algunos entornos — ALTER TABLE ... ADD COLUMN IF NOT EXISTS cubre
+        # tanto una instalación nueva (CREATE TABLE de arriba ya la trae) como
+        # una existente.
+        cursor.execute("ALTER TABLE diplomado_sheets ADD COLUMN IF NOT EXISTS mirror_url TEXT")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS diplomado_rows (
                 id SERIAL PRIMARY KEY,
@@ -70,11 +77,15 @@ def init_diplomado_sheets_db():
                 vendedor TEXT,
                 rol TEXT NOT NULL DEFAULT 'Alumno',
                 estado TEXT NOT NULL DEFAULT 'pendiente',
+                usuario TEXT,
+                contrasena TEXT,
                 error_message TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        cursor.execute("ALTER TABLE diplomado_rows ADD COLUMN IF NOT EXISTS usuario TEXT")
+        cursor.execute("ALTER TABLE diplomado_rows ADD COLUMN IF NOT EXISTS contrasena TEXT")
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_diplomado_rows_sheet
             ON diplomado_rows(sheet_id)
@@ -168,7 +179,7 @@ async def get_rows(sheet_id: int) -> list[dict]:
     return await _run(_get)
 
 
-_ROW_FIELDS = ("fecha", "nombre_completo", "cedula", "correo", "telefono", "vendedor", "rol", "estado")
+_ROW_FIELDS = ("fecha", "nombre_completo", "cedula", "correo", "telefono", "vendedor", "rol", "estado", "usuario", "contrasena")
 
 
 async def add_row(sheet_id: int, data: dict) -> dict:
@@ -254,3 +265,36 @@ async def get_existing_cedulas(sheet_id: int) -> set[str]:
         cursor.execute("SELECT cedula FROM diplomado_rows WHERE sheet_id = %s", (sheet_id,))
         return {r[0] for r in cursor.fetchall() if r[0]}
     return await _run(_get)
+
+
+async def set_mirror_url(sheet_id: int, mirror_url: str) -> None:
+    """Guarda el link del archivo-espejo de OneDrive la primera vez que se
+    crea, para no tener que generarlo de nuevo en cada "Procesar"."""
+    def _set(conn):
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE diplomado_sheets SET mirror_url = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+            (mirror_url, sheet_id),
+        )
+        conn.commit()
+    await _run(_set)
+
+
+async def update_row_by_cedula(sheet_id: int, cedula: str, data: dict) -> bool:
+    """Usado al sincronizar de vuelta desde el archivo-espejo después de
+    procesar: ahí no se tiene el row_id interno, solo la cédula (la misma
+    clave que usa el propio archivo para identificar filas)."""
+    def _upd(conn):
+        cursor = conn.cursor()
+        cols = [c for c in _ROW_FIELDS if c in data]
+        if not cols:
+            return False
+        set_clause = ", ".join(f"{c} = %s" for c in cols)
+        vals = [data[c] for c in cols]
+        cursor.execute(f"""
+            UPDATE diplomado_rows SET {set_clause}, updated_at = CURRENT_TIMESTAMP
+            WHERE sheet_id = %s AND cedula = %s
+        """, (*vals, sheet_id, cedula))
+        conn.commit()
+        return cursor.rowcount > 0
+    return await _run(_upd)

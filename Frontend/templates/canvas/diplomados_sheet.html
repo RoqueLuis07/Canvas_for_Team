@@ -88,6 +88,7 @@
       <i class="bi bi-send-fill me-1"></i> Guardar y enviar credenciales
     </button>
   </div>
+  <div id="dipProcessStatus" class="small text-muted mt-2" style="display:none;"></div>
 </div>
 {% endblock %}
 
@@ -330,17 +331,66 @@ document.getElementById('dipWorkBody').addEventListener('click', async (e) => {
   } catch (e) { toast(e.message, 'danger'); }
 });
 
+let _dipPollInterval = null;
+
 document.getElementById('btnProcess').addEventListener('click', () => {
   confirmAction(
     'Esto va a crear las cuentas que falten y enviar las credenciales por correo a los alumnos pendientes de esta planilla. ¿Continuar?',
     async () => {
+      const btn = document.getElementById('btnProcess');
+      const status = document.getElementById('dipProcessStatus');
+      setLoading(btn, true);
+      status.style.display = 'block';
+      status.textContent = 'Preparando archivo y disparando el proceso...';
       try {
-        await api.post(`/diplomado-sheets/sheets/${SHEET_ID}/process`, {});
-      } catch (e) { toast(e.message, 'warning'); }
+        const res = await api.post(`/diplomado-sheets/sheets/${SHEET_ID}/process`, {});
+        toast('Proceso iniciado en segundo plano', 'info');
+        _dipPollJob(res.job_id, btn, status);
+      } catch (e) {
+        status.textContent = '';
+        status.style.display = 'none';
+        setLoading(btn, false);
+        toast(e.message, 'danger');
+      }
     },
     'Guardar y enviar credenciales',
   );
 });
+
+function _dipPollJob(jobId, btn, status) {
+  if (_dipPollInterval) clearInterval(_dipPollInterval);
+  _dipPollInterval = setInterval(async () => {
+    try {
+      const job = await api.get(`/excel/jobs/${jobId}`);
+      if (!job) return;
+      status.textContent = `Procesando... (Job #${jobId}) — Completados: ${job.result_count || 0} | Errores: ${job.error_count || 0}`;
+
+      if (job.status === 'completed' || job.status === 'failed') {
+        clearInterval(_dipPollInterval);
+        status.textContent = job.status === 'completed'
+          ? 'Proceso terminado — sincronizando resultado con la planilla...'
+          : `El proceso falló: ${job.error_message || ''}`;
+
+        if (job.status === 'completed') {
+          try {
+            const sync = await api.post(`/diplomado-sheets/sheets/${SHEET_ID}/sync-from-mirror`, {});
+            status.textContent = `Listo. ${sync.updated} fila(s) actualizadas con usuario/contraseña/estado.`;
+            toast(`Proceso completado — ${sync.updated} fila(s) actualizadas`, 'success');
+          } catch (e) {
+            status.textContent = 'El proceso terminó, pero no se pudo sincronizar el resultado automáticamente: ' + e.message;
+            toast('Error al sincronizar el resultado: ' + e.message, 'warning');
+          }
+          await loadSheet();
+        } else {
+          toast('El proceso de alta falló: ' + (job.error_message || ''), 'danger');
+        }
+        setLoading(btn, false);
+      }
+    } catch (e) {
+      console.error('Error consultando el job', e);
+    }
+  }, 2500);
+}
 
 loadSheet().catch(e => toast(e.message, 'danger'));
 loadCandidates();

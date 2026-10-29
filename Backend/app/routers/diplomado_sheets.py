@@ -12,35 +12,109 @@ maqueta visual original aprobada por el usuario):
     "ya tiene credenciales" / "falta enviar" se calcula comparando por
     cédula contra las filas que YA están en `diplomado_rows`.
 
-TODO (fuera de alcance de esta tarea, fase posterior explícitamente pedida
-por el usuario): el envío real de credenciales / creación de cuentas en
-app.routers.excel (_process_diplomados_bg, send_diplomados_credentials) hoy
-dependen intrínsecamente de leer y volver a escribir un archivo real de
-OneDrive — esa es literalmente la forma en que esas funciones ya probadas en
-producción saben qué filas ya están creadas/enviadas en corridas futuras (lo
-persisten en las columnas Usuario/Contraseña/Estado del propio archivo). No
-hay forma de invocar esa lógica contra datos que solo existen en esta tabla
-sin antes espejarlos a un archivo real de OneDrive — que es exactamente la
-función de "respaldo automático a OneDrive" que el usuario pidió como fase
-aparte. Hasta que esa fase exista, POST .../process devuelve 501 con una
-explicación clara en vez de simular un envío o reimplementar la lógica de
-negocio de excel.py en paralelo (lo cual duplicaría código ya probado y
-podría divergir de él).
+Puente "espejo a OneDrive" (POST .../process): la creación real de cuentas
+en app.routers.excel (_process_diplomados_bg) depende intrínsecamente de
+leer y volver a escribir un archivo real de OneDrive — así es como esa
+lógica ya probada en producción sabe qué filas ya están creadas en corridas
+futuras (lo persiste en las columnas Usuario/Contraseña/Estado del propio
+archivo). En vez de reimplementar esa lógica de negocio en paralelo (con el
+riesgo de que diverja de la ya probada), este router genera un archivo
+Excel descartable a partir de esta tabla, lo sube al OneDrive del buzón
+SMTP_FROM (permiso de aplicación 'Files.ReadWrite.All', ya concedido), y
+dispara la misma `_process_diplomados_bg` de excel.py contra ese archivo.
+La tabla sigue siendo la fuente de verdad: el archivo es un detalle de
+implementación que el usuario nunca necesita abrir — después de procesar,
+`/sync-from-mirror` trae de vuelta Usuario/Contraseña/Estado a esta tabla.
 """
 import io
 import logging
+import re
 
 import openpyxl
-from fastapi import APIRouter, HTTPException
+from openpyxl import Workbook
+from openpyxl.styles import Font
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from app.core import diplomado_sheets_db as db
+from app.core import jobs
 from app.core.config import settings
 from app.services import teams_client as graph
-from app.routers.excel import _encode_share_url, _find_header_row_and_headers, _clean_cedula, _norm
+from app.routers.excel import (
+    _encode_share_url,
+    _find_header_row_and_headers,
+    _clean_cedula,
+    _norm,
+    _process_diplomados_bg,
+    DiplomadosUrlRequest,
+)
+
+
+def _match_col_idx(headers: dict, *keys: str) -> int | None:
+    """excel.py en esta rama no tiene un `_match_col_idx` compartido (cada
+    función define su propio `get_col_idx` local con coincidencia por
+    substring) — se replica acá la misma estrategia para leer de vuelta el
+    archivo-espejo con el mismo criterio que usó `_process_diplomados_bg`
+    para escribirlo."""
+    for k in keys:
+        nk = _norm(k)
+        for h, idx in headers.items():
+            if nk in h:
+                return idx
+    return None
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/diplomado-sheets", tags=["Planillas de Diplomado"])
+
+# Nombre fijo de la única pestaña del archivo-espejo — se genera y se lee
+# siempre con este mismo nombre, nunca lo ve el usuario.
+_MIRROR_SHEET_NAME = "Planilla"
+# Orden de columnas fijo del archivo-espejo (1-indexado para openpyxl).
+_COL_FECHA, _COL_NOMBRE, _COL_CEDULA, _COL_CORREO, _COL_TELEFONO, _COL_USUARIO, _COL_CONTRA, _COL_ESTADO = range(1, 9)
+
+
+def _build_mirror_workbook(sheet: dict, rows: list[dict]) -> bytes:
+    """Arma el archivo-espejo desde cero a partir del estado ACTUAL de la
+    tabla (incluyendo usuario/contraseña/estado de corridas anteriores, si
+    los hay) — así _process_diplomados_bg reconoce correctamente qué filas
+    ya están creadas y no las vuelve a procesar ni duplica cuentas."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = _MIRROR_SHEET_NAME
+
+    # Fila 1: título (nombre del diplomado, lo que _find_row1_title busca) +
+    # el ID del equipo de Teams ya creado, si lo hay, en la columna que va a
+    # ser "Usuario" — mismo lugar donde _process_diplomados_bg lo busca para
+    # no crear un Team duplicado en cada corrida.
+    ws.cell(row=1, column=1, value=sheet["diplomado_name"])
+    if sheet.get("team_id"):
+        ws.cell(row=1, column=_COL_USUARIO, value=sheet["team_id"])
+
+    headers = ["Fecha", "Nombre", "Cedula", "Correo", "Telefono", "Usuario", "Contraseña", "Estado"]
+    for col_idx, h in enumerate(headers, 1):
+        ws.cell(row=2, column=col_idx, value=h).font = Font(bold=True)
+
+    for r_offset, row in enumerate(rows, start=3):
+        ws.cell(row=r_offset, column=_COL_FECHA, value=row.get("fecha") or "")
+        ws.cell(row=r_offset, column=_COL_NOMBRE, value=row.get("nombre_completo") or "")
+        ws.cell(row=r_offset, column=_COL_CEDULA, value=row.get("cedula") or "")
+        ws.cell(row=r_offset, column=_COL_CORREO, value=row.get("correo") or "")
+        ws.cell(row=r_offset, column=_COL_TELEFONO, value=row.get("telefono") or "")
+        if row.get("usuario"):
+            ws.cell(row=r_offset, column=_COL_USUARIO, value=row["usuario"])
+        if row.get("contrasena"):
+            ws.cell(row=r_offset, column=_COL_CONTRA, value=row["contrasena"])
+        if row.get("estado"):
+            ws.cell(row=r_offset, column=_COL_ESTADO, value=row["estado"])
+
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+def _mirror_drive_path(sheet_id: int, diplomado_name: str) -> str:
+    safe_name = re.sub(r"[^\w\- ]", "", diplomado_name)[:60].strip() or "Diplomado"
+    return f"Planillas en vivo/Diplomados/{sheet_id} - {safe_name}.xlsx"
 
 
 class CreateSheetRequest(BaseModel):
@@ -262,20 +336,103 @@ async def transfer_candidates(sheet_id: int, req: TransferRequest) -> dict:
 # ── Procesar / enviar credenciales ───────────────────────────────────────
 
 @router.post("/sheets/{sheet_id}/process")
-async def process_sheet(sheet_id: int) -> dict:
-    """Ver el TODO al principio del archivo: el procesamiento real todavía
-    depende de un archivo de OneDrive real, que esta planilla (a propósito)
-    no tiene. Devuelve 501 con una explicación clara en vez de simular un
-    envío o fallar de forma confusa."""
-    await _get_sheet_or_404(sheet_id)
-    raise HTTPException(
-        status_code=501,
-        detail=(
-            "El envío real de credenciales todavía no está conectado desde esta planilla. "
-            "La lógica de creación de cuentas / envío de correos (ya probada en producción) "
-            "depende de leer y guardar un archivo real de OneDrive — eso es lo que decide qué "
-            "alumnos ya fueron procesados en corridas futuras. Falta construir el 'espejo "
-            "automático a OneDrive' que el usuario pidió como fase aparte antes de poder "
-            "conectar este botón de forma segura, sin reimplementar esa lógica por separado."
-        ),
+async def process_sheet(sheet_id: int, bg_tasks: BackgroundTasks) -> dict:
+    """Genera (o actualiza) el archivo-espejo en OneDrive a partir del
+    estado actual de la planilla y dispara la misma creación de cuentas ya
+    probada en producción (excel.py:_process_diplomados_bg) contra ese
+    archivo. Devuelve un job_id para seguir el progreso igual que el resto
+    de los flujos de alta masiva (GET /excel/jobs/{job_id})."""
+    sheet = await _get_sheet_or_404(sheet_id)
+    rows = await db.get_rows(sheet_id)
+    if not rows:
+        raise HTTPException(status_code=400, detail="La planilla no tiene alumnos cargados todavía.")
+
+    content = _build_mirror_workbook(sheet, rows)
+    drive_path = _mirror_drive_path(sheet_id, sheet["diplomado_name"])
+
+    try:
+        await graph.create_or_update_drive_file(drive_path, content)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"No se pudo subir el archivo-espejo a OneDrive. {e}")
+
+    mirror_url = sheet.get("mirror_url")
+    if not mirror_url:
+        try:
+            mirror_url = await graph.create_sharing_link(drive_path)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"No se pudo generar el link del archivo-espejo. {e}")
+        if not mirror_url:
+            raise HTTPException(status_code=502, detail="No se pudo generar el link del archivo-espejo en OneDrive.")
+        await db.set_mirror_url(sheet_id, mirror_url)
+
+    req = DiplomadosUrlRequest(url=mirror_url, sheet_name=_MIRROR_SHEET_NAME)
+    encoded_url = _encode_share_url(mirror_url)
+
+    job_id = await jobs.create_job(
+        job_type="diplomados_onedrive",
+        operation=f"Alta de Diplomados (planilla en vivo #{sheet_id})",
+        username="admin",
     )
+    bg_tasks.add_task(_process_diplomados_bg, job_id, req, content, encoded_url)
+
+    return {"status": "success", "job_id": job_id, "message": "Alta de Diplomados iniciada en segundo plano."}
+
+
+@router.post("/sheets/{sheet_id}/sync-from-mirror")
+async def sync_from_mirror(sheet_id: int) -> dict:
+    """Después de que el job de /process termina, trae de vuelta
+    Usuario/Contraseña/Estado desde el archivo-espejo hacia esta tabla, para
+    que la grilla en pantalla refleje el resultado real. Se llama manual
+    (botón "Refrescar estado") o automáticamente al terminar el polling del
+    job, según lo resuelva el frontend."""
+    sheet = await _get_sheet_or_404(sheet_id)
+    mirror_url = sheet.get("mirror_url")
+    if not mirror_url:
+        raise HTTPException(status_code=400, detail="Esta planilla todavía no se procesó ninguna vez.")
+
+    encoded_url = _encode_share_url(mirror_url)
+    try:
+        contents = await graph.get_raw(f"/shares/{encoded_url}/driveItem/content")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"No se pudo leer el archivo-espejo. {e}")
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
+        ws = wb[_MIRROR_SHEET_NAME] if _MIRROR_SHEET_NAME in wb.sheetnames else wb.worksheets[0]
+    except Exception:
+        raise HTTPException(status_code=502, detail="El archivo-espejo descargado no es un Excel válido.")
+
+    header_row_idx, headers, _raw = _find_header_row_and_headers(ws)
+    if not header_row_idx:
+        raise HTTPException(status_code=502, detail="No se encontró la fila de encabezados en el archivo-espejo.")
+
+    col_cedula = _match_col_idx(headers, "cedula", "cédula")
+    col_usuario = _match_col_idx(headers, "usuario")
+    col_contra = _match_col_idx(headers, "contrasena", "contraseña")
+    col_estado = _match_col_idx(headers, "estado", "enviado")
+
+    if not col_cedula:
+        raise HTTPException(status_code=502, detail="El archivo-espejo no tiene columna de Cédula — no se pudo sincronizar.")
+
+    updated = 0
+    for r_idx in range(header_row_idx + 1, ws.max_row + 1):
+        cedula = _clean_cedula(str(ws.cell(row=r_idx, column=col_cedula).value or "").strip())
+        if not cedula:
+            continue
+        data: dict = {}
+        if col_usuario:
+            v = str(ws.cell(row=r_idx, column=col_usuario).value or "").strip()
+            if v:
+                data["usuario"] = v
+        if col_contra:
+            v = str(ws.cell(row=r_idx, column=col_contra).value or "").strip()
+            if v:
+                data["contrasena"] = v
+        if col_estado:
+            v = str(ws.cell(row=r_idx, column=col_estado).value or "").strip()
+            if v:
+                data["estado"] = v
+        if data and await db.update_row_by_cedula(sheet_id, cedula, data):
+            updated += 1
+
+    return {"status": "ok", "updated": updated}
