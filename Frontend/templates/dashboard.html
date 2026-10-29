@@ -206,47 +206,43 @@
         <span class="text-muted small ms-2 d-none d-lg-inline">Tareas frecuentes de un clic</span>
       </div>
       <div class="p-3">
-        <div class="row g-2">
-          <div class="col-6 col-md-4 col-lg-2">
-            <a href="/ui/ingreso" class="quick-action">
-              <i class="bi bi-person-fill-add text-canvas-green"></i>
-              <span>Nuevo Ingreso</span>
-            </a>
-          </div>
-          <div class="col-6 col-md-4 col-lg-2">
-            <a href="/ui/unified-enrollments" class="quick-action">
-              <i class="bi bi-pencil-square text-canvas-blue"></i>
-              <span>Matriculaciones</span>
-            </a>
-          </div>
-          <div class="col-6 col-md-4 col-lg-2">
-            <a href="/ui/canvas/courses" class="quick-action">
-              <i class="bi bi-book-fill text-canvas-teal"></i>
-              <span>Cursos</span>
-            </a>
-          </div>
+        <div class="action-tile-grid">
+          <a href="/ui/ingreso" class="quick-action">
+            <i class="bi bi-person-fill-add text-canvas-green"></i>
+            <span>Nuevo Ingreso</span>
+          </a>
+          <a href="/ui/unified-enrollments" class="quick-action">
+            <i class="bi bi-pencil-square text-canvas-blue"></i>
+            <span>Matriculaciones</span>
+          </a>
+          <a href="/ui/canvas/courses" class="quick-action">
+            <i class="bi bi-book-fill text-canvas-teal"></i>
+            <span>Cursos</span>
+          </a>
         </div>
       </div>
     </div>
   </div>
 
   <div class="col-md-4">
-    <div class="canvas-panel p-3 h-100">
-      <div class="fw-semibold small text-muted mb-3">
+    <div class="side-panel h-100">
+      <div class="side-panel-header">
         <i class="bi bi-activity me-1"></i>Estado del sistema
       </div>
-      <div class="d-flex flex-column gap-2 mb-3">
-        <span id="health-canvas" class="badge bg-secondary-subtle text-secondary-emphasis badge-inline d-flex align-items-center gap-1">
-          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Canvas
-        </span>
-        <span id="health-azure" class="badge bg-secondary-subtle text-secondary-emphasis badge-inline d-flex align-items-center gap-1">
-          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Azure AD
-        </span>
-        <span id="cache-stats" class="text-muted small"></span>
+      <div class="side-panel-body">
+        <div class="d-flex flex-column gap-2 mb-3">
+          <span id="health-canvas" class="badge bg-secondary-subtle text-secondary-emphasis badge-inline d-flex align-items-center gap-1">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Canvas
+          </span>
+          <span id="health-azure" class="badge bg-secondary-subtle text-secondary-emphasis badge-inline d-flex align-items-center gap-1">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Azure AD
+          </span>
+          <span id="cache-stats" class="text-muted small"></span>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="clearCache()">
+          <i class="bi bi-trash2 me-1"></i>Limpiar caché
+        </button>
       </div>
-      <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="clearCache()">
-        <i class="bi bi-trash2 me-1"></i>Limpiar caché
-      </button>
     </div>
   </div>
 

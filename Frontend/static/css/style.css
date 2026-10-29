@@ -661,16 +661,61 @@ html.dark-mode .canvas-panel { background: var(--card-bg); --panel-line: rgba(25
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 1rem .75rem; border-radius: var(--radius);
   border: 1px solid var(--card-border); cursor: pointer;
-  transition: all .15s; text-decoration: none; color: inherit;
+  transition: border-color .15s, background .15s; text-decoration: none; color: inherit;
   background: var(--card-bg); min-height: 86px;
 }
 .quick-action:hover {
   border-color: var(--canvas-blue); background: var(--accent-light);
-  transform: translateY(-4px) scale(1.02); box-shadow: 0 8px 16px rgba(7,112,163,.14);
   color: var(--canvas-blue);
 }
 .quick-action i    { font-size: 1.55rem; margin-bottom: .4rem; }
 .quick-action span { font-size: .74rem; font-weight: 600; text-align: center; line-height: 1.3; }
+
+/* ── 21b. Side panel — panel de resumen con barra de header de color
+   sólido (patrón "BILLING OVERVIEW" de referencia). Un único color de
+   marca (--canvas-blue), sin degradado, para no sumar colores nuevos. */
+.side-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+  overflow: hidden;
+}
+.side-panel-header {
+  background: var(--canvas-blue);
+  color: #fff;
+  font-weight: 700;
+  font-size: .76rem;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 11px 16px;
+}
+.side-panel-body { padding: 14px 16px; }
+.side-panel-body + .side-panel-body { border-top: 1px solid var(--card-border); }
+.side-panel-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; font-size: .85rem; gap: 12px;
+}
+.side-panel-row + .side-panel-row { border-top: 1px solid var(--card-border); }
+.side-panel-row .spr-label { color: var(--text-muted); }
+.side-panel-row .spr-value { font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.side-panel-row.total { padding-top: 10px; }
+.side-panel-row.total .spr-value { font-size: 1.15rem; color: var(--canvas-blue); font-weight: 700; }
+
+/* Subtítulo de sección dentro de un panel plano — texto de marca en
+   mayúsculas, sin barra de fondo (segundo nivel, para no repetir el
+   mismo bloque de color varias veces en una misma columna). */
+.panel-subtitle {
+  color: var(--canvas-blue);
+  font-size: .72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  margin-bottom: 10px;
+}
+
+/* ── 21c. Action tile grid — grilla de botones de ícono cuadrados
+   (patrón "Print Bill / View Statement" de referencia); reusa el mismo
+   tratamiento plano que .quick-action. */
+.action-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 10px; }
 
 /* ── 22. Skeleton loading ── */
 .skeleton {
