@@ -12,7 +12,7 @@
   </div>
 </div>
 
-<div class="card shadow-sm mb-4 border-0">
+<div class="card mb-4 border-0">
   <div class="card-header bg-white pt-3 pb-0 border-bottom-0">
     <ul class="nav nav-tabs border-bottom" id="ingresoTabs" role="tablist">
       <li class="nav-item" role="presentation">
@@ -113,12 +113,13 @@
           </div>
         </div>
         
-        <div id="docResultWrap" style="display:none;">
-          <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-check-circle me-2"></i>Resultados</h6>
+        <div id="docResultWrap" class="side-panel" style="display:none;">
+          <div class="side-panel-header"><i class="bi bi-check-circle me-1"></i>Resultados</div>
+          <div class="side-panel-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <div class="card border-success h-100">
-                <div class="card-header bg-success text-white py-2">
+              <div class="card border-0 h-100">
+                <div class="card-header bg-success-subtle text-success-emphasis py-2">
                   <i class="bi bi-check-circle me-2"></i>Éxitos (<span id="docSuccessCount">0</span>)
                 </div>
                 <div class="card-body p-0">
@@ -127,19 +128,21 @@
               </div>
             </div>
             <div class="col-md-6">
-              <div class="card border-danger h-100">
-                <div class="card-header bg-danger text-white py-2">
+              <div class="card border-0 h-100">
+                <div class="card-header bg-danger-subtle text-danger-emphasis py-2">
                   <i class="bi bi-x-circle me-2"></i>Errores (<span id="docErrorCount">0</span>)
                 </div>
                 <div class="card-body p-0">
                   <ul class="list-group list-group-flush" id="docErrorList" style="max-height: 200px; overflow-y: auto;"></ul>
+                </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
         
         
-        </div></div></div></div></div>
+        </div></div></div></div>
           <!-- Accordion Diplomados (OneDrive) -->
         <div class="accordion mb-4" id="accordionDiplomados">
           <div class="accordion-item border-success shadow-sm">
@@ -214,21 +217,23 @@
                   </div>
                 </div>
                 
-                <div id="diplomadoResultWrap" style="display:none;">
-                  <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-check-circle me-2"></i>Resultados del Proceso</h6>
-                  <div class="row">
+                <div id="diplomadoResultWrap" class="side-panel" style="display:none;">
+                  <div class="side-panel-header"><i class="bi bi-check-circle me-1"></i>Resultados del Proceso</div>
+                  <div class="side-panel-body">
+                  <div class="row g-3">
                     <div class="col-md-6">
-                      <div class="card border-success h-100">
-                        <div class="card-header bg-success text-white fw-bold py-2"><i class="bi bi-check2-all me-1"></i>Éxitos (<span id="diplomadoSuccessCount">0</span>)</div>
+                      <div class="card border-0 h-100">
+                        <div class="card-header bg-success-subtle text-success-emphasis fw-bold py-2"><i class="bi bi-check2-all me-1"></i>Éxitos (<span id="diplomadoSuccessCount">0</span>)</div>
                         <ul class="list-group list-group-flush" id="diplomadoSuccessList" style="max-height: 250px; overflow-y:auto;"></ul>
                       </div>
                     </div>
                     <div class="col-md-6">
-                      <div class="card border-danger h-100 mt-3 mt-md-0">
-                        <div class="card-header bg-danger text-white fw-bold py-2"><i class="bi bi-exclamation-triangle me-1"></i>Errores (<span id="diplomadoErrorCount">0</span>)</div>
+                      <div class="card border-0 h-100">
+                        <div class="card-header bg-danger-subtle text-danger-emphasis fw-bold py-2"><i class="bi bi-exclamation-triangle me-1"></i>Errores (<span id="diplomadoErrorCount">0</span>)</div>
                         <ul class="list-group list-group-flush" id="diplomadoErrorList" style="max-height: 250px; overflow-y:auto;"></ul>
                       </div>
                     </div>
+                  </div>
                   </div>
                 </div>
               </div>
@@ -300,21 +305,23 @@
                   </div>
                 </div>
                 
-                <div id="masivoResultWrap" style="display:none;">
-                  <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-check-circle me-2"></i>Resultados del Proceso</h6>
-                  <div class="row">
+                <div id="masivoResultWrap" class="side-panel" style="display:none;">
+                  <div class="side-panel-header"><i class="bi bi-check-circle me-1"></i>Resultados del Proceso</div>
+                  <div class="side-panel-body">
+                  <div class="row g-3">
                     <div class="col-md-6">
-                      <div class="card border-success h-100">
-                        <div class="card-header bg-success text-white fw-bold py-2"><i class="bi bi-check2-all me-1"></i>Éxitos (<span id="masivoSuccessCount">0</span>)</div>
+                      <div class="card border-0 h-100">
+                        <div class="card-header bg-success-subtle text-success-emphasis fw-bold py-2"><i class="bi bi-check2-all me-1"></i>Éxitos (<span id="masivoSuccessCount">0</span>)</div>
                         <ul class="list-group list-group-flush" id="masivoSuccessList" style="max-height: 250px; overflow-y:auto;"></ul>
                       </div>
                     </div>
                     <div class="col-md-6">
-                      <div class="card border-danger h-100 mt-3 mt-md-0">
-                        <div class="card-header bg-danger text-white fw-bold py-2"><i class="bi bi-exclamation-triangle me-1"></i>Errores (<span id="masivoErrorCount">0</span>)</div>
+                      <div class="card border-0 h-100">
+                        <div class="card-header bg-danger-subtle text-danger-emphasis fw-bold py-2"><i class="bi bi-exclamation-triangle me-1"></i>Errores (<span id="masivoErrorCount">0</span>)</div>
                         <ul class="list-group list-group-flush" id="masivoErrorList" style="max-height: 250px; overflow-y:auto;"></ul>
                       </div>
                     </div>
+                  </div>
                   </div>
                 </div>
               </div>
@@ -406,11 +413,9 @@
 </div>
 
 <!-- Envío de acceso — Sistema Académico Docente (ERP externo) -->
-<div class="card shadow-sm border-primary mt-4">
-  <div class="card-header bg-primary text-white">
-    <h5 class="mb-0"><i class="bi bi-send-fill me-2"></i>Enviar Acceso — Sistema Académico Docente</h5>
-  </div>
-  <div class="card-body">
+<div class="side-panel mt-4">
+  <div class="side-panel-header"><i class="bi bi-send-fill me-1"></i>Enviar Acceso — Sistema Académico Docente</div>
+  <div class="side-panel-body">
     <div class="alert alert-info small mb-4">
       Correo de bienvenida para el sistema externo <a href="https://erp-py.usil.digital/login" target="_blank" rel="noopener">erp-py.usil.digital</a>
       (carga de calificaciones, asistencias, listas de alumnos y cronograma). Es un sistema aparte de Canvas/Teams —

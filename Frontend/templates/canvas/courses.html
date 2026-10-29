@@ -120,28 +120,62 @@
   </div>
 </div>
 
-<div class="table-card">
-  <div class="card-header flex-wrap gap-2">
-    <input type="text" id="searchCourse" class="form-control search-box" placeholder="🔍 ID, nombre, código, SIS..." oninput="applyFilters()">
-    <select id="stateFilter" class="form-select filter-select-sm" title="Filtrar por estado" onchange="applyFilters()">
-      <option value="">Todos los estados</option>
-      <option value="available">✅ Publicado</option>
-      <option value="unpublished">⬜ No publicado</option>
-      <option value="completed">🔵 Concluido</option>
-      <option value="deleted">🔴 Eliminado</option>
-      <option value="created">📝 Borrador</option>
-    </select>
-    <select id="termFilter" class="form-select filter-select-md" title="Filtrar por período" onchange="applyFilters()">
-      <option value="">Todos los períodos</option>
-    </select>
-    <span class="ms-auto text-muted small" id="courseCount"></span>
-    <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToExcel('tableWrap','canvas_cursos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadCourses()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise"></i></button>
+<div class="row g-3">
+  <div class="col-lg-9">
+    <div class="table-card">
+      <div class="card-header flex-wrap gap-2">
+        <input type="text" id="searchCourse" class="form-control search-box" placeholder="🔍 ID, nombre, código, SIS..." oninput="applyFilters()">
+        <select id="stateFilter" class="form-select filter-select-sm" title="Filtrar por estado" onchange="applyFilters()">
+          <option value="">Todos los estados</option>
+          <option value="available">✅ Publicado</option>
+          <option value="unpublished">⬜ No publicado</option>
+          <option value="completed">🔵 Concluido</option>
+          <option value="deleted">🔴 Eliminado</option>
+          <option value="created">📝 Borrador</option>
+        </select>
+        <select id="termFilter" class="form-select filter-select-md" title="Filtrar por período" onchange="applyFilters()">
+          <option value="">Todos los períodos</option>
+        </select>
+        <span class="ms-auto text-muted small" id="courseCount"></span>
+        <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToExcel('tableWrap','canvas_cursos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadCourses()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise"></i></button>
+      </div>
+      <div id="tableWrap" class="table-responsive">
+        <div class="text-center py-5"><span class="spinner-border"></span></div>
+      </div>
+    </div>
   </div>
-  <div id="tableWrap" class="table-responsive">
-    <div class="text-center py-5"><span class="spinner-border"></span></div>
+  <div class="col-lg-3">
+    <!-- Resumen calculado en el cliente a partir del mismo array que ya
+         llena la tabla (_allCourses, de GET /canvas/courses en loadCourses())
+         — ningún dato nuevo ni llamada extra al backend. -->
+    <div class="side-panel">
+      <div class="side-panel-header"><i class="bi bi-bar-chart-fill me-1"></i>Resumen de Cursos</div>
+      <div class="side-panel-body" id="courseSummaryPanel">
+        <div class="side-panel-row">
+          <span class="spr-label">Publicados</span>
+          <span class="spr-value" id="sum-course-available">—</span>
+        </div>
+        <div class="side-panel-row">
+          <span class="spr-label">No publicados</span>
+          <span class="spr-value" id="sum-course-unpublished">—</span>
+        </div>
+        <div class="side-panel-row">
+          <span class="spr-label">Concluidos</span>
+          <span class="spr-value" id="sum-course-completed">—</span>
+        </div>
+        <div class="side-panel-row">
+          <span class="spr-label">Eliminados</span>
+          <span class="spr-value" id="sum-course-deleted">—</span>
+        </div>
+        <div class="side-panel-row total">
+          <span class="spr-label">Total</span>
+          <span class="spr-value" id="sum-course-total">—</span>
+        </div>
+      </div>
+    </div>
   </div>
-</div>
+  </div> <!-- End row -->
   </div> <!-- End Tab Creación Masiva -->
 
   <!-- Tab: Eliminación Masiva -->
@@ -800,6 +834,25 @@ function renderCoursesTable(courses) {
   );
 }
 
+// Resumen lateral calculado desde el mismo array que ya llena la tabla
+// (workflow_state ya viene en cada curso de GET /canvas/courses) — sin
+// pedir datos nuevos al backend.
+function updateCourseSummaryPanel(courses) {
+  const counts = { available: 0, unpublished: 0, completed: 0, deleted: 0 };
+  courses.forEach(c => {
+    const st = c.workflow_state;
+    if (st === 'available') counts.available++;
+    else if (st === 'completed') counts.completed++;
+    else if (st === 'deleted') counts.deleted++;
+    else counts.unpublished++;
+  });
+  document.getElementById('sum-course-available').textContent   = counts.available;
+  document.getElementById('sum-course-unpublished').textContent = counts.unpublished;
+  document.getElementById('sum-course-completed').textContent   = counts.completed;
+  document.getElementById('sum-course-deleted').textContent     = counts.deleted;
+  document.getElementById('sum-course-total').textContent       = courses.length;
+}
+
 async function loadCourses() {
   document.getElementById('tableWrap').innerHTML =
     '<div class="text-center py-5"><span class="spinner-border"></span><div class="text-muted small mt-2">Cargando todos los cursos…</div></div>';
@@ -819,6 +872,7 @@ async function loadCourses() {
 
     document.getElementById('courseCount').textContent = courses.length + ' cursos';
     pgInit('tableWrap', _allCourses, renderCoursesTable);
+    updateCourseSummaryPanel(courses);
   } catch(e) {
     document.getElementById('tableWrap').innerHTML = `
       <div class="text-center py-5 text-muted">
