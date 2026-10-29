@@ -143,20 +143,25 @@ html.dark-mode {
    arriba) — sin esto, cualquier .bg-white/.bg-light/.table-light queda
    blanco/gris claro fijo aunque el resto de la UI esté en modo oscuro
    (tablas de previsualización, acordeones, thead de tablas).
-   .text-dark NO se remapea acá a propósito: en todo el código se usa
-   siempre sobre un fondo claro fijo (bg-warning, bg-info, bg-light, o un
-   gradiente claro inline en accordion-button) que no cambia con el tema —
-   remapearlo a --text-primary (casi blanco en modo oscuro) rompía el
-   contraste de esos badges/botones/headers contra su propio fondo
-   (ej. badge "Owner" con texto casi invisible sobre amarillo). El
-   .text-dark nativo de Bootstrap (gris oscuro fijo) ya es correcto en
-   ambos modos para estos casos. */
+   .text-dark NO se remapea acá en general: sobre un fondo claro FIJO
+   (bg-warning, bg-info, btn-warning sólido, etc., que no cambia con el
+   tema) el texto debe quedar oscuro en ambos modos — remapearlo a
+   --text-primary (casi blanco en modo oscuro) rompía ESE contraste
+   (ej. badge "Owner" con texto casi invisible sobre amarillo). */
 html.dark-mode .bg-white       { background-color: var(--card-bg) !important; }
 html.dark-mode .bg-light       { background-color: var(--header-bg) !important; }
-/* Excepción: bg-light SÍ se remapea a un fondo oscuro arriba, así que acá
-   (y solo acá) el texto tiene que seguirlo — a diferencia de bg-warning/
-   bg-info, que quedan con su color fijo y claro en ambos modos. */
-html.dark-mode .bg-light.text-dark { color: var(--text-primary) !important; }
+/* Excepciones: estos dos SÍ necesitan texto que siga al tema, porque su
+   fondo no es un color fijo:
+   - .bg-light se remapea arriba a un fondo oscuro en modo oscuro.
+   - accordion-button con el gradiente inline rgba(...,0.1) usado en toda
+     la app (Alta Docentes/Diplomados/Masivo/Individual, Matriculación,
+     Creación de Cursos) es translúcido al 5-10% — lo que se ve de fondo es
+     básicamente el fondo real de la tarjeta por detrás, que SÍ cambia con
+     el tema. Quedó texto oscuro fijo sobre ese fondo vuelto oscuro en modo
+     oscuro = headers de acordeón con el texto invisible (bug real visto en
+     producción, pantalla Alta Unificada). */
+html.dark-mode .bg-light.text-dark,
+html.dark-mode .accordion-button.text-dark { color: var(--text-primary) !important; }
 html.dark-mode .table-light,
 html.dark-mode .table-light > * { --bs-table-bg: var(--header-bg); --bs-table-color: var(--text-primary); }
 
