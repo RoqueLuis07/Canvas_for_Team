@@ -143,15 +143,32 @@ async function onGlobalSearch(q) {
 }
 
 /* ── API helpers ── */
+// Timeout del lado del cliente para toda llamada a la API: el backend ya
+// tiene sus propios timeouts (10-12s en /stats, /health y la capa de DB),
+// pero sin esto cualquier endpoint que no pase por ahí (o un corte de red)
+// deja la pantalla en spinner/skeleton indefinido en vez de mostrar un
+// error reintentable. 15s le da margen a que el backend resuelva solo
+// primero con su propio mensaje de error.
+const API_TIMEOUT_MS = 15000;
+
 async function apiCall(method, url, data = null) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if (data) opts.body = JSON.stringify(data);
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  opts.signal = controller.signal;
+
   let r;
   try {
     r = await fetch(url, opts);
-  } catch {
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      throw new Error('Tiempo de espera agotado. Reintentá en unos segundos.');
+    }
     throw new Error('Error de conexión. Verificá que el servicio está activo.');
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!r.ok) {

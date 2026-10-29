@@ -284,9 +284,23 @@ function timeAgo(ts) {
 async function loadStats() {
   try {
     const s = await api.get('/stats');
-    document.getElementById('cnt-cu').textContent = s.canvas_users   || '0';
-    document.getElementById('cnt-cc').textContent = s.canvas_courses || '0';
-    document.getElementById('cnt-tu').textContent = s.azure_users    || '0';
+
+    // El backend ahora siempre responde (nunca cuelga), pero si tuvo que
+    // cortar por timeout devuelve ceros + s.error en vez de propagar un
+    // error HTTP — sin este chequeo se veía como "0 usuarios" real.
+    if (s.error) {
+      ['cnt-cu','cnt-cc','cnt-tu'].forEach(id => {
+        document.getElementById(id).innerHTML =
+          '<span class="text-danger" style="font-size:.95rem" title="No se pudieron cargar los contadores">—</span>';
+      });
+      document.getElementById('sync-badge').innerHTML =
+        '<span class="text-danger">No se pudo cargar</span> ' +
+        '<a href="#" class="ms-1" onclick="event.preventDefault(); loadStats();">Reintentar</a>';
+    } else {
+      document.getElementById('cnt-cu').textContent = s.canvas_users   || '0';
+      document.getElementById('cnt-cc').textContent = s.canvas_courses || '0';
+      document.getElementById('cnt-tu').textContent = s.azure_users    || '0';
+    }
 
     if (s.last_sync) {
       const mins = Math.round((Date.now() / 1000 - s.last_sync) / 60);
@@ -349,6 +363,9 @@ async function loadStats() {
     ['cnt-cu','cnt-cc','cnt-tu','cnt-tt'].forEach(id => {
       document.getElementById(id).textContent = '—';
     });
+    document.getElementById('sync-badge').innerHTML =
+      `<span class="text-danger">${e.message || 'No se pudo cargar'}</span> ` +
+      '<a href="#" class="ms-1" onclick="event.preventDefault(); loadStats();">Reintentar</a>';
   }
 }
 

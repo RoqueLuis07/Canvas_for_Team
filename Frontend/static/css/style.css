@@ -45,7 +45,10 @@
   /* Text */
   --text-primary: #1E293B;
   --text-muted: #64748B;
-  --text-light: #94A3B8;
+  /* #94A3B8 original daba 2.57:1 sobre blanco (no cumple AA 4.5:1) en
+     placeholders/estados vacíos/texto neutro. #6B7280 (el mismo valor que
+     ya usa modo oscuro) da 4.83:1 y mantiene la jerarquía visual. */
+  --text-light: #6B7280;
   --text-inverse: #ffffff;
 
   /* Inputs */
@@ -137,12 +140,23 @@ html.dark-mode {
 }
 
 /* Utilidades de Bootstrap con color fijo (no ligado a las variables de
-   arriba) — sin esto, cualquier .bg-white/.bg-light/.text-dark/.table-light
-   queda blanco/gris claro fijo aunque el resto de la UI esté en modo
-   oscuro (tablas de previsualización, acordeones, thead de tablas). */
+   arriba) — sin esto, cualquier .bg-white/.bg-light/.table-light queda
+   blanco/gris claro fijo aunque el resto de la UI esté en modo oscuro
+   (tablas de previsualización, acordeones, thead de tablas).
+   .text-dark NO se remapea acá a propósito: en todo el código se usa
+   siempre sobre un fondo claro fijo (bg-warning, bg-info, bg-light, o un
+   gradiente claro inline en accordion-button) que no cambia con el tema —
+   remapearlo a --text-primary (casi blanco en modo oscuro) rompía el
+   contraste de esos badges/botones/headers contra su propio fondo
+   (ej. badge "Owner" con texto casi invisible sobre amarillo). El
+   .text-dark nativo de Bootstrap (gris oscuro fijo) ya es correcto en
+   ambos modos para estos casos. */
 html.dark-mode .bg-white       { background-color: var(--card-bg) !important; }
 html.dark-mode .bg-light       { background-color: var(--header-bg) !important; }
-html.dark-mode .text-dark      { color: var(--text-primary) !important; }
+/* Excepción: bg-light SÍ se remapea a un fondo oscuro arriba, así que acá
+   (y solo acá) el texto tiene que seguirlo — a diferencia de bg-warning/
+   bg-info, que quedan con su color fijo y claro en ambos modos. */
+html.dark-mode .bg-light.text-dark { color: var(--text-primary) !important; }
 html.dark-mode .table-light,
 html.dark-mode .table-light > * { --bs-table-bg: var(--header-bg); --bs-table-color: var(--text-primary); }
 

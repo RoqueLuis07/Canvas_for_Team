@@ -40,11 +40,11 @@
         <div class="accordion mb-4" id="accordionDocentes">
           <div class="accordion-item border-warning shadow-sm">
             <h2 class="accordion-header" id="headingDocentes">
-              <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDocentes" aria-expanded="true" aria-controls="collapseDocentes" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1));">
+              <button class="accordion-button fw-bold text-dark collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDocentes" aria-expanded="false" aria-controls="collapseDocentes" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1));">
                 <i class="bi bi-person-video3 me-2 text-warning"></i> Alta Docentes (OneDrive)
               </button>
             </h2>
-            <div id="collapseDocentes" class="accordion-collapse collapse show" aria-labelledby="headingDocentes" data-bs-parent="#accordionDocentes">
+            <div id="collapseDocentes" class="accordion-collapse collapse" aria-labelledby="headingDocentes" data-bs-parent="#accordionDocentes">
               <div class="accordion-body p-4">
                 <div class="alert alert-warning mb-4">
           <h6 class="alert-heading fw-bold mb-1"><i class="bi bi-info-circle me-2"></i>Estructura Requerida</h6>
@@ -144,11 +144,11 @@
         <div class="accordion mb-4" id="accordionDiplomados">
           <div class="accordion-item border-success shadow-sm">
             <h2 class="accordion-header" id="headingDiplomados">
-              <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDiplomados" aria-expanded="true" aria-controls="collapseDiplomados" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1));">
+              <button class="accordion-button fw-bold text-dark collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDiplomados" aria-expanded="false" aria-controls="collapseDiplomados" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1));">
                 <i class="bi bi-file-earmark-excel me-2 text-success"></i> Carga Diplomados (OneDrive)
               </button>
             </h2>
-            <div id="collapseDiplomados" class="accordion-collapse collapse show" aria-labelledby="headingDiplomados" data-bs-parent="#accordionDiplomados">
+            <div id="collapseDiplomados" class="accordion-collapse collapse" aria-labelledby="headingDiplomados" data-bs-parent="#accordionDiplomados">
               <div class="accordion-body p-4">
                 <div class="alert alert-success mb-4">
                   <h6 class="alert-heading fw-bold mb-1"><i class="bi bi-info-circle me-2"></i>Estructura Requerida</h6>
@@ -241,11 +241,11 @@
         <div class="accordion mb-4" id="accordionMasivo">
           <div class="accordion-item border-primary shadow-sm">
             <h2 class="accordion-header" id="headingMasivo">
-              <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMasivo" aria-expanded="true" aria-controls="collapseMasivo" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1));">
+              <button class="accordion-button fw-bold text-dark collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMasivo" aria-expanded="false" aria-controls="collapseMasivo" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(37, 99, 235, 0.1));">
                 <i class="bi bi-people-fill me-2 text-primary"></i> Carga Masiva (OneDrive)
               </button>
             </h2>
-            <div id="collapseMasivo" class="accordion-collapse collapse show" aria-labelledby="headingMasivo" data-bs-parent="#accordionMasivo">
+            <div id="collapseMasivo" class="accordion-collapse collapse" aria-labelledby="headingMasivo" data-bs-parent="#accordionMasivo">
               <div class="accordion-body p-4">
                 <div class="alert alert-primary mb-4">
                   <h6 class="alert-heading fw-bold mb-1"><i class="bi bi-info-circle me-2"></i>Estructura Requerida</h6>
@@ -455,8 +455,13 @@
 
 {% block scripts %}
 <script>
-/* ── Acordeones: al mostrar una vista previa, colapsar los demás paneles;
-   al terminar el proceso, restaurarlos todos a su estado abierto original. ── */
+/* ── Acordeones: un solo panel visible a la vez, como tabs.
+   Antes los 4 paneles (Docentes/Diplomados/Masivo/Individual) arrancaban
+   todos abiertos y abrir uno no cerraba los demás — se podía terminar con
+   los 3-4 abiertos a la vez apilados en la página. Ahora cada apertura
+   cierra automáticamente al resto (vía el listener show.bs.collapse de
+   abajo), igual que pestañas reales, sin tener que reescribir todo el
+   markup de acordeón del que depende el resto del archivo. */
 const _INGRESO_ACCORDION_IDS = ['collapseDocentes', 'collapseDiplomados', 'collapseMasivo', 'collapseIndividual'];
 
 function collapseOtherAccordions(activeId) {
@@ -469,14 +474,14 @@ function collapseOtherAccordions(activeId) {
     });
 }
 
-function restoreAccordions() {
-    _INGRESO_ACCORDION_IDS.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && !el.classList.contains('show')) {
-            bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).show();
-        }
-    });
-}
+// Ya no se reabren los demás paneles al terminar un proceso (eso era lo
+// que causaba el bug) — el panel activo simplemente queda como está.
+function restoreAccordions() {}
+
+_INGRESO_ACCORDION_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('show.bs.collapse', () => collapseOtherAccordions(id));
+});
 
 function toggleProg(pfx) {
     const t = document.getElementById(pfx + '_tipo').value;

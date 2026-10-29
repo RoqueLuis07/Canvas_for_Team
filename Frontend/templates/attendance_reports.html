@@ -96,20 +96,18 @@ async function loadAttendanceReports() {
   emptyState.style.display = 'none';
 
   try {
-    // Obtener lista de cursos
-    const coursesRes = await fetch('/canvas/courses?per_page=100');
-    const courses = await coursesRes.json();
+    // Obtener lista de cursos (api.get ya tiene timeout de cliente — antes
+    // este fetch crudo podía quedarse colgado en "Cargando cursos..." para
+    // siempre si /canvas/courses se colgaba del lado del servidor)
+    const courses = await api.get('/canvas/courses?per_page=100');
 
     allReports = [];
 
     // Cargar reportes de asistencia para cada curso
     const reportPromises = courses.map(async (course) => {
       try {
-        const res = await fetch(`/canvas/attendance/from-csv/${course.id}`);
-        if (res.ok) {
-          const report = await res.json();
-          return { ...report, courseId: course.id };
-        }
+        const report = await api.get(`/canvas/attendance/from-csv/${course.id}`);
+        return { ...report, courseId: course.id };
       } catch (e) {
         // Ignorar cursos sin reporte
       }
@@ -127,7 +125,14 @@ async function loadAttendanceReports() {
     updateTimestamp();
   } catch (error) {
     console.error('Error cargando reportes:', error);
-    toast('Error cargando reportes', 'danger');
+    document.getElementById('lastUpdate').textContent = 'No se pudo cargar';
+    coursesContainer.innerHTML = `
+      <div class="text-center py-5 text-muted" style="grid-column: 1 / -1;">
+        <i class="bi bi-exclamation-triangle fs-1 d-block mb-2 text-warning"></i>
+        <div class="mb-3">${error.message || 'Error cargando reportes'}</div>
+        <button class="btn btn-sm btn-outline-primary" onclick="loadAttendanceReports()"><i class="bi bi-arrow-clockwise me-1"></i>Reintentar</button>
+      </div>`;
+    toast('Error cargando reportes: ' + (error.message || ''), 'danger');
   } finally {
     loadingState.style.display = 'none';
   }

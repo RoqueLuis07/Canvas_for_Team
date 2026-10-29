@@ -124,8 +124,7 @@ async function loadPage() {
   if (username) params.append('username', username);
 
   try {
-    const response = await fetch(`/jobs/list?${params}`);
-    const data = await response.json();
+    const data = await api.get(`/jobs/list?${params}`);
 
     if (!data.jobs || data.jobs.length === 0) {
       document.getElementById('jobsTableBody').innerHTML = `
@@ -186,7 +185,10 @@ async function loadPage() {
     console.error('Error cargando trabajos:', error);
     document.getElementById('jobsTableBody').innerHTML = `
       <tr>
-        <td colspan="8" style="text-align: center; color: red; padding: 40px;">Error cargando datos</td>
+        <td colspan="8" style="text-align: center; color: red; padding: 40px;">
+          ${error.message || 'Error cargando datos'}
+          <br><a href="#" onclick="event.preventDefault(); loadPage();">Reintentar</a>
+        </td>
       </tr>
     `;
   }
@@ -198,8 +200,7 @@ async function loadStats(dateFrom, dateTo) {
   if (dateTo) params.append('date_to', dateTo);
 
   try {
-    const response = await fetch(`/jobs/stats?${params}`);
-    const stats = await response.json();
+    const stats = await api.get(`/jobs/stats?${params}`);
 
     const statsHtml = `
       <div class="stat-card" style="padding: 16px;">

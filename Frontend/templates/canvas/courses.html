@@ -12,28 +12,33 @@
   </div>
 </div>
 
-<!-- Tabs -->
-<ul class="nav nav-tabs mb-4" id="coursesTabs" role="tablist">
+<!-- Tabs: agrupadas por riesgo — creación (segura) primero, después un
+     separador visual y las operaciones destructivas/irreversibles marcadas
+     con ⚠, después las correctivas (más acotadas en alcance). No depender
+     solo del color: a simple vista + lector de pantalla también se nota. -->
+<ul class="nav nav-tabs mb-4 align-items-center" id="coursesTabs" role="tablist">
   <li class="nav-item" role="presentation">
     <button class="nav-link active fw-bold text-success" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab" aria-controls="create" aria-selected="true">
       <i class="bi bi-plus-circle-fill me-2"></i>Creación Masiva
     </button>
   </li>
+  <li class="nav-item d-flex align-items-center px-2" aria-hidden="true"><span class="vr" style="height:1.5rem"></span></li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-danger" id="delete-tab" data-bs-toggle="tab" data-bs-target="#delete" type="button" role="tab" aria-controls="delete" aria-selected="false">
-      <i class="bi bi-trash3-fill me-2"></i>Eliminación Masiva
+    <button class="nav-link fw-bold text-danger" id="delete-tab" data-bs-toggle="tab" data-bs-target="#delete" type="button" role="tab" aria-controls="delete" aria-selected="false" title="Acción destructiva: elimina cursos y equipos asociados">
+      <i class="bi bi-exclamation-triangle-fill me-1"></i><i class="bi bi-trash3-fill me-2"></i>Eliminación Masiva
     </button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-warning" id="release-sis-tab" data-bs-toggle="tab" data-bs-target="#release-sis" type="button" role="tab" aria-controls="release-sis" aria-selected="false">
-      <i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID
+    <button class="nav-link fw-bold text-warning" id="release-sis-tab" data-bs-toggle="tab" data-bs-target="#release-sis" type="button" role="tab" aria-controls="release-sis" aria-selected="false" title="Acción irreversible sobre cursos ya creados">
+      <i class="bi bi-exclamation-triangle-fill me-1"></i><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID
     </button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-warning" id="release-term-sis-tab" data-bs-toggle="tab" data-bs-target="#release-term-sis" type="button" role="tab" aria-controls="release-term-sis" aria-selected="false">
-      <i class="bi bi-unlock-fill me-2"></i>Liberar Período
+    <button class="nav-link fw-bold text-warning" id="release-term-sis-tab" data-bs-toggle="tab" data-bs-target="#release-term-sis" type="button" role="tab" aria-controls="release-term-sis" aria-selected="false" title="Acción irreversible sobre cursos ya creados">
+      <i class="bi bi-exclamation-triangle-fill me-1"></i><i class="bi bi-unlock-fill me-2"></i>Liberar Período
     </button>
   </li>
+  <li class="nav-item d-flex align-items-center px-2" aria-hidden="true"><span class="vr" style="height:1.5rem"></span></li>
   <li class="nav-item" role="presentation">
     <button class="nav-link fw-bold text-primary" id="fix-coord-role-tab" data-bs-toggle="tab" data-bs-target="#fix-coord-role" type="button" role="tab" aria-controls="fix-coord-role" aria-selected="false">
       <i class="bi bi-person-gear me-2"></i>Corregir Rol Coordinador

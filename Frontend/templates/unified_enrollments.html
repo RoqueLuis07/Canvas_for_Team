@@ -117,11 +117,11 @@
 <div class="accordion mb-4" id="accordionMatriculaciones">
   <div class="accordion-item border-primary shadow-sm">
     <h2 class="accordion-header" id="headingMatriculaciones">
-      <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMatriculaciones" aria-expanded="true" aria-controls="collapseMatriculaciones" style="background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(13, 110, 253, 0.05));">
+      <button class="accordion-button fw-bold text-dark collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMatriculaciones" aria-expanded="false" aria-controls="collapseMatriculaciones" style="background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(13, 110, 253, 0.05));">
         <i class="bi bi-file-earmark-spreadsheet me-2 text-primary"></i> Matriculación Masiva desde OneDrive
       </button>
     </h2>
-    <div id="collapseMatriculaciones" class="accordion-collapse collapse show" aria-labelledby="headingMatriculaciones" data-bs-parent="#accordionMatriculaciones">
+    <div id="collapseMatriculaciones" class="accordion-collapse collapse" aria-labelledby="headingMatriculaciones" data-bs-parent="#accordionMatriculaciones">
       <div class="accordion-body p-4">
         <div class="mb-4">
           <label class="form-label fw-semibold">Enlace del Excel (OneDrive) <span class="text-danger">*</span></label>
@@ -182,8 +182,9 @@
 
 {% block scripts %}
 <script>
-/* ── Acordeones: al mostrar una vista previa, colapsar los demás paneles;
-   al terminar el proceso, restaurarlos todos a su estado abierto original. ── */
+/* ── Acordeones: un solo panel visible a la vez, como tabs (ver mismo
+   fix en ingreso.html). Antes los dos arrancaban abiertos y no se cerraban
+   entre sí. ── */
 const _MAT_ACCORDION_IDS = ['collapseMatriculacionInd', 'collapseMatriculaciones'];
 
 function collapseOtherAccordions(activeId) {
@@ -196,14 +197,13 @@ function collapseOtherAccordions(activeId) {
     });
 }
 
-function restoreAccordions() {
-    _MAT_ACCORDION_IDS.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && !el.classList.contains('show')) {
-            bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).show();
-        }
-    });
-}
+// Ya no se reabren los demás paneles al terminar un proceso.
+function restoreAccordions() {}
+
+_MAT_ACCORDION_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('show.bs.collapse', () => collapseOtherAccordions(id));
+});
 
 let mi_materiasList = []; // from backend
 let mi_selectedMaterias = [];

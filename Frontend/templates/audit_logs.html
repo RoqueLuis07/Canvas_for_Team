@@ -82,8 +82,7 @@ async function loadPage() {
   if (endpoint) params.set('endpoint', endpoint);
 
   try {
-    const response = await fetch(`/audit/logs?${params.toString()}`);
-    const data = await response.json();
+    const data = await api.get(`/audit/logs?${params.toString()}`);
 
     if (!data.logs || data.logs.length === 0) {
       document.getElementById('auditTableBody').innerHTML = `
@@ -132,7 +131,10 @@ async function loadPage() {
     console.error('Error cargando logs:', error);
     document.getElementById('auditTableBody').innerHTML = `
       <tr>
-        <td colspan="6" style="text-align: center; color: red; padding: 40px;">Error cargando datos</td>
+        <td colspan="6" style="text-align: center; color: red; padding: 40px;">
+          ${error.message || 'Error cargando datos'}
+          <br><a href="#" onclick="event.preventDefault(); loadPage();">Reintentar</a>
+        </td>
       </tr>
     `;
   }
@@ -140,8 +142,7 @@ async function loadPage() {
 
 async function loadStats() {
   try {
-    const response = await fetch('/audit/stats');
-    const stats = await response.json();
+    const stats = await api.get('/audit/stats');
 
     const statsHtml = `
       <div class="stat-card" style="padding: 16px;">
@@ -190,8 +191,7 @@ async function exportCsv() {
   if (endpoint) params.set('endpoint', endpoint);
 
   try {
-    const response = await fetch(`/audit/logs?${params.toString()}`);
-    const data = await response.json();
+    const data = await api.get(`/audit/logs?${params.toString()}`);
     if (!data.logs || data.logs.length === 0) {
       toast('No hay registros para exportar', 'warning');
       return;
