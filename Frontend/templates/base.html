@@ -83,15 +83,17 @@
     <a href="/ui/canvas/courses?tab=create" class="sidebar-sublink" data-tab="create">
       <i class="bi bi-plus-circle-fill"></i><span>Creación Masiva</span>
     </a>
-    <a href="/ui/canvas/courses?tab=delete" class="sidebar-sublink" data-tab="delete">
+    <div class="sidebar-sublink-divider" aria-hidden="true"></div>
+    <a href="/ui/canvas/courses?tab=delete" class="sidebar-sublink risk-high" data-tab="delete" title="Acción destructiva">
       <i class="bi bi-trash3-fill"></i><span>Eliminación Masiva</span>
     </a>
-    <a href="/ui/canvas/courses?tab=release-sis" class="sidebar-sublink" data-tab="release-sis">
+    <a href="/ui/canvas/courses?tab=release-sis" class="sidebar-sublink risk-medium" data-tab="release-sis" title="Acción irreversible">
       <i class="bi bi-unlock-fill"></i><span>Liberar SIS ID</span>
     </a>
-    <a href="/ui/canvas/courses?tab=release-term-sis" class="sidebar-sublink" data-tab="release-term-sis">
+    <a href="/ui/canvas/courses?tab=release-term-sis" class="sidebar-sublink risk-medium" data-tab="release-term-sis" title="Acción irreversible">
       <i class="bi bi-unlock-fill"></i><span>Liberar Período</span>
     </a>
+    <div class="sidebar-sublink-divider" aria-hidden="true"></div>
     <a href="/ui/canvas/courses?tab=fix-coord-role" class="sidebar-sublink" data-tab="fix-coord-role">
       <i class="bi bi-person-gear"></i><span>Corregir Rol Coordinador</span>
     </a>
@@ -99,20 +101,33 @@
   <a href="/ui/teams/teams" class="sidebar-link {% block nav_tt %}{% endblock %}">
     <i class="bi bi-microsoft-teams"></i><span>Equipos (Teams)</span>
   </a>
-  <a href="/ui/unified-enrollments" class="sidebar-link {% block nav_ue %}{% endblock %}">
-    <i class="bi bi-person-lines-fill"></i><span>Matriculaciones</span>
-  </a>
-  <a href="/ui/materias" class="sidebar-link {% block nav_mm %}{% endblock %}">
-    <i class="bi bi-journal-check"></i><span>Matriculación por Materias</span>
-  </a>
-  <a href="/ui/cpel" class="sidebar-link {% block nav_cpel %}{% endblock %}">
-    <i class="bi bi-diagram-3-fill"></i><span>Matriculación CPEL por Carrera</span>
-  </a>
+  <!-- Matriculaciones: antes 3 ítems de sidebar (Unificada/Materias/CPEL),
+       cada uno con su propia página. Se unificaron en una sola página con
+       tabs (unified_enrollments.html) — acá queda 1 link + submenú con las
+       3 modalidades como sublinks, mismo patrón que Cursos/Egreso. -->
+  <div class="sidebar-link-group">
+    <a href="/ui/unified-enrollments" class="sidebar-link {% block nav_ue %}{% endblock %}">
+      <i class="bi bi-person-lines-fill"></i><span>Matriculaciones</span>
+    </a>
+    <button type="button" class="sidebar-caret-btn" data-bs-toggle="collapse" data-bs-target="#submenuMatriculaciones"
+            aria-expanded="{% block nav_ue_expanded %}false{% endblock %}" aria-controls="submenuMatriculaciones"
+            aria-label="Mostrar modalidades de Matriculación">
+      <i class="bi bi-chevron-down"></i>
+    </button>
+  </div>
+  <div class="collapse {% block nav_ue_show %}{% endblock %}" id="submenuMatriculaciones">
+    <a href="/ui/unified-enrollments?tab=unificada" class="sidebar-sublink" data-tab="unificada">
+      <i class="bi bi-person-lines-fill"></i><span>Unificada</span>
+    </a>
+    <a href="/ui/unified-enrollments?tab=materias" class="sidebar-sublink" data-tab="materias">
+      <i class="bi bi-journal-check"></i><span>Por Materias</span>
+    </a>
+    <a href="/ui/unified-enrollments?tab=cpel" class="sidebar-sublink" data-tab="cpel">
+      <i class="bi bi-diagram-3-fill"></i><span>CPEL por Carrera</span>
+    </a>
+  </div>
   <a href="/ui/canvas/attendance" class="sidebar-link {% block nav_ca %}{% endblock %}">
     <i class="bi bi-clipboard-check-fill"></i><span>Asistencias</span>
-  </a>
-  <a href="/ui/sync" class="sidebar-link {% block nav_sy %}{% endblock %}">
-    <i class="bi bi-arrow-left-right"></i><span>Sincronización</span>
   </a>
   </div>
 
@@ -124,6 +139,9 @@
   <div class="collapse show sidebar-group" id="grupoAdministracion">
   <a href="/ui/actas" class="sidebar-link {% block nav_actas %}{% endblock %}">
     <i class="bi bi-file-earmark-text-fill"></i><span>Actas</span>
+  </a>
+  <a href="/ui/sync" class="sidebar-link {% block nav_sy %}{% endblock %}">
+    <i class="bi bi-arrow-left-right"></i><span>Sincronización</span>
   </a>
   <a href="/ui/jobs" class="sidebar-link {% block nav_jh %}{% endblock %}">
     <i class="bi bi-clipboard-data-fill"></i><span>Historial Trabajos</span>

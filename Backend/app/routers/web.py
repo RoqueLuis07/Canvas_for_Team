@@ -144,14 +144,17 @@ async def unified_enrollments_page(request: Request):
     return _r(request, "unified_enrollments.html")
 
 
+# Materias y CPEL se unificaron con Matriculación Unificada en una sola
+# página con tabs (unified_enrollments.html) — se mantienen como redirects
+# por si queda algún enlace o marcador viejo apuntando a la URL anterior.
 @router.get("/ui/materias", response_class=HTMLResponse)
 async def materias_page(request: Request):
-    return _r(request, "materias.html")
+    return RedirectResponse(url="/ui/unified-enrollments?tab=materias", status_code=302)
 
 
 @router.get("/ui/cpel", response_class=HTMLResponse)
 async def cpel_page(request: Request):
-    return _r(request, "cpel.html")
+    return RedirectResponse(url="/ui/unified-enrollments?tab=cpel", status_code=302)
 
 
 @router.get("/ui/actas", response_class=HTMLResponse)

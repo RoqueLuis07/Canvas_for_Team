@@ -298,6 +298,14 @@ html:not(.dark-mode) .sidebar-brand-logo { filter: brightness(0) invert(1); }
   outline: 2px solid var(--canvas-orange); outline-offset: -2px;
   background: var(--sidebar-hover-bg); color: var(--sidebar-text-hover);
 }
+/* Separador + color de ícono para distinguir, dentro de un mismo submenú,
+   una acción segura de una destructiva/irreversible (mismo criterio que
+   las tabs de canvas/courses.html) — sin esto todo el submenú de Cursos
+   se veía como una lista plana sin indicar qué es de uso diario y qué es
+   de alto riesgo. */
+.sidebar-sublink-divider { height: 1px; background: var(--sidebar-border); margin: 4px 18px 4px 48px; }
+.sidebar-sublink.risk-high i   { color: var(--canvas-red); }
+.sidebar-sublink.risk-medium i { color: var(--canvas-yellow); }
 
 /* Sidebar footer */
 .sidebar-footer {

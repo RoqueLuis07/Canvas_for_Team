@@ -1,187 +1,367 @@
 {% extends "base.html" %}
-{% block title %}Matriculación Unificada{% endblock %}
-{% block breadcrumb %}Gestión Unificada » Matriculación Unificada{% endblock %}
+{% block title %}Matriculaciones{% endblock %}
+{% block breadcrumb %}Gestión Académica › Matriculaciones{% endblock %}
 {% block nav_ue %}active{% endblock %}
+{% block nav_ue_expanded %}true{% endblock %}
+{% block nav_ue_show %}show{% endblock %}
 <style>
 .cursor-pointer { cursor: pointer; }
 </style>
 {% block content %}
 <div class="d-flex align-items-center mb-4 gap-3 flex-wrap">
-  <div><div class="page-title">Matriculación Unificada</div><div class="page-subtitle">Añadir usuarios a Canvas y Teams simultáneamente</div></div>
-  <div class="ms-auto d-flex gap-2 flex-wrap">
-    <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#collapseMatriculaciones" aria-expanded="false" aria-controls="collapseMatriculaciones"><i class="bi bi-file-earmark-excel me-2"></i>Matriculación Masiva (OneDrive)</button>
-    <button class="btn btn-info text-dark" data-bs-toggle="collapse" data-bs-target="#collapseMatriculacionInd" aria-expanded="false" aria-controls="collapseMatriculacionInd"><i class="bi bi-person-check-fill me-2"></i>Matriculación Individual</button>
-    <a href="/template/unified-enrollment" class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
-  </div>
+  <div><div class="page-title">Matriculaciones</div><div class="page-subtitle">Unificada, por Materias (planilla por alumno) y CPEL por Carrera — en un mismo lugar</div></div>
 </div>
 
+<!-- Antes esto eran 3 páginas separadas (Matriculación Unificada, Matriculación
+     por Materias, Matriculación CPEL por Carrera), cada una con su propio ítem
+     de sidebar. Se unificaron en una sola página con tabs: son variantes del
+     mismo concepto (matricular gente en cursos/equipos) con distinto origen
+     de datos, y no hace falta navegar entre páginas distintas para usarlas. -->
+<ul class="nav nav-tabs mb-4" id="matricTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active fw-bold" id="unificada-tab" data-bs-toggle="tab" data-bs-target="#unificada" type="button" role="tab" aria-controls="unificada" aria-selected="true">
+      <i class="bi bi-person-lines-fill me-2"></i>Matriculación Unificada
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold" id="materias-tab" data-bs-toggle="tab" data-bs-target="#materias" type="button" role="tab" aria-controls="materias" aria-selected="false">
+      <i class="bi bi-journal-check me-2"></i>Por Materias
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold" id="cpel-tab" data-bs-toggle="tab" data-bs-target="#cpel" type="button" role="tab" aria-controls="cpel" aria-selected="false">
+      <i class="bi bi-diagram-3-fill me-2"></i>CPEL por Carrera
+    </button>
+  </li>
+</ul>
 
+<div class="tab-content" id="matricTabsContent">
 
-<!-- Accordion Matriculación Individual -->
-<div class="accordion mb-4" id="accordionMatriculacionInd">
-  <div class="accordion-item border-info shadow-sm">
-    <h2 class="accordion-header" id="headingMatriculacionInd">
-      <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMatriculacionInd" aria-expanded="true" aria-controls="collapseMatriculacionInd" style="background: linear-gradient(135deg, rgba(13, 202, 240, 0.1), rgba(13, 202, 240, 0.05));">
-        <i class="bi bi-person-check-fill me-2 text-info"></i> Matriculación Individual
-      </button>
-    </h2>
-    <div id="collapseMatriculacionInd" class="accordion-collapse collapse show" aria-labelledby="headingMatriculacionInd" data-bs-parent="#accordionMatriculacionInd">
-      <div class="accordion-body p-4">
-        
-        <div class="row g-3 mb-4">
-            <div class="col-md-6">
-                <label class="form-label fw-semibold">Correo Institucional <span class="text-danger">*</span></label>
-                <div class="input-group">
-                    <span class="input-group-text bg-white"><i class="bi bi-envelope"></i></span>
-                    <input type="email" id="mi_correo" class="form-control" placeholder="ejemplo@usil.edu.py" required>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label fw-semibold">SYS (Cédula o SIS) <span class="text-danger">*</span></label>
-                <div class="input-group">
-                    <span class="input-group-text bg-white"><i class="bi bi-card-heading"></i></span>
-                    <input type="text" id="mi_sys" class="form-control" placeholder="Ej: 1234567" required>
-                </div>
-            </div>
-        </div>
-        
-        <div class="row g-3 mb-4">
-            <div class="col-12 position-relative">
-                <label class="form-label fw-semibold">Materias (Buscador) <span class="text-danger">*</span></label>
-                <div class="input-group">
-                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
-                    <input type="text" id="mi_search" class="form-control" placeholder="Buscar curso real en Canvas por nombre, código o SIS ID..." oninput="mi_onSearchInput()">
-                </div>
-                <div class="form-text">Busca en vivo entre los cursos de Canvas — el equipo de Teams correspondiente se resuelve automáticamente al matricular.</div>
-                <!-- Autocomplete dropdown -->
-                <ul id="mi_autocomplete_list" class="list-group position-absolute w-100 shadow-sm" style="z-index: 1000; display: none; max-height: 200px; overflow-y: auto;">
-                </ul>
-            </div>
-        </div>
+  <!-- ══════════════ Tab: Matriculación Unificada ══════════════ -->
+  <div class="tab-pane fade show active" id="unificada" role="tabpanel" aria-labelledby="unificada-tab">
 
-        <div class="mb-4">
-            <label class="form-label fw-semibold">Materias Seleccionadas</label>
-            <div id="mi_selected_materias" class="border rounded p-3 bg-light" style="min-height: 100px;">
-                <p class="text-muted small mb-0 fst-italic" id="mi_empty_msg">No hay materias seleccionadas. Busca y selecciona en el recuadro superior.</p>
-                <div id="mi_tags_container" class="d-flex flex-wrap gap-2"></div>
-            </div>
-        </div>
-
-        <div class="row g-3 mb-4">
-            <div class="col-md-6">
-                <label class="form-label fw-semibold">Plataforma</label>
-                <select id="mi_plataforma" class="form-select">
-                    <option value="both" selected>Ambas (Canvas + Teams)</option>
-                    <option value="canvas">Solo Canvas</option>
-                    <option value="teams">Solo Teams</option>
-                </select>
-            </div>
-        </div>
-
-        <div id="mi_resultWrap" style="display:none;" class="alert alert-info mb-4"></div>
-
-        <div class="d-flex justify-content-end gap-2 border-top pt-3">
-            <button type="button" class="btn btn-outline-secondary" onclick="mi_resetForm()">Limpiar</button>
-            <button type="button" class="btn btn-info px-4 text-dark fw-bold" id="btnMatriculacionInd" onclick="mi_doEnroll()">
-                <i class="bi bi-lightning-charge-fill me-1"></i> Ejecutar matriculación
-            </button>
-        </div>
-        
-        <hr class="my-5">
-        
-        <h5 class="fw-bold mb-3"><i class="bi bi-clock-history me-2"></i>Historial Reciente</h5>
-        <div class="table-responsive bg-white border rounded">
-            <table class="table table-sm table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Correo / SYS</th>
-                        <th>Programa</th>
-                        <th>Materias Procesadas</th>
-                        <th>Estado Canvas</th>
-                        <th>Estado Teams</th>
-                    </tr>
-                </thead>
-                <tbody id="mi_history_body">
-                    <tr><td colspan="6" class="text-center text-muted py-3">No hay registros recientes</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-      </div>
+    <div class="d-flex justify-content-end mb-3 gap-2 flex-wrap">
+      <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#collapseMatriculaciones" aria-expanded="false" aria-controls="collapseMatriculaciones"><i class="bi bi-file-earmark-excel me-2"></i>Matriculación Masiva (OneDrive)</button>
+      <button class="btn btn-info text-dark" data-bs-toggle="collapse" data-bs-target="#collapseMatriculacionInd" aria-expanded="false" aria-controls="collapseMatriculacionInd"><i class="bi bi-person-check-fill me-2"></i>Matriculación Individual</button>
+      <a href="/template/unified-enrollment" class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
     </div>
-  </div>
-</div>
 
-<!-- Accordion Matriculación Masiva (OneDrive) -->
-<div class="accordion mb-4" id="accordionMatriculaciones">
-  <div class="accordion-item border-primary shadow-sm">
-    <h2 class="accordion-header" id="headingMatriculaciones">
-      <button class="accordion-button fw-bold text-dark collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMatriculaciones" aria-expanded="false" aria-controls="collapseMatriculaciones" style="background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(13, 110, 253, 0.05));">
-        <i class="bi bi-file-earmark-spreadsheet me-2 text-primary"></i> Matriculación Masiva desde OneDrive
-      </button>
-    </h2>
-    <div id="collapseMatriculaciones" class="accordion-collapse collapse" aria-labelledby="headingMatriculaciones" data-bs-parent="#accordionMatriculaciones">
-      <div class="accordion-body p-4">
-        <div class="mb-4">
-          <label class="form-label fw-semibold">Enlace del Excel (OneDrive) <span class="text-danger">*</span></label>
-          <div class="input-group">
-            <span class="input-group-text bg-white"><i class="bi bi-link-45deg text-secondary"></i></span>
-            <input type="url" class="form-control" id="mat_url" placeholder="https://uamericana-my.sharepoint.com/:x:/g/personal/..." required>
-            <button class="btn btn-outline-primary" type="button" id="btnLoadMatSheets" onclick="fetchMatSheets()">
-              Cargar Pestañas
-            </button>
-          </div>
-          <div class="form-text">Asegúrate de que el enlace sea de "Cualquier persona con el vínculo puede editar".</div>
-        </div>
+    <!-- Accordion Matriculación Individual -->
+    <div class="accordion mb-4" id="accordionMatriculacionInd">
+      <div class="accordion-item border-info shadow-sm">
+        <h2 class="accordion-header" id="headingMatriculacionInd">
+          <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMatriculacionInd" aria-expanded="true" aria-controls="collapseMatriculacionInd" style="background: linear-gradient(135deg, rgba(13, 202, 240, 0.1), rgba(13, 202, 240, 0.05));">
+            <i class="bi bi-person-check-fill me-2 text-info"></i> Matriculación Individual
+          </button>
+        </h2>
+        <div id="collapseMatriculacionInd" class="accordion-collapse collapse show" aria-labelledby="headingMatriculacionInd" data-bs-parent="#accordionMatriculacionInd">
+          <div class="accordion-body p-4">
 
-        <div id="matSheetWrap" style="display:none;" class="mb-4 bg-light p-3 rounded border">
-          <label class="form-label fw-semibold text-primary">Pestaña a procesar <span class="text-danger">*</span></label>
-          <select id="mat_sheet" class="form-select border-primary" onchange="enableMatProcessBtn()">
-            <option value="" disabled selected>Seleccione la pestaña de matriculaciones...</option>
-          </select>
-          <div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Asegúrate de que la primera fila contenga: Usuario (o correo/cédula), Curso (o ID), Equipo (o ID) y Rol.</div>
-        </div>
-
-        <div id="matPreviewWrap" style="display:none;" class="mb-3">
-          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-            <label class="form-label fw-semibold mb-0">Previsualización (hasta 500 filas)</label>
-            <div>
-              <span class="badge bg-success me-2" id="matPreviewToProcess">0 a procesar</span>
-              <span class="badge bg-warning text-dark" id="matPreviewSkipped">0 ya existentes</span>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Correo Institucional <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white"><i class="bi bi-envelope"></i></span>
+                        <input type="email" id="mi_correo" class="form-control" placeholder="ejemplo@usil.edu.py" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">SYS (Cédula o SIS) <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white"><i class="bi bi-card-heading"></i></span>
+                        <input type="text" id="mi_sys" class="form-control" placeholder="Ej: 1234567" required>
+                    </div>
+                </div>
             </div>
-          </div>
-          <div class="table-responsive border rounded bg-white" style="max-height: 400px; overflow-y: auto;">
-            <table class="table table-sm table-striped mb-0 text-nowrap" id="matPreviewTable">
-              <thead><tr id="matPreviewHead"></tr></thead>
-              <tbody id="matPreviewBody"></tbody>
-            </table>
-          </div>
-        </div>
 
-        <div id="matResultWrap" style="display:none;" class="alert alert-info border-info">
-          <h6 class="alert-heading fw-bold mb-1"><i class="bi bi-info-circle-fill me-2"></i>Progreso</h6>
-          <p class="mb-0 small" id="matResultText">Esperando inicio...</p>
-        </div>
-        <div class="d-flex justify-content-end align-items-center mt-3 pt-3 border-top">
-            <button type="button" class="btn btn-danger me-auto" id="btnRollbackMat" onclick="rollbackMatriculaciones()" disabled>
-          <i class="bi bi-arrow-counterclockwise me-1"></i>Revertir Operación
-        </button>
-        <button type="button" class="btn btn-secondary" data-bs-toggle="collapse" data-bs-target="#collapseMatriculaciones">Cancelar</button>
-        <button type="button" class="btn btn-success" id="btnImportMat" onclick="doImportMatriculaciones()" disabled>
-          <i class="bi bi-play-circle me-1"></i>Procesar Matriculaciones
-        </button>
+            <div class="row g-3 mb-4">
+                <div class="col-12 position-relative">
+                    <label class="form-label fw-semibold">Materias (Buscador) <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                        <input type="text" id="mi_search" class="form-control" placeholder="Buscar curso real en Canvas por nombre, código o SIS ID..." oninput="mi_onSearchInput()">
+                    </div>
+                    <div class="form-text">Busca en vivo entre los cursos de Canvas — el equipo de Teams correspondiente se resuelve automáticamente al matricular.</div>
+                    <!-- Autocomplete dropdown -->
+                    <ul id="mi_autocomplete_list" class="list-group position-absolute w-100 shadow-sm" style="z-index: 1000; display: none; max-height: 200px; overflow-y: auto;">
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-semibold">Materias Seleccionadas</label>
+                <div id="mi_selected_materias" class="border rounded p-3 bg-light" style="min-height: 100px;">
+                    <p class="text-muted small mb-0 fst-italic" id="mi_empty_msg">No hay materias seleccionadas. Busca y selecciona en el recuadro superior.</p>
+                    <div id="mi_tags_container" class="d-flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">Plataforma</label>
+                    <select id="mi_plataforma" class="form-select">
+                        <option value="both" selected>Ambas (Canvas + Teams)</option>
+                        <option value="canvas">Solo Canvas</option>
+                        <option value="teams">Solo Teams</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="mi_resultWrap" style="display:none;" class="alert alert-info mb-4"></div>
+
+            <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                <button type="button" class="btn btn-outline-secondary" onclick="mi_resetForm()">Limpiar</button>
+                <button type="button" class="btn btn-info px-4 text-dark fw-bold" id="btnMatriculacionInd" onclick="mi_doEnroll()">
+                    <i class="bi bi-lightning-charge-fill me-1"></i> Ejecutar matriculación
+                </button>
+            </div>
+
+            <hr class="my-5">
+
+            <h5 class="fw-bold mb-3"><i class="bi bi-clock-history me-2"></i>Historial Reciente</h5>
+            <div class="table-responsive bg-white border rounded">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Correo / SYS</th>
+                            <th>Programa</th>
+                            <th>Materias Procesadas</th>
+                            <th>Estado Canvas</th>
+                            <th>Estado Teams</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mi_history_body">
+                        <tr><td colspan="6" class="text-center text-muted py-3">No hay registros recientes</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Accordion Matriculación Masiva (OneDrive) -->
+    <div class="accordion mb-4" id="accordionMatriculaciones">
+      <div class="accordion-item border-primary shadow-sm">
+        <h2 class="accordion-header" id="headingMatriculaciones">
+          <button class="accordion-button fw-bold text-dark collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMatriculaciones" aria-expanded="false" aria-controls="collapseMatriculaciones" style="background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(13, 110, 253, 0.05));">
+            <i class="bi bi-file-earmark-spreadsheet me-2 text-primary"></i> Matriculación Masiva desde OneDrive
+          </button>
+        </h2>
+        <div id="collapseMatriculaciones" class="accordion-collapse collapse" aria-labelledby="headingMatriculaciones" data-bs-parent="#accordionMatriculaciones">
+          <div class="accordion-body p-4">
+            <div class="mb-4">
+              <label class="form-label fw-semibold">Enlace del Excel (OneDrive) <span class="text-danger">*</span></label>
+              <div class="input-group">
+                <span class="input-group-text bg-white"><i class="bi bi-link-45deg text-secondary"></i></span>
+                <input type="url" class="form-control" id="mat_url" placeholder="https://uamericana-my.sharepoint.com/:x:/g/personal/..." required>
+                <button class="btn btn-outline-primary" type="button" id="btnLoadMatSheets" onclick="fetchMatSheets()">
+                  Cargar Pestañas
+                </button>
+              </div>
+              <div class="form-text">Asegúrate de que el enlace sea de "Cualquier persona con el vínculo puede editar".</div>
+            </div>
+
+            <div id="matSheetWrap" style="display:none;" class="mb-4 bg-light p-3 rounded border">
+              <label class="form-label fw-semibold text-primary">Pestaña a procesar <span class="text-danger">*</span></label>
+              <select id="mat_sheet" class="form-select border-primary" onchange="enableMatProcessBtn()">
+                <option value="" disabled selected>Seleccione la pestaña de matriculaciones...</option>
+              </select>
+              <div class="form-text mt-2"><i class="bi bi-info-circle me-1"></i>Asegúrate de que la primera fila contenga: Usuario (o correo/cédula), Curso (o ID), Equipo (o ID) y Rol.</div>
+            </div>
+
+            <div id="matPreviewWrap" style="display:none;" class="mb-3">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <label class="form-label fw-semibold mb-0">Previsualización (hasta 500 filas)</label>
+                <div>
+                  <span class="badge bg-success me-2" id="matPreviewToProcess">0 a procesar</span>
+                  <span class="badge bg-warning text-dark" id="matPreviewSkipped">0 ya existentes</span>
+                </div>
+              </div>
+              <div class="table-responsive border rounded bg-white" style="max-height: 400px; overflow-y: auto;">
+                <table class="table table-sm table-striped mb-0 text-nowrap" id="matPreviewTable">
+                  <thead><tr id="matPreviewHead"></tr></thead>
+                  <tbody id="matPreviewBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="matResultWrap" style="display:none;" class="alert alert-info border-info">
+              <h6 class="alert-heading fw-bold mb-1"><i class="bi bi-info-circle-fill me-2"></i>Progreso</h6>
+              <p class="mb-0 small" id="matResultText">Esperando inicio...</p>
+            </div>
+            <div class="d-flex justify-content-end align-items-center mt-3 pt-3 border-top">
+                <button type="button" class="btn btn-danger me-auto" id="btnRollbackMat" onclick="rollbackMatriculaciones()" disabled>
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Revertir Operación
+            </button>
+            <button type="button" class="btn btn-secondary" data-bs-toggle="collapse" data-bs-target="#collapseMatriculaciones">Cancelar</button>
+            <button type="button" class="btn btn-success" id="btnImportMat" onclick="doImportMatriculaciones()" disabled>
+              <i class="bi bi-play-circle me-1"></i>Procesar Matriculaciones
+            </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
+
+  <!-- ══════════════ Tab: Por Materias ══════════════ -->
+  <div class="tab-pane fade" id="materias" role="tabpanel" aria-labelledby="materias-tab">
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-cloud-arrow-down-fill me-2"></i>Planilla desde OneDrive</h5>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info border-info">
+          <i class="bi bi-info-circle-fill me-2"></i>
+          <strong>¿Cómo funciona?</strong>
+          <ol class="mb-0 mt-2">
+            <li>Pegá el enlace de la planilla con <strong>una pestaña por alumno</strong> (nombre, cédula y su tabla de Curso/Día/Hora).</li>
+            <li>El sistema lee todas las pestañas y busca, para cada materia, el curso real más parecido en Canvas (aunque el nombre no coincida exacto).</li>
+            <li>Revisás la vista previa — podés corregir cualquier match antes de confirmar. <strong>No se crea ningún curso nuevo</strong> desde acá, ni se matricula a nadie hasta que confirmes.</li>
+          </ol>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-9">
+            <label class="form-label fw-bold">Enlace del Excel en OneDrive</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
+              <input type="url" class="form-control" id="urlMaterias" placeholder="https://usilparaguay-my.sharepoint.com/:x:/g/personal/...">
+            </div>
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <button class="btn btn-primary w-100" id="btnAnalizarMaterias" onclick="analizarMaterias()">
+              <i class="bi bi-search me-1"></i>Analizar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="materiasResultWrap" style="display:none;">
+      <div class="row g-3 mb-3" id="materiasStats"></div>
+
+      <div id="materiasWarnings" class="mb-3"></div>
+
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div class="d-flex gap-2 align-items-center">
+          <button class="btn btn-sm btn-outline-secondary" onclick="expandAllAlumnos(true)"><i class="bi bi-arrows-expand me-1"></i>Expandir todos</button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="expandAllAlumnos(false)"><i class="bi bi-arrows-collapse me-1"></i>Colapsar todos</button>
+        </div>
+        <button class="btn btn-success" id="btnConfirmarMaterias" onclick="confirmarMatriculacion()">
+          <i class="bi bi-check-circle me-1"></i>Confirmar y Matricular
+        </button>
+      </div>
+
+      <div class="accordion" id="materiasAccordion"></div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════ Tab: CPEL por Carrera ══════════════ -->
+  <div class="tab-pane fade" id="cpel" role="tabpanel" aria-labelledby="cpel-tab">
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-mortarboard-fill me-2"></i>1. Período, programa y carrera</h5>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info border-info">
+          <i class="bi bi-info-circle-fill me-2"></i>
+          <strong>¿Para qué sirve esto?</strong> Las materias de CPEL están organizadas en Canvas por subcuentas
+          (<em>Período → CPEL → Carrera</em>), con un curso separado por carrera para cada materia. En Teams en cambio las
+          3 carreras comparten un solo equipo por materia. Acá navegás hasta la subcuenta de tu carrera, elegís las
+          materias, y el sistema matricula en Canvas al curso correcto y en Teams al equipo compartido — derivando el
+          período automáticamente del nombre del curso, sin tipearlo a mano.
+        </div>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Período</label>
+            <select class="form-select" id="cpelPeriodoSelect" onchange="onPeriodoChange()" disabled>
+              <option value="">Cargando...</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Programa</label>
+            <select class="form-select" id="cpelProgramaSelect" onchange="onProgramaChange()" disabled>
+              <option value="">— Elegí un período primero —</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Carrera</label>
+            <select class="form-select" id="cpelCarreraSelect" onchange="onCarreraChange()" disabled>
+              <option value="">— Elegí un programa primero —</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="cpelMateriasWrap" style="display:none;" class="mt-4">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <label class="form-label fw-bold mb-0">Materias encontradas — tildá las que aplican</label>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllMaterias(true)">Marcar todas</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllMaterias(false)">Desmarcar todas</button>
+            </div>
+          </div>
+          <div id="cpelMateriasList" class="list-group"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-people-fill me-2"></i>2. Alumnos</h5>
+      </div>
+      <div class="card-body">
+        <label class="form-label fw-bold">Pegá la lista de alumnos (una línea por alumno: Nombre y Apellido, Cédula)</label>
+        <textarea class="form-control" id="cpelAlumnosText" rows="8" placeholder="Juan Pérez, 4567890&#10;María González; 5678901&#10;..."></textarea>
+        <small class="text-muted">Aceptado: nombre y cédula separados por coma, punto y coma, o tabulador — uno por línea.</small>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end mb-4">
+      <button class="btn btn-success btn-lg" id="btnPreviewCpel" onclick="previewCpel()">
+        <i class="bi bi-eye me-1"></i>Vista previa
+      </button>
+    </div>
+
+    <div id="cpelPreviewWrap" style="display:none;">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>3. Confirmar</h5>
+          <button class="btn btn-success" id="btnConfirmarCpel" onclick="confirmarCpel()">
+            <i class="bi bi-check-circle me-1"></i>Confirmar y Matricular
+          </button>
+        </div>
+        <div class="card-body">
+          <div id="cpelPreviewSummary" class="mb-3"></div>
+          <div class="table-scroll" style="max-height: 400px;">
+            <table class="table table-sm">
+              <thead class="table-light">
+                <tr><th>Alumno</th><th>Cédula</th></tr>
+              </thead>
+              <tbody id="cpelAlumnosPreviewBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
 </div>
-
-
 {% endblock %}
 
 {% block scripts %}
 <script>
+/* ════════════════════════════════════════════════════════════════
+   Tab: Matriculación Unificada
+   ════════════════════════════════════════════════════════════════ */
+
 /* ── Acordeones: un solo panel visible a la vez, como tabs (ver mismo
    fix en ingreso.html). Antes los dos arrancaban abiertos y no se cerraban
    entre sí. ── */
@@ -248,12 +428,12 @@ function mi_onSearchInput() {
 function mi_addMateria(id) {
     const m = mi_materiasList.find(x => x.id === id);
     if (!m) return;
-    
+
     if (!mi_selectedMaterias.find(sel => sel.id === id)) {
         mi_selectedMaterias.push(m);
         mi_renderSelected();
     }
-    
+
     document.getElementById('mi_search').value = '';
     document.getElementById('mi_autocomplete_list').style.display = 'none';
 }
@@ -266,13 +446,13 @@ function mi_removeMateria(id) {
 function mi_renderSelected() {
     const container = document.getElementById('mi_tags_container');
     const msg = document.getElementById('mi_empty_msg');
-    
+
     if (mi_selectedMaterias.length === 0) {
         container.innerHTML = '';
         msg.style.display = 'block';
         return;
     }
-    
+
     msg.style.display = 'none';
     container.innerHTML = mi_selectedMaterias.map(m => `
         <span class="badge bg-primary fs-6 d-flex align-items-center gap-2 p-2">
@@ -320,20 +500,20 @@ async function mi_doEnroll() {
             materias: mi_selectedMaterias,
             platforms: plat
         };
-        
+
         const res = await api.post('/api/matriculacion/individual', payload);
-        
+
         let html = `<strong>Matriculación Completada</strong><ul class="mb-0 mt-2">`;
         res.results.forEach(r => {
             html += `<li><strong>${r.materia_name}</strong> - Canvas: ${r.canvas_status} | Teams: ${r.teams_status}</li>`;
         });
         html += `</ul>`;
-        
+
         resultWrap.innerHTML = html;
         resultWrap.className = 'alert alert-success mb-4';
         resultWrap.style.display = 'block';
         toast('Proceso completado', 'success');
-        
+
         mi_loadHistory();
     } catch (e) {
         resultWrap.innerHTML = `<strong>Error:</strong> ${e.message}`;
@@ -353,13 +533,13 @@ async function mi_loadHistory() {
             tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No hay registros recientes</td></tr>';
             return;
         }
-        
+
         tbody.innerHTML = history.slice(0, 10).map(h => {
             const dateStr = new Date(h.timestamp).toLocaleString();
             let materiasHtml = h.results.map(r => `<div><span class="badge bg-secondary me-1">${r.materia_id}</span>${r.materia_name}</div>`).join('');
             let canvasHtml = h.results.map(r => `<div>${r.canvas_status === 'OK' ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger" title="'+r.canvas_status+'"></i>'}</div>`).join('');
             let teamsHtml = h.results.map(r => `<div>${r.teams_status === 'OK' ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger" title="'+r.teams_status+'"></i>'}</div>`).join('');
-            
+
             return `<tr>
                 <td class="small text-muted">${dateStr}</td>
                 <td><strong>${h.email}</strong><br><small class="text-muted">SYS: ${h.sys_id}</small></td>
@@ -390,17 +570,17 @@ document.addEventListener('DOMContentLoaded', () => {
 // Configurar Autocompletado
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('mat_url').value = localStorage.getItem('matUrl') || '';
-  setupAutocomplete('search_user', 'user_identifier', 'user_results', '/canvas/users', 
+  setupAutocomplete('search_user', 'user_identifier', 'user_results', '/canvas/users',
     (u) => `<div class="autocomplete-title">${u.name}</div><div class="autocomplete-sub">${u.login_id || u.email || 'Sin email'}</div>`,
     (u, input, hidden) => { input.value = u.name; hidden.value = u.login_id || u.email; }
   );
-  
-  setupAutocomplete('search_course', 'canvas_course_id', 'course_results', '/canvas/courses', 
+
+  setupAutocomplete('search_course', 'canvas_course_id', 'course_results', '/canvas/courses',
     (c) => `<div class="autocomplete-title">${c.name}</div><div class="autocomplete-sub">ID: ${c.id} | SIS: ${c.sis_course_id || '-'}</div>`,
     (c, input, hidden) => { input.value = c.name; hidden.value = c.id; }
   );
-  
-  setupAutocomplete('search_team', 'teams_team_id', 'team_results', '/teams/teams', 
+
+  setupAutocomplete('search_team', 'teams_team_id', 'team_results', '/teams/teams',
     (t) => `<div class="autocomplete-title">${t.displayName}</div><div class="autocomplete-sub">ID: ${t.id}</div>`,
     (t, input, hidden) => { input.value = t.displayName; hidden.value = t.id; }
   );
@@ -414,14 +594,14 @@ async function fetchMatSheets() {
   if (!urlInput) {
       return toast('Por favor, ingresa la URL primero.', 'warning');
   }
-  
+
   const btn = document.getElementById('btnLoadMatSheets');
   const select = document.getElementById('mat_sheet');
   const oldText = btn.innerHTML;
-  
+
   btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
   btn.disabled = true;
-  
+
   try {
       const res = await api.post('/excel/matriculaciones-onedrive/sheets', { url: urlInput });
       select.innerHTML = '<option value="" disabled selected>Seleccione la pestaña de matriculaciones...</option>';
@@ -444,13 +624,13 @@ async function enableMatProcessBtn() {
     const url = document.getElementById('mat_url').value.trim();
     document.getElementById('btnImportMat').disabled = !val;
     document.getElementById('btnRollbackMat').disabled = !val;
-    
+
     if (val && url) {
         try {
             const preview = await api.post('/excel/matriculaciones-onedrive/preview', { url: url, sheet_name: val });
             document.getElementById('matPreviewWrap').style.display = 'block';
             collapseOtherAccordions('collapseMatriculaciones');
-            
+
             document.getElementById('matPreviewToProcess').innerText = `${preview.students_to_process} a procesar`;
             document.getElementById('matPreviewSkipped').innerText = `${preview.students_already_processed} omitidos (ya listos/error)`;
 
@@ -487,32 +667,32 @@ let matPollInterval = null;
 async function doImportMatriculaciones() {
     const url = document.getElementById('mat_url').value.trim();
     const sheet = document.getElementById('mat_sheet').value;
-    
+
     if(!url || !sheet) return toast('Debe cargar la URL y seleccionar la pestaña', 'warning');
-    
+
     const btn = document.getElementById('btnImportMat');
     const resultWrap = document.getElementById('matResultWrap');
     const resultText = document.getElementById('matResultText');
-    
+
     const oldText = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Procesando...';
     btn.disabled = true;
     document.getElementById('btnRollbackMat').disabled = true;
-    
+
     resultWrap.style.display = 'block';
     resultWrap.className = 'alert alert-info border-info';
     resultText.innerHTML = '<b>Iniciando proceso en segundo plano...</b> Preparando archivo...';
-    
+
     try {
         const res = await api.post('/excel/matriculaciones-onedrive', { url: url, sheet_name: sheet });
-        
+
         if (res.job_id) {
             toast('Trabajo iniciado en segundo plano', 'info');
             startMatriculacionPolling(res.job_id, oldText);
         } else {
             throw new Error("No se recibió ID del trabajo.");
         }
-        
+
     } catch (e) {
         resultWrap.className = 'alert alert-danger border-danger';
         resultText.innerHTML = `<b>Error Crítico:</b> ${e.message}`;
@@ -527,9 +707,9 @@ function startMatriculacionPolling(jobId, oldBtnText) {
     const resultWrap = document.getElementById('matResultWrap');
     const resultText = document.getElementById('matResultText');
     const btn = document.getElementById('btnImportMat');
-    
+
     if (matPollInterval) clearInterval(matPollInterval);
-    
+
     resultText.innerHTML = `
         <div class="mb-2"><b>Procesando archivo...</b> (Job #${jobId})</div>
         <div class="progress" style="height: 20px;">
@@ -537,16 +717,16 @@ function startMatriculacionPolling(jobId, oldBtnText) {
         </div>
         <div id="matProgressDetail" class="mt-2 small text-muted">Inicializando...</div>
     `;
-    
+
     matPollInterval = setInterval(async () => {
         try {
             const job = await api.get(`/excel/jobs/${jobId}`);
-            
+
             if (job) {
                 const total = job.data_json ? JSON.parse(job.data_json).total_to_process : 0;
                 const processed = job.result_count + job.error_count;
                 let percent = 0;
-                
+
                 if (total > 0) {
                     percent = Math.round((processed / total) * 100);
                 } else if (job.status === 'completed') {
@@ -554,18 +734,18 @@ function startMatriculacionPolling(jobId, oldBtnText) {
                 } else {
                     percent = 10; // Fake progress for init
                 }
-                
+
                 const bar = document.getElementById('matProgressBar');
                 if (bar) {
                     bar.style.width = `${percent}%`;
                     bar.innerText = `${percent}%`;
                 }
-                
+
                 const detail = document.getElementById('matProgressDetail');
                 if (detail) {
                     detail.innerHTML = `Completados: ${job.result_count || 0} | Errores: ${job.error_count || 0} ${total > 0 ? '| Total: ' + total : ''}`;
                 }
-                
+
                 if (job.status === 'completed' || job.status === 'failed') {
                     clearInterval(matPollInterval);
                     btn.innerHTML = oldBtnText;
@@ -577,7 +757,7 @@ function startMatriculacionPolling(jobId, oldBtnText) {
                         bar.classList.remove('progress-bar-animated');
                         bar.classList.remove('progress-bar-striped');
                     }
-                    
+
                     if (job.status === 'completed') {
                         resultWrap.className = job.error_count > 0 ? 'alert alert-warning border-warning' : 'alert alert-success border-success';
                         detail.innerHTML += `<br><br><b>Finalizado.</b> ${job.error_message || ''}`;
@@ -599,36 +779,36 @@ function startMatriculacionPolling(jobId, oldBtnText) {
 async function rollbackMatriculaciones() {
     const url = document.getElementById('mat_url').value.trim();
     const sheet = document.getElementById('mat_sheet').value;
-    
+
     if(!url || !sheet) return toast('Debe cargar la URL y seleccionar la pestaña', 'warning');
-    
+
     if (!confirm('¿Estás seguro de que deseas REVERTIR las matriculaciones? Esto buscará los usuarios marcados como "OK" en la pestaña seleccionada y los desmatriculará de Canvas y Teams. Esta acción no se puede deshacer.')) {
         return;
     }
-    
+
     const btn = document.getElementById('btnRollbackMat');
     const resultWrap = document.getElementById('matResultWrap');
     const resultText = document.getElementById('matResultText');
-    
+
     const oldText = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Revirtiendo...';
     btn.disabled = true;
     document.getElementById('btnImportMat').disabled = true;
-    
+
     resultWrap.style.display = 'block';
     resultWrap.className = 'alert alert-danger border-danger';
     resultText.innerHTML = '<b>Iniciando reversión en segundo plano...</b> Preparando archivo...';
-    
+
     try {
         const res = await api.post('/excel/rollback', { url: url, sheet_name: sheet });
-        
+
         if (res.job_id) {
             toast('Reversión iniciada en segundo plano', 'warning');
             startRollbackPolling(res.job_id, oldText);
         } else {
             throw new Error("No se recibió ID del trabajo de reversión.");
         }
-        
+
     } catch (e) {
         resultWrap.className = 'alert alert-danger border-danger';
         resultText.innerHTML = `<b>Error Crítico al iniciar reversión:</b> ${e.message}`;
@@ -645,9 +825,9 @@ function startRollbackPolling(jobId, oldBtnText) {
     const resultWrap = document.getElementById('matResultWrap');
     const resultText = document.getElementById('matResultText');
     const btn = document.getElementById('btnRollbackMat');
-    
+
     if (rollbackPollInterval) clearInterval(rollbackPollInterval);
-    
+
     resultText.innerHTML = `
         <div class="mb-2"><b>Revirtiendo registros...</b> (Job #${jobId})</div>
         <div class="progress" style="height: 20px;">
@@ -655,16 +835,16 @@ function startRollbackPolling(jobId, oldBtnText) {
         </div>
         <div id="rollbackProgressDetail" class="mt-2 small text-muted">Inicializando reversión...</div>
     `;
-    
+
     rollbackPollInterval = setInterval(async () => {
         try {
             const job = await api.get(`/excel/jobs/${jobId}`);
-            
+
             if (job) {
                 const total = job.data_json ? JSON.parse(job.data_json).total_to_process : 0;
                 const processed = job.result_count + job.error_count;
                 let percent = 0;
-                
+
                 if (total > 0) {
                     percent = Math.round((processed / total) * 100);
                 } else if (job.status === 'completed') {
@@ -672,18 +852,18 @@ function startRollbackPolling(jobId, oldBtnText) {
                 } else {
                     percent = 10;
                 }
-                
+
                 const bar = document.getElementById('rollbackProgressBar');
                 if (bar) {
                     bar.style.width = `${percent}%`;
                     bar.innerText = `${percent}%`;
                 }
-                
+
                 const detail = document.getElementById('rollbackProgressDetail');
                 if (detail) {
                     detail.innerHTML = `Desmatriculados: ${job.result_count || 0} | Errores: ${job.error_count || 0} ${total > 0 ? '| Total a revertir: ' + total : ''}`;
                 }
-                
+
                 if (job.status === 'completed' || job.status === 'failed') {
                     clearInterval(rollbackPollInterval);
                     btn.innerHTML = oldBtnText;
@@ -695,7 +875,7 @@ function startRollbackPolling(jobId, oldBtnText) {
                         bar.classList.remove('progress-bar-animated');
                         bar.classList.remove('progress-bar-striped');
                     }
-                    
+
                     if (job.status === 'completed') {
                         resultWrap.className = job.error_count > 0 ? 'alert alert-warning border-warning' : 'alert alert-success border-success';
                         detail.innerHTML += `<br><br><b>Reversión Finalizada.</b> ${job.error_message || ''}`;
@@ -712,6 +892,440 @@ function startRollbackPolling(jobId, oldBtnText) {
         }
     }, 2000);
 }
+
+/* ════════════════════════════════════════════════════════════════
+   Tab: Por Materias
+   ════════════════════════════════════════════════════════════════ */
+
+let materiasPreviewData = null;
+
+function badgeForStatus(status, score) {
+  const pct = score != null ? Math.round(score * 100) + '%' : '-';
+  if (status === 'auto') return `<span class="badge bg-success">${pct}</span>`;
+  if (status === 'revisar') return `<span class="badge bg-warning text-dark">${pct} · revisar</span>`;
+  return `<span class="badge bg-danger">sin match</span>`;
+}
+
+async function analizarMaterias() {
+  const url = document.getElementById('urlMaterias').value.trim();
+  if (!url) return toast('Pegá el enlace de OneDrive primero.', 'warning');
+
+  const btn = document.getElementById('btnAnalizarMaterias');
+  setLoading(btn, true);
+  document.getElementById('materiasResultWrap').style.display = 'none';
+
+  try {
+    const data = await api.post('/materias/preview', { url });
+    materiasPreviewData = data;
+    renderMateriasPreview(data);
+    document.getElementById('materiasResultWrap').style.display = 'block';
+  } catch (e) {
+    toast('Error: ' + (e.message || e), 'danger');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+function renderMateriasPreview(data) {
+  document.getElementById('materiasStats').innerHTML = `
+    <div class="col-auto"><span class="badge bg-secondary fs-6">${data.total_alumnos} alumno(s)</span></div>
+    <div class="col-auto"><span class="badge bg-secondary fs-6">${data.total_materias} materia(s)</span></div>
+    <div class="col-auto"><span class="badge bg-success fs-6">${data.auto_count} match automático</span></div>
+    <div class="col-auto"><span class="badge bg-warning text-dark fs-6">${data.review_count} a revisar</span></div>
+    <div class="col-auto"><span class="badge bg-danger fs-6">${data.no_match_count} sin match</span></div>
+  `;
+
+  let warningsHtml = '';
+  if (data.sin_materias && data.sin_materias.length) {
+    warningsHtml += `
+      <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>${data.sin_materias.length} alumno(s) con cédula pero sin materias cargadas todavía</strong> en su pestaña
+        (no se van a matricular en nada): ${data.sin_materias.map(s => s.alumno).join(', ')}
+      </div>`;
+  }
+  if (data.skipped_sheets && data.skipped_sheets.length) {
+    warningsHtml += `
+      <div class="alert alert-secondary">
+        <i class="bi bi-info-circle me-2"></i>
+        ${data.skipped_sheets.length} pestaña(s) no se reconocieron como hoja de alumno y se ignoraron
+        (ej. hojas de resumen/plantilla): ${data.skipped_sheets.join(', ')}
+      </div>`;
+  }
+  document.getElementById('materiasWarnings').innerHTML = warningsHtml;
+
+  const accordion = document.getElementById('materiasAccordion');
+  let cards = '';
+  data.alumnos.forEach((al, ai) => {
+    const collapseId = `collapseAlumno${ai}`;
+    const autoN = al.materias.filter(m => m.status === 'auto').length;
+    const revisarN = al.materias.filter(m => m.status === 'revisar').length;
+    const sinMatchN = al.materias.filter(m => m.status === 'sin_match').length;
+    const needsAttention = revisarN > 0 || sinMatchN > 0;
+
+    const rows = al.materias.map((mat, mi) => {
+      const rowId = `${ai}-${mi}`;
+      const optionsHtml = (mat.candidates || []).map(c => `
+        <option value="${c.course_id}" ${c.course_id === mat.course_id ? 'selected' : ''}>
+          ${c.course_name} (${Math.round(c.score * 100)}%)
+        </option>
+      `).join('');
+      return `
+        <tr data-row-id="${rowId}" data-alumno="${al.alumno.replace(/"/g, '&quot;')}" data-cedula="${al.cedula}" data-materia-original="${mat.materia_original.replace(/"/g, '&quot;')}">
+          <td><input type="checkbox" class="chk-materia" data-alumno-idx="${ai}" ${mat.status === 'sin_match' ? '' : 'checked'} data-row-id="${rowId}"></td>
+          <td>${mat.materia_original}</td>
+          <td>
+            <select class="form-select form-select-sm materia-match-select" data-row-id="${rowId}" style="min-width:260px;">
+              <option value="">— Sin matricular —</option>
+              ${optionsHtml}
+            </select>
+          </td>
+          <td id="score-${rowId}">${badgeForStatus(mat.status, mat.score)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    cards += `
+      <div class="accordion-item ${needsAttention ? 'border-warning' : 'border-success'} shadow-sm mb-2">
+        <h2 class="accordion-header">
+          <button class="accordion-button ${needsAttention ? '' : 'collapsed'} fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
+            <span class="me-2">${al.alumno}</span>
+            <span class="small text-muted me-3">${al.cedula}</span>
+            <span class="badge bg-success me-1">${autoN} auto</span>
+            ${revisarN ? `<span class="badge bg-warning text-dark me-1">${revisarN} revisar</span>` : ''}
+            ${sinMatchN ? `<span class="badge bg-danger me-1">${sinMatchN} sin match</span>` : ''}
+          </button>
+        </h2>
+        <div id="${collapseId}" class="accordion-collapse collapse ${needsAttention ? 'show' : ''}" data-bs-parent="#materiasAccordion">
+          <div class="accordion-body p-0">
+            <div class="d-flex justify-content-end p-2 border-bottom">
+              <label class="small text-muted d-flex align-items-center gap-1">
+                <input type="checkbox" class="chk-alumno-all" data-alumno-idx="${ai}" checked onchange="toggleAlumnoAll(${ai}, this.checked)">
+                Seleccionar todas las materias de este alumno
+              </label>
+            </div>
+            <div class="table-scroll">
+              <table class="table table-sm mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width:40px;"></th>
+                    <th>Materia (planilla)</th>
+                    <th>Match sugerido</th>
+                    <th>Confianza</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  accordion.innerHTML = cards || '<p class="text-center text-muted p-4">No se encontraron alumnos con materias para matricular.</p>';
+
+  document.querySelectorAll('.materia-match-select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const rowId = sel.dataset.rowId;
+      const opt = sel.options[sel.selectedIndex];
+      const scoreCell = document.getElementById('score-' + rowId);
+      if (!opt.value) {
+        scoreCell.innerHTML = '<span class="badge bg-secondary">omitido</span>';
+      } else {
+        const label = opt.textContent.match(/\((\d+)%\)/);
+        scoreCell.innerHTML = label ? `<span class="badge bg-primary">${label[1]}% (manual)</span>` : '<span class="badge bg-primary">manual</span>';
+      }
+    });
+  });
+}
+
+function toggleAlumnoAll(alumnoIdx, checked) {
+  document.querySelectorAll(`.chk-materia[data-alumno-idx="${alumnoIdx}"]`).forEach(c => c.checked = checked);
+}
+
+function expandAllAlumnos(expand) {
+  document.querySelectorAll('#materiasAccordion .accordion-collapse').forEach(el => {
+    bootstrap.Collapse.getOrCreateInstance(el, { toggle: false })[expand ? 'show' : 'hide']();
+  });
+}
+
+function confirmarMatriculacion() {
+  const items = [];
+  document.querySelectorAll('#materiasAccordion tr[data-row-id]').forEach(tr => {
+    const rowId = tr.dataset.rowId;
+    const chk = tr.querySelector('.chk-materia');
+    if (!chk.checked) return;
+    const sel = tr.querySelector('.materia-match-select');
+    if (!sel.value) return;
+    items.push({
+      cedula: tr.dataset.cedula,
+      alumno: tr.dataset.alumno,
+      materia_original: tr.dataset.materiaOriginal,
+      course_id: sel.value,
+    });
+  });
+
+  if (!items.length) return toast('No hay materias seleccionadas con un curso asignado.', 'warning');
+
+  const preview = items.slice(0, 10).map(it => `• ${it.alumno} → ${it.materia_original}`).join('\n')
+    + (items.length > 10 ? `\n… y ${items.length - 10} más` : '');
+
+  confirmAction(
+    `Se van a matricular ${items.length} materia(s):\n\n${preview}`,
+    () => _confirmarMatriculacionConfirmed(items),
+    '¿Confirmar matriculación?',
+    false
+  );
+}
+
+async function _confirmarMatriculacionConfirmed(items) {
+  const btn = document.getElementById('btnConfirmarMaterias');
+  setLoading(btn, true);
+  try {
+    const res = await api.post('/materias/enroll', { items });
+    toast(`Matriculación iniciada (job #${res.job_id}). Podés seguir el progreso en Historial de Trabajos.`, 'success');
+  } catch (e) {
+    toast('Error: ' + (e.message || e), 'danger');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Tab: CPEL por Carrera
+   ════════════════════════════════════════════════════════════════ */
+
+let cpelSubaccounts = [];   // árbol completo, plano: {id, name, parent_account_id}
+let cpelMaterias = [];
+let cpelAlumnos = [];
+
+// Antes esto se disparaba con DOMContentLoaded incondicional (tenía su
+// propia página). Ahora comparte página con las otras 2 pestañas — se
+// carga igual al entrar (es liviano y no molesta tenerlo ya listo si el
+// usuario cambia a esta pestaña), simplemente ya no asume que es el único
+// contenido de la página.
+document.addEventListener('DOMContentLoaded', loadSubaccountTree);
+
+async function loadSubaccountTree() {
+  try {
+    cpelSubaccounts = await api.get('/cpel/subaccounts');
+    const ids = new Set(cpelSubaccounts.map(s => s.id));
+    // Nivel "Período": subcuentas cuyo padre NO está en el árbol devuelto
+    // (es decir, cuelgan directo de la cuenta raíz).
+    const periodos = cpelSubaccounts.filter(s => !s.parent_account_id || !ids.has(s.parent_account_id));
+    const sel = document.getElementById('cpelPeriodoSelect');
+    sel.innerHTML = '<option value="">— Elegí un período —</option>' +
+      periodos.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    sel.disabled = false;
+  } catch (e) {
+    toast('No se pudo cargar el árbol de subcuentas de Canvas: ' + (e.message || e), 'danger');
+  }
+}
+
+function childrenOf(parentId) {
+  return cpelSubaccounts.filter(s => s.parent_account_id === parentId);
+}
+
+function onPeriodoChange() {
+  const periodoId = document.getElementById('cpelPeriodoSelect').value;
+  const progSel = document.getElementById('cpelProgramaSelect');
+  const carrSel = document.getElementById('cpelCarreraSelect');
+  carrSel.innerHTML = '<option value="">— Elegí un programa primero —</option>';
+  carrSel.disabled = true;
+  document.getElementById('cpelMateriasWrap').style.display = 'none';
+  document.getElementById('cpelPreviewWrap').style.display = 'none';
+
+  if (!periodoId) {
+    progSel.innerHTML = '<option value="">— Elegí un período primero —</option>';
+    progSel.disabled = true;
+    return;
+  }
+  const allProgramas = childrenOf(periodoId);
+  // Esta pantalla es específica del programa CPEL — si ese período tiene
+  // una subcuenta "CPEL" entre sus hijos, se muestra SOLO esa (evita que
+  // se elija por error un programa no relacionado y se termine
+  // matriculando alumnos en cursos que no son de CPEL). Si no hay ninguna
+  // con ese nombre, se muestran todas igual (con aviso) por si la
+  // convención de nombres varía.
+  const cpelProgramas = allProgramas.filter(p => (p.name || '').trim().toLowerCase() === 'cpel');
+  const programas = cpelProgramas.length > 0 ? cpelProgramas : allProgramas;
+  if (cpelProgramas.length === 0 && allProgramas.length > 0) {
+    toast('No se encontró una subcuenta "CPEL" en ese período — mostrando todos los programas disponibles, verificá que elegís el correcto.', 'warning');
+  }
+  progSel.innerHTML = '<option value="">— Elegí un programa —</option>' +
+    programas.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  progSel.disabled = false;
+}
+
+function onProgramaChange() {
+  const programaId = document.getElementById('cpelProgramaSelect').value;
+  const carrSel = document.getElementById('cpelCarreraSelect');
+  document.getElementById('cpelMateriasWrap').style.display = 'none';
+  document.getElementById('cpelPreviewWrap').style.display = 'none';
+
+  if (!programaId) {
+    carrSel.innerHTML = '<option value="">— Elegí un programa primero —</option>';
+    carrSel.disabled = true;
+    return;
+  }
+  const carreras = childrenOf(programaId);
+  carrSel.innerHTML = '<option value="">— Elegí una carrera —</option>' +
+    carreras.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  carrSel.disabled = false;
+}
+
+async function onCarreraChange() {
+  const carreraId = document.getElementById('cpelCarreraSelect').value;
+  document.getElementById('cpelPreviewWrap').style.display = 'none';
+  if (!carreraId) {
+    document.getElementById('cpelMateriasWrap').style.display = 'none';
+    return;
+  }
+
+  try {
+    const data = await api.get(`/cpel/materias?subaccount_id=${encodeURIComponent(carreraId)}`);
+    cpelMaterias = data.materias || [];
+    renderMateriasCpel();
+    document.getElementById('cpelMateriasWrap').style.display = 'block';
+    if (cpelMaterias.length === 0) {
+      toast('Esa subcuenta no tiene cursos cargados.', 'warning');
+    }
+  } catch (e) {
+    toast('Error: ' + (e.message || e), 'danger');
+  }
+}
+
+function renderMateriasCpel() {
+  const list = document.getElementById('cpelMateriasList');
+  if (cpelMaterias.length === 0) {
+    list.innerHTML = '<p class="text-muted p-3 mb-0">No se encontraron materias.</p>';
+    return;
+  }
+  list.innerHTML = cpelMaterias.map((m, i) => `
+    <label class="list-group-item d-flex align-items-center gap-2">
+      <input type="checkbox" class="form-check-input chk-cpel-materia" data-idx="${i}" checked>
+      <span>
+        <strong>${m.materia_base}</strong> <span class="text-muted small">— ${m.course_name}</span>
+        ${!m.periodo ? '<span class="badge bg-warning text-dark ms-1">período no detectado — revisar equipo de Teams manualmente</span>' : ''}
+      </span>
+    </label>
+  `).join('');
+}
+
+function toggleAllMaterias(checked) {
+  document.querySelectorAll('.chk-cpel-materia').forEach(c => c.checked = checked);
+}
+
+function parseAlumnosText(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const alumnos = [];
+  const errores = [];
+  lines.forEach((line, i) => {
+    const parts = line.split(/[,;\t]/).map(p => p.trim()).filter(Boolean);
+    if (parts.length < 2) {
+      errores.push(`Línea ${i + 1}: "${line}" — falta nombre o cédula.`);
+      return;
+    }
+    const numericIdxs = [];
+    parts.forEach((p, idx) => { if (/^\d[\d.\-]*$/.test(p)) numericIdxs.push(idx); });
+    if (numericIdxs.length === 0) {
+      errores.push(`Línea ${i + 1}: "${line}" — no se encontró una cédula numérica.`);
+      return;
+    }
+    if (numericIdxs.length > 1) {
+      // Más de un token numérico (ej. una fecha de nacimiento antes de la
+      // cédula) — ambiguo, no se adivina cuál es la cédula real. Se pide
+      // corregir la línea en vez de matricular con un dato potencialmente
+      // equivocado.
+      errores.push(`Línea ${i + 1}: "${line}" — hay más de un valor numérico, no se puede saber cuál es la cédula. Dejá solo nombre y cédula.`);
+      return;
+    }
+    const cedulaIdx = numericIdxs[0];
+    const cedula = parts[cedulaIdx].replace(/[.\-\s]/g, '');
+    const nombre = parts.filter((_, idx) => idx !== cedulaIdx).join(' ').trim();
+    if (!nombre) {
+      errores.push(`Línea ${i + 1}: "${line}" — falta el nombre.`);
+      return;
+    }
+    alumnos.push({ nombre, cedula });
+  });
+  return { alumnos, errores };
+}
+
+function previewCpel() {
+  const materiasSeleccionadas = cpelMaterias.filter((_, i) =>
+    document.querySelector(`.chk-cpel-materia[data-idx="${i}"]`)?.checked
+  );
+  if (materiasSeleccionadas.length === 0) {
+    return toast('Elegí Período/Programa/Carrera y tildá al menos una materia primero.', 'warning');
+  }
+
+  const text = document.getElementById('cpelAlumnosText').value;
+  const { alumnos, errores } = parseAlumnosText(text);
+  if (errores.length) {
+    return toast(`Hay ${errores.length} línea(s) con formato inválido:\n${errores.slice(0, 5).join('\n')}`, 'danger');
+  }
+  if (alumnos.length === 0) {
+    return toast('Pegá al menos un alumno (Nombre, Cédula).', 'warning');
+  }
+
+  cpelAlumnos = alumnos;
+  window._cpelMateriasSeleccionadas = materiasSeleccionadas;
+
+  const total = alumnos.length * materiasSeleccionadas.length;
+  document.getElementById('cpelPreviewSummary').innerHTML = `
+    <span class="badge bg-secondary fs-6 me-2">${alumnos.length} alumno(s)</span>
+    <span class="badge bg-secondary fs-6 me-2">${materiasSeleccionadas.length} materia(s)</span>
+    <span class="badge bg-primary fs-6">${total} matrícula(s) a procesar</span>
+  `;
+  document.getElementById('cpelAlumnosPreviewBody').innerHTML = alumnos.map(a => `
+    <tr><td>${a.nombre}</td><td>${a.cedula}</td></tr>
+  `).join('');
+  document.getElementById('cpelPreviewWrap').style.display = 'block';
+}
+
+async function confirmarCpel() {
+  const materiasSeleccionadas = window._cpelMateriasSeleccionadas || [];
+  if (materiasSeleccionadas.length === 0 || cpelAlumnos.length === 0) {
+    return toast('Generá la vista previa primero.', 'warning');
+  }
+
+  const total = cpelAlumnos.length * materiasSeleccionadas.length;
+  confirmAction(
+    `Se van a procesar ${total} matrícula(s): ${cpelAlumnos.length} alumno(s) × ${materiasSeleccionadas.length} materia(s).`,
+    () => _confirmarCpelConfirmed(materiasSeleccionadas),
+    '¿Confirmar matriculación CPEL?',
+    false
+  );
+}
+
+async function _confirmarCpelConfirmed(materiasSeleccionadas) {
+  const btn = document.getElementById('btnConfirmarCpel');
+  setLoading(btn, true);
+  try {
+    const carreraLabel = document.getElementById('cpelCarreraSelect').selectedOptions[0]?.textContent || '';
+    const res = await api.post('/cpel/enroll', {
+      carrera_label: carreraLabel,
+      materias: materiasSeleccionadas,
+      alumnos: cpelAlumnos,
+    });
+    toast(`Matriculación CPEL iniciada (job #${res.job_id}). Podés seguir el progreso en Historial de Trabajos.`, 'success');
+  } catch (e) {
+    toast('Error: ' + (e.message || e), 'danger');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Activar la pestaña indicada por ?tab= (llegando desde el submenú del
+   sidebar), igual patrón que canvas/courses.html.
+   ════════════════════════════════════════════════════════════════ */
+(function activateTabFromQuery() {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (!tab) return;
+    const btn = document.getElementById(tab + '-tab');
+    if (btn) new bootstrap.Tab(btn).show();
+})();
 </script>
 {% endblock %}
-
