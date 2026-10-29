@@ -1678,7 +1678,16 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                 _set_estado(r_idx, f"❌ Error: {error}", "FF0000")
                 result.failed.append({"input": {"cedula": cedula}, "error": error})
 
-        tasks = []
+        # Primero se recolectan los índices de fila y se calcula el límite de
+        # seguridad; recién después se crean las corrutinas de process_row().
+        # Antes se creaban acá mismo (tasks.append(process_row(r_idx))) y, si
+        # el chequeo de abajo cortaba el job por exceder el límite, esas
+        # corrutinas ya creadas quedaban sin awaitear al hacer return — Python
+        # las descarta con un "coroutine was never awaited" (no perdían
+        # trabajo real, porque una corrutina no ejecuta nada hasta que se la
+        # awaitea, pero sí era ruido/desperdicio y un warning confuso en los
+        # logs).
+        row_indices = []
         pending_count = 0
         empty_count = 0
         for r_idx in range(header_row_idx + 1, ws.max_row + 1):
@@ -1707,11 +1716,13 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
             if not already_done:
                 pending_count += 1
 
-            tasks.append(process_row(r_idx))
+            row_indices.append(r_idx)
 
         if pending_count > 300:
             await jobs.fail_job(job_id, f"Límite de seguridad excedido: intentás crear {pending_count} cuentas nuevas a la vez (máximo 300 permitidas). Revisa el archivo para evitar accidentes.")
             return
+
+        tasks = [process_row(r_idx) for r_idx in row_indices]
 
         if len(tasks) > 0:
             try:
