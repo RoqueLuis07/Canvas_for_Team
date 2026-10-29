@@ -85,7 +85,7 @@
   <!-- Herramientas tile -->
   <div class="col-md-6 col-xl-4">
     <div class="canvas-tile">
-      <div class="canvas-tile-header tile-header-orange">
+      <div class="canvas-tile-header tile-header-slate">
         <i class="bi bi-tools tile-bg-icon"></i>
         <div class="tile-title">Herramientas</div>
         <div class="tile-sub">Gestión y administración</div>
@@ -236,10 +236,10 @@
         <i class="bi bi-activity me-1"></i>Estado del sistema
       </div>
       <div class="d-flex flex-column gap-2 mb-3">
-        <span id="health-canvas" class="badge bg-secondary badge-inline d-flex align-items-center gap-1">
+        <span id="health-canvas" class="badge bg-secondary-subtle text-secondary-emphasis badge-inline d-flex align-items-center gap-1">
           <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Canvas
         </span>
-        <span id="health-azure" class="badge bg-secondary badge-inline d-flex align-items-center gap-1">
+        <span id="health-azure" class="badge bg-secondary-subtle text-secondary-emphasis badge-inline d-flex align-items-center gap-1">
           <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Azure AD
         </span>
         <span id="cache-stats" class="text-muted small"></span>
@@ -318,7 +318,7 @@ async function loadStats() {
       const rows = teams.slice(0, 8).map(t => {
         const initial = (t.displayName || '?')[0].toUpperCase();
         const vis     = t.visibility;
-        const visCls  = vis === 'Public' ? 'bg-success' : vis === 'Private' ? 'bg-warning text-dark' : 'bg-secondary';
+        const visCls  = vis === 'Public' ? 'bg-success-subtle text-success-emphasis' : vis === 'Private' ? 'bg-warning-subtle text-warning-emphasis' : 'bg-secondary-subtle text-secondary-emphasis';
         return `<div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
           <div class="micro-avatar micro-avatar-purple">${initial}</div>
           <div class="flex-grow-1 overflow-hidden">
@@ -342,7 +342,7 @@ async function loadStats() {
       
       const rows = courses.slice(0, 8).map(c => {
         const state   = c.workflow_state;
-        const statCls = state === 'available' ? 'bg-success' : state === 'completed' ? 'bg-secondary' : 'bg-warning text-dark';
+        const statCls = state === 'available' ? 'bg-success-subtle text-success-emphasis' : state === 'completed' ? 'bg-secondary-subtle text-secondary-emphasis' : 'bg-warning-subtle text-warning-emphasis';
         const statLbl = state === 'available' ? 'Publicado' : state === 'completed' ? 'Completado' : state || '—';
         return `<div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
           <div class="flex-grow-1 overflow-hidden">
@@ -448,7 +448,7 @@ async function loadAudit() {
           <div class="small">
             <span class="fw-semibold">${label}</span>
             <span class="text-muted"> ${e.resource}</span>
-            ${e.status !== 'ok' ? '<span class="badge bg-danger ms-1 badge-xs">error</span>' : ''}
+            ${e.status !== 'ok' ? '<span class="badge bg-danger-subtle text-danger-emphasis ms-1 badge-xs">error</span>' : ''}
           </div>
           ${e.detail ? `<div class="text-muted text-truncate small">${e.detail}</div>` : ''}
           <div class="text-muted small">${e.user} · ${timeAgo(e.ts)}</div>
@@ -478,13 +478,13 @@ async function loadHealth() {
       const ok = i === 0 ? cv : az;
       const lbl = i === 0 ? 'Canvas' : 'Azure AD';
       const el  = document.getElementById(id);
-      el.className = `badge bg-${ok ? 'success' : 'danger'} badge-inline d-flex align-items-center gap-1`;
+      el.className = `badge bg-${ok ? 'success' : 'danger'}-subtle text-${ok ? 'success' : 'danger'}-emphasis badge-inline d-flex align-items-center gap-1`;
       el.innerHTML = `<i class="bi bi-${ok ? 'check' : 'x'}-circle"></i>${lbl}`;
     });
   } catch(_) {
     [['health-canvas','Canvas'], ['health-azure','Azure AD']].forEach(([id, lbl]) => {
       const el = document.getElementById(id);
-      el.className = 'badge bg-secondary badge-inline';
+      el.className = 'badge bg-secondary-subtle text-secondary-emphasis badge-inline';
       el.textContent = `${lbl} —`;
     });
   }
