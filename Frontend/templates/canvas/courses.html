@@ -1,632 +1,433 @@
 {% extends "base.html" %}
-{% block title %}Cursos Canvas{% endblock %}
-{% block breadcrumb %}Canvas LMS › Cursos{% endblock %}
+{% block title %}Cursos y Equipos{% endblock %}
+{% block breadcrumb %}Canvas LMS › Cursos y Equipos{% endblock %}
 {% block nav_cc %}active{% endblock %}
-{% block nav_cc_expanded %}true{% endblock %}
-{% block nav_cc_show %}show{% endblock %}
 {% block content %}
 <div class="d-flex align-items-center mb-4 gap-3 flex-wrap">
-  <div><div class="page-title">Cursos Canvas</div><div class="page-subtitle">Gestión de cursos de la plataforma</div></div>
-  <div class="ms-auto d-flex gap-2 flex-wrap">
-    <button class="btn btn-info" onclick="openBulkAttendanceDownload()" title="Descargar reportes de asistencia de varios cursos a la vez"><i class="bi bi-download me-1"></i>Reportes Asistencias</button>
-  </div>
+  <div><div class="page-title">Cursos y Equipos</div><div class="page-subtitle">Cursos de Canvas y equipos de Teams activos, en un mismo lugar</div></div>
 </div>
 
-<!-- Tabs -->
-<ul class="nav nav-tabs mb-4" id="coursesTabs" role="tablist">
+<ul class="nav nav-tabs mb-3" id="cursosEquiposTabs" role="tablist">
   <li class="nav-item" role="presentation">
-    <button class="nav-link active fw-bold text-success" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab" aria-controls="create" aria-selected="true">
-      <i class="bi bi-plus-circle-fill me-2"></i>Creación Masiva
+    <button class="nav-link active" id="tab-cursos-btn" data-bs-toggle="tab" data-bs-target="#tab-cursos" type="button" role="tab" aria-controls="tab-cursos" aria-selected="true">
+      <i class="bi bi-book-fill me-1"></i>Cursos (Canvas)
     </button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-danger" id="delete-tab" data-bs-toggle="tab" data-bs-target="#delete" type="button" role="tab" aria-controls="delete" aria-selected="false">
-      <i class="bi bi-trash3-fill me-2"></i>Eliminación Masiva
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-warning" id="release-sis-tab" data-bs-toggle="tab" data-bs-target="#release-sis" type="button" role="tab" aria-controls="release-sis" aria-selected="false">
-      <i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-warning" id="release-term-sis-tab" data-bs-toggle="tab" data-bs-target="#release-term-sis" type="button" role="tab" aria-controls="release-term-sis" aria-selected="false">
-      <i class="bi bi-unlock-fill me-2"></i>Liberar Período
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-primary" id="fix-coord-role-tab" data-bs-toggle="tab" data-bs-target="#fix-coord-role" type="button" role="tab" aria-controls="fix-coord-role" aria-selected="false">
-      <i class="bi bi-person-gear me-2"></i>Corregir Rol Coordinador
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-primary" id="fix-sis-id-tab" data-bs-toggle="tab" data-bs-target="#fix-sis-id" type="button" role="tab" aria-controls="fix-sis-id" aria-selected="false">
-      <i class="bi bi-pencil-square me-2"></i>Corregir SIS ID
+    <button class="nav-link" id="tab-equipos-btn" data-bs-toggle="tab" data-bs-target="#tab-equipos" type="button" role="tab" aria-controls="tab-equipos" aria-selected="false">
+      <i class="bi bi-microsoft-teams me-1"></i>Equipos (Teams)
     </button>
   </li>
 </ul>
 
-<div class="tab-content" id="coursesTabsContent">
-  <!-- Tab: Creación Masiva -->
-  <div class="tab-pane fade show active" id="create" role="tabpanel" aria-labelledby="create-tab">
+<div class="tab-content" id="cursosEquiposTabsContent">
 
-
-
-<!-- Accordion Creación Masiva (OneDrive) -->
-<div class="accordion mb-4" id="accordionCoursesOneDrive">
-  <div class="accordion-item border-warning shadow-sm">
-    <h2 class="accordion-header" id="headingCoursesOd">
-      <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCoursesOd" aria-expanded="true" aria-controls="collapseCoursesOd" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1));">
-        <i class="bi bi-cloud-arrow-up me-2 text-warning"></i> Carga de Cursos desde Planilla (OneDrive)
-      </button>
-    </h2>
-    <div id="collapseCoursesOd" class="accordion-collapse collapse show" aria-labelledby="headingCoursesOd" data-bs-parent="#accordionCoursesOneDrive">
-      <div class="accordion-body p-4">
-        
-        <div id="coursesOdFormWrap">
-            <div class="alert alert-info">
-              Pega el <b>enlace compartido de OneDrive</b> de la planilla de cursos.<br>
-              <small class="text-muted">La planilla debe tener columnas: <b>Nombre del Curso</b> y <b>SIS ID</b>.
-              Opcionalmente, una columna <b>Docente</b> (inscribe como Teacher/Owner) y una columna
-              <b>Coordinadores</b> (varios correos separados por coma, punto y coma o salto de línea —
-              se inscriben como Designer en Canvas y Owner en Teams). Una columna <b>Sub-Cuenta</b>
-              (ej. "Administración", "Marketing", "Negocios") crea el curso directamente en esa
-              subcuenta de Canvas en vez de asignarle un período — si se completa esta columna, la
-              columna <b>Período</b> de esa fila se ignora.</small>
-            </div>
-            <div class="row">
-              <div class="col-md-10 offset-md-1">
-                <label class="form-label fw-bold">URL Compartida de OneDrive / SharePoint</label>
-                <div class="input-group mb-3">
-                  <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
-                  <input type="url" class="form-control" id="coursesOdUrl" placeholder="https://...sharepoint.com/..." required>
-                  <button class="btn btn-primary" type="button" id="btnLoadCoursesSheets" onclick="fetchCoursesSheets()">Cargar Pestañas</button>
-                </div>
-                <label class="form-label fw-bold mt-2">URL del Excel Maestro de Reportes (Opcional)</label>
-                <div class="input-group mb-3">
-                  <span class="input-group-text"><i class="bi bi-journal-bookmark-fill"></i></span>
-                  <input type="url" class="form-control" id="coursesReportUrl" placeholder="https://...sharepoint.com/... (Bitácora)">
-                </div>
-                <label class="form-label fw-bold">Nombre de la Pestaña (Requerido)</label>
-                <div class="input-group mb-4">
-                  <span class="input-group-text"><i class="bi bi-file-spreadsheet"></i></span>
-                  <select class="form-select" id="coursesOdSheet" required onchange="doPreviewCourses()">
-                      <option value="">Primero haz clic en Cargar Pestañas...</option>
-                  </select>
-                </div>
-                
-                
-              </div>
-            </div>
+  <!-- ── Tab: Cursos (Canvas) ── -->
+  <div class="tab-pane fade show active" id="tab-cursos" role="tabpanel" aria-labelledby="tab-cursos-btn">
+    <div class="canvas-panel">
+      <div class="card-header flex-wrap gap-2">
+        <input type="text" id="searchCourse" class="form-control search-box" placeholder="🔍 ID, nombre, código, SIS..." oninput="applyFilters()">
+        <select id="stateFilter" class="form-select filter-select-sm" title="Filtrar por estado" onchange="applyFilters()">
+          <option value="">Todos los estados</option>
+          <option value="available">✅ Publicado</option>
+          <option value="unpublished">⬜ No publicado</option>
+          <option value="completed">🔵 Concluido</option>
+          <option value="deleted">🔴 Eliminado</option>
+          <option value="created">📝 Borrador</option>
+        </select>
+        <select id="termFilter" class="form-select filter-select-md" title="Filtrar por período" onchange="applyFilters()">
+          <option value="">Todos los períodos</option>
+        </select>
+        <span class="ms-auto text-muted small" id="courseCount"></span>
+        <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToExcel('coursesTableWrap','canvas_cursos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadCourses()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise"></i></button>
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-tools me-1"></i>Más acciones
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><button class="dropdown-item" onclick="openReleaseSisModal()"><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID (curso)</button></li>
+            <li><button class="dropdown-item" onclick="openReleaseTermSisModal()"><i class="bi bi-unlock-fill me-2"></i>Liberar Período</button></li>
+            <li><button class="dropdown-item" onclick="openFixCoordRoleModal()"><i class="bi bi-person-gear me-2"></i>Corregir Rol Coordinador</button></li>
+            <li><button class="dropdown-item" onclick="openFixSisIdModal()"><i class="bi bi-pencil-square me-2"></i>Corregir SIS ID</button></li>
+          </ul>
         </div>
-        
-        <div id="coursesOdPreviewWrap" style="display:none;">
-            <div id="coursesOdPreviewContent"></div>
-            <div class="d-flex justify-content-end gap-2 mt-4">
-              <button type="button" class="btn btn-outline-secondary" id="btnCancelCourses" onclick="cancelPreviewCourses()">Cancelar y Volver</button>
-              <button type="button" class="btn btn-success" id="btnConfirmCourses" onclick="executeCreateCourses()">
-                <i class="bi bi-check-circle me-1"></i>Confirmar y Crear Cursos
+      </div>
+      <div id="coursesTableWrap" class="table-responsive">
+        <div class="text-center py-5"><span class="spinner-border"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab: Equipos (Teams) ── -->
+  <div class="tab-pane fade" id="tab-equipos" role="tabpanel" aria-labelledby="tab-equipos-btn">
+    <div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
+      <button class="btn btn-primary" onclick="openExcelMembers()"><i class="bi bi-file-earmark-excel-fill me-1"></i>Añadir miembros Excel</button>
+      <a href="/excel/template/teams-members" class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
+      <div class="dropdown ms-auto">
+        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="bi bi-tools me-1"></i>Más acciones
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item text-danger" onclick="openTeamsIdDeleteModal()"><i class="bi bi-list-ol me-2"></i>Eliminación Masiva</button></li>
+          <li><button class="dropdown-item" onclick="openDeletedGroupsModal()"><i class="bi bi-recycle me-2"></i>Grupos Eliminados (Papelera)</button></li>
+          <li><button class="dropdown-item" onclick="openGroupMembersModal()"><i class="bi bi-person-plus-fill me-2"></i>Agregar a Grupo por ID</button></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="canvas-panel">
+      <div class="card-header flex-wrap gap-2">
+        <input type="text" id="searchTeam" class="form-control search-box" placeholder="🔍 Buscar Team por nombre..." oninput="debouncedLoadTeams(this.value)">
+        <span class="ms-auto text-muted small" id="teamCount"></span>
+        <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToExcel('teamsTableWrap','teams_equipos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadTeams()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise"></i></button>
+      </div>
+      <div id="teamsTableWrap" class="table-responsive">
+        <div class="text-center py-5"><span class="spinner-border"></span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════ Modales: mantenimiento de Cursos (antes página aparte) ═══════════ -->
+
+<!-- Modal: Liberar SIS ID de curso -->
+<div class="modal fade" id="releaseSisModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-warning">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title"><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID bloqueado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          Cuando un curso se elimina en Canvas, el <b>SIS ID no se libera automáticamente</b> —
+          el curso desaparece de los listados normales pero sigue reservando ese ID, bloqueando la
+          creación de un curso nuevo con el mismo SIS ID (típico al recrear una materia en un período nuevo).
+          Esto limpia el campo SIS ID de esos cursos viejos <b>sin tocar su contenido</b>.
+        </div>
+
+        <div id="releaseSisFormWrap">
+          <label class="form-label fw-bold">SIS IDs o IDs de Canvas bloqueados</label>
+          <textarea class="form-control mb-3" id="releaseSisTextarea" rows="6" placeholder="GA26050&#10;GA26051&#10;4321"></textarea>
+          <div class="d-flex justify-content-end">
+            <button class="btn btn-warning" id="btnPreviewReleaseSis" onclick="previewReleaseSis()">
+              <i class="bi bi-search me-1"></i>Verificar Cursos
+            </button>
+          </div>
+        </div>
+
+        <div id="releaseSisPreviewWrap" style="display:none;">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h6 class="fw-bold mb-0">Cursos Encontrados (<span id="releaseSisCount">0</span>)</h6>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="selectAllReleaseSis" onchange="toggleSelectAllReleaseSis()">
+              <label class="form-check-label fw-bold text-warning" for="selectAllReleaseSis">Seleccionar Todos</label>
+            </div>
+          </div>
+          <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th>ID Canvas</th>
+                  <th>Nombre</th>
+                  <th>SIS ID actual</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="releaseSisList"></tbody>
+            </table>
+          </div>
+          <div id="releaseSisNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+            <strong>No encontrados:</strong> <span id="releaseSisNotFound"></span>
+          </div>
+          <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-outline-secondary me-2" onclick="cancelReleaseSisPreview()">
+              <i class="bi bi-arrow-left me-1"></i>Volver
+            </button>
+            <button class="btn btn-warning" id="btnExecuteReleaseSis" onclick="executeReleaseSis()" disabled>
+              <i class="bi bi-unlock-fill me-1"></i>Liberar Seleccionados (<span id="selectedReleaseSisCount">0</span>)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Liberar SIS ID de período -->
+<div class="modal fade" id="releaseTermSisModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-warning">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title"><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID de un Período bloqueado</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          Igual que con los cursos: cuando un <b>período académico</b> se elimina en Canvas, su SIS ID
+          no se libera automáticamente — el período desaparece de los listados normales pero sigue
+          reservando ese ID, bloqueando la creación de un período nuevo con el mismo SIS ID. Esto limpia
+          el campo SIS ID de esos períodos viejos <b>sin tocar los cursos</b> que tuvieron.
+        </div>
+
+        <div id="releaseTermSisFormWrap">
+          <label class="form-label fw-bold">SIS IDs o IDs de Canvas de períodos bloqueados</label>
+          <textarea class="form-control mb-3" id="releaseTermSisTextarea" rows="6" placeholder="GA2026-02&#10;10"></textarea>
+          <div class="d-flex justify-content-end">
+            <button class="btn btn-warning" id="btnPreviewReleaseTermSis" onclick="previewReleaseTermSis()">
+              <i class="bi bi-search me-1"></i>Verificar Períodos
+            </button>
+          </div>
+        </div>
+
+        <div id="releaseTermSisPreviewWrap" style="display:none;">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h6 class="fw-bold mb-0">Períodos Encontrados (<span id="releaseTermSisCount">0</span>)</h6>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="selectAllReleaseTermSis" onchange="toggleSelectAllReleaseTermSis()">
+              <label class="form-check-label fw-bold text-warning" for="selectAllReleaseTermSis">Seleccionar Todos</label>
+            </div>
+          </div>
+          <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th>ID Canvas</th>
+                  <th>Nombre</th>
+                  <th>SIS ID actual</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="releaseTermSisList"></tbody>
+            </table>
+          </div>
+          <div id="releaseTermSisNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+            <strong>No encontrados:</strong> <span id="releaseTermSisNotFound"></span>
+          </div>
+          <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-outline-secondary me-2" onclick="cancelReleaseTermSisPreview()">
+              <i class="bi bi-arrow-left me-1"></i>Volver
+            </button>
+            <button class="btn btn-warning" id="btnExecuteReleaseTermSis" onclick="executeReleaseTermSis()" disabled>
+              <i class="bi bi-unlock-fill me-1"></i>Liberar Seleccionados (<span id="selectedReleaseTermSisCount">0</span>)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Corregir Rol Coordinador -->
+<div class="modal fade" id="fixCoordRoleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-primary">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-person-gear me-2"></i>Corregir Rol de Coordinador (Diseñador → Coordinador)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          Los coordinadores/diseñadores cargados desde la planilla se inscribieron con el rol
+          base <b>Diseñador</b> antes de que existiera el rol personalizado <b>Coordinador</b> en Canvas.
+          Esto lee la misma planilla de cursos, detecta esas inscripciones y las migra al rol
+          <b>Coordinador</b> (se quita la inscripción de Diseñador y se crea una nueva como Coordinador,
+          porque Canvas no permite cambiar el rol de una inscripción existente).
+        </div>
+
+        <div id="fixCoordRoleFormWrap">
+          <div class="btn-group mb-3" role="group" aria-label="Modo de búsqueda">
+            <button type="button" class="btn btn-primary" id="btnFixCoordModeExcel" onclick="setFixCoordRoleMode('excel')">
+              <i class="bi bi-file-earmark-spreadsheet me-1"></i>Por Planilla
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="btnFixCoordModeCourse" onclick="setFixCoordRoleMode('course')">
+              <i class="bi bi-hash me-1"></i>Por ID de Curso
+            </button>
+          </div>
+
+          <div id="fixCoordRoleExcelMode">
+            <label class="form-label fw-bold">URL de OneDrive de la planilla de cursos</label>
+            <div class="input-group mb-2">
+              <input type="url" id="fixCoordRoleUrl" class="form-control" placeholder="https://usilpy-my.sharepoint.com/:x:/g/personal/...">
+              <button class="btn btn-outline-primary" id="btnLoadFixCoordRoleSheets" onclick="fetchFixCoordRoleSheets()">
+                <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
               </button>
             </div>
-        </div>
-
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="table-card">
-  <div class="card-header flex-wrap gap-2">
-    <input type="text" id="searchCourse" class="form-control search-box" placeholder="🔍 ID, nombre, código, SIS..." oninput="applyFilters()">
-    <select id="stateFilter" class="form-select filter-select-sm" title="Filtrar por estado" onchange="applyFilters()">
-      <option value="">Todos los estados</option>
-      <option value="available">✅ Publicado</option>
-      <option value="unpublished">⬜ No publicado</option>
-      <option value="completed">🔵 Concluido</option>
-      <option value="deleted">🔴 Eliminado</option>
-      <option value="created">📝 Borrador</option>
-    </select>
-    <select id="termFilter" class="form-select filter-select-md" title="Filtrar por período" onchange="applyFilters()">
-      <option value="">Todos los períodos</option>
-    </select>
-    <span class="ms-auto text-muted small" id="courseCount"></span>
-    <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToExcel('tableWrap','canvas_cursos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadCourses()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise"></i></button>
-  </div>
-  <div id="tableWrap" class="table-responsive">
-    <div class="text-center py-5"><span class="spinner-border"></span></div>
-  </div>
-</div>
-  </div> <!-- End Tab Creación Masiva -->
-
-  <!-- Tab: Eliminación Masiva -->
-  <div class="tab-pane fade" id="delete" role="tabpanel" aria-labelledby="delete-tab">
-    
-    <div class="row">
-        <!-- Eliminación por Período -->
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm border-danger h-100">
-                <div class="card-header bg-danger text-white">
-                    <h5 class="mb-0"><i class="bi bi-calendar-x me-2"></i>Eliminación por Período Académico</h5>
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <p class="text-muted">Busca y selecciona múltiples cursos dentro de un período específico para eliminarlos en lote.</p>
-                    <div class="mt-auto">
-                        <button class="btn btn-outline-danger w-100" onclick="openPeriodDeleteModal()">
-                            <i class="bi bi-search me-2"></i>Buscar Cursos por Período
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Eliminación por lista de IDs -->
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm border-danger h-100">
-                <div class="card-header bg-danger text-white">
-                    <h5 class="mb-0"><i class="bi bi-list-ol me-2"></i>Eliminación por IDs de Canvas</h5>
-                </div>
-                <div class="card-body d-flex flex-column">
-                    <p class="text-muted">Pega una lista de IDs de curso de Canvas (para depurar cursos sin uso) y elimínalos en lote.</p>
-                    <div class="mt-auto">
-                        <button class="btn btn-outline-danger w-100" onclick="openIdDeleteModal()">
-                            <i class="bi bi-input-cursor-text me-2"></i>Ingresar IDs a Eliminar
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Eliminación por Excel -->
-        <div class="col-md-4 mb-4">
-            <div class="card shadow-sm border-danger h-100">
-                <div class="card-header bg-danger text-white">
-                    <h5 class="mb-0"><i class="bi bi-file-earmark-excel me-2"></i>Eliminación por Excel (OneDrive)</h5>
-                </div>
-                <div class="card-body">
-                    <div class="alert alert-info border-info">
-                        <strong>¿Cómo funciona?</strong>
-                        <ol class="mb-0 mt-2">
-                            <li>Crea un Excel con la columna <strong>SIS ID</strong> de los cursos a eliminar.</li>
-                            <li>Pega aquí el enlace compartido de OneDrive.</li>
-                        </ol>
-                    </div>
-
-                    <label class="form-label fw-bold">Enlace de OneDrive</label>
-                    <div class="input-group mb-3">
-                        <span class="input-group-text"><i class="bi bi-link-45deg"></i></span>
-                        <input type="url" class="form-control border-danger" id="deleteOdUrl" placeholder="https://...sharepoint.com/...">
-                        <button class="btn btn-danger" type="button" id="btnLoadDeleteSheets" onclick="fetchDeleteSheets()">Cargar Pestañas</button>
-                    </div>
-
-                    <label class="form-label fw-bold">Nombre de la Pestaña</label>
-                    <select class="form-select border-danger mb-4" id="deleteOdSheet" onchange="previewDeleteOd()">
-                        <option value="">Primero carga las pestañas...</option>
-                    </select>
-
-                    <!-- Preview Wrap -->
-                    <div id="deleteOdPreviewWrap" style="display:none;" class="mb-3">
-                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                            <label class="form-label fw-semibold mb-0 text-danger"><i class="bi bi-table me-2"></i>Previsualización</label>
-                            <div>
-                                <span class="badge bg-danger me-2" id="deleteToProcess">0 a procesar</span>
-                                <span class="badge bg-secondary" id="deleteAlreadyProcessed">0 ignorados</span>
-                            </div>
-                        </div>
-                        <div class="table-responsive border rounded bg-white" style="max-height:250px; overflow-y:auto;">
-                            <table class="table table-sm table-striped mb-0 text-nowrap">
-                                <thead class="table-light"><tr id="deleteOdHeaders"></tr></thead>
-                                <tbody id="deleteOdBody"></tbody>
-                            </table>
-                        </div>
-                        <div class="d-flex justify-content-end mt-3">
-                            <button class="btn btn-danger" id="btnConfirmDeleteOd" onclick="executeDeleteOd()">
-                                <i class="bi bi-check-circle me-1"></i>Confirmar y Eliminar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-  </div> <!-- End Tab Eliminación -->
-
-  <!-- Tab: Liberar SIS ID -->
-  <div class="tab-pane fade" id="release-sis" role="tabpanel" aria-labelledby="release-sis-tab">
-    <div class="row">
-      <div class="col-md-8 offset-md-2 mb-4">
-        <div class="card shadow-sm border-warning h-100">
-          <div class="card-header bg-warning text-dark">
-            <h5 class="mb-0"><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID bloqueado</h5>
-          </div>
-          <div class="card-body">
-            <div class="alert alert-info">
-              Cuando un curso se elimina en Canvas, el <b>SIS ID no se libera automáticamente</b> —
-              el curso desaparece de los listados normales pero sigue reservando ese ID, bloqueando la
-              creación de un curso nuevo con el mismo SIS ID (típico al recrear una materia en un período nuevo).
-              Esto limpia el campo SIS ID de esos cursos viejos <b>sin tocar su contenido</b>.
-            </div>
-
-            <div id="releaseSisFormWrap">
-              <label class="form-label fw-bold">SIS IDs o IDs de Canvas bloqueados</label>
-              <textarea class="form-control mb-3" id="releaseSisTextarea" rows="6" placeholder="GA26050&#10;GA26051&#10;4321"></textarea>
-              <div class="d-flex justify-content-end">
-                <button class="btn btn-warning" id="btnPreviewReleaseSis" onclick="previewReleaseSis()">
-                  <i class="bi bi-search me-1"></i>Verificar Cursos
-                </button>
-              </div>
-            </div>
-
-            <div id="releaseSisPreviewWrap" style="display:none;">
-              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                <h6 class="fw-bold mb-0">Cursos Encontrados (<span id="releaseSisCount">0</span>)</h6>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="selectAllReleaseSis" onchange="toggleSelectAllReleaseSis()">
-                  <label class="form-check-label fw-bold text-warning" for="selectAllReleaseSis">Seleccionar Todos</label>
-                </div>
-              </div>
-              <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
-                <table class="table table-sm table-hover mb-0">
-                  <thead class="table-light sticky-top">
-                    <tr>
-                      <th style="width: 40px;"></th>
-                      <th>ID Canvas</th>
-                      <th>Nombre</th>
-                      <th>SIS ID actual</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody id="releaseSisList"></tbody>
-                </table>
-              </div>
-              <div id="releaseSisNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
-                <strong>No encontrados:</strong> <span id="releaseSisNotFound"></span>
-              </div>
-              <div class="d-flex justify-content-end mt-3">
-                <button class="btn btn-outline-secondary me-2" onclick="cancelReleaseSisPreview()">
-                  <i class="bi bi-arrow-left me-1"></i>Volver
-                </button>
-                <button class="btn btn-warning" id="btnExecuteReleaseSis" onclick="executeReleaseSis()" disabled>
-                  <i class="bi bi-unlock-fill me-1"></i>Liberar Seleccionados (<span id="selectedReleaseSisCount">0</span>)
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div> <!-- End Tab Liberar SIS ID -->
-
-  <!-- Tab: Liberar Período -->
-  <div class="tab-pane fade" id="release-term-sis" role="tabpanel" aria-labelledby="release-term-sis-tab">
-    <div class="row">
-      <div class="col-md-8 offset-md-2 mb-4">
-        <div class="card shadow-sm border-warning h-100">
-          <div class="card-header bg-warning text-dark">
-            <h5 class="mb-0"><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID de un Período bloqueado</h5>
-          </div>
-          <div class="card-body">
-            <div class="alert alert-info">
-              Igual que con los cursos: cuando un <b>período académico</b> se elimina en Canvas, su SIS ID
-              no se libera automáticamente — el período desaparece de los listados normales pero sigue
-              reservando ese ID, bloqueando la creación de un período nuevo con el mismo SIS ID. Esto limpia
-              el campo SIS ID de esos períodos viejos <b>sin tocar los cursos</b> que tuvieron.
-            </div>
-
-            <div id="releaseTermSisFormWrap">
-              <label class="form-label fw-bold">SIS IDs o IDs de Canvas de períodos bloqueados</label>
-              <textarea class="form-control mb-3" id="releaseTermSisTextarea" rows="6" placeholder="GA2026-02&#10;10"></textarea>
-              <div class="d-flex justify-content-end">
-                <button class="btn btn-warning" id="btnPreviewReleaseTermSis" onclick="previewReleaseTermSis()">
-                  <i class="bi bi-search me-1"></i>Verificar Períodos
-                </button>
-              </div>
-            </div>
-
-            <div id="releaseTermSisPreviewWrap" style="display:none;">
-              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                <h6 class="fw-bold mb-0">Períodos Encontrados (<span id="releaseTermSisCount">0</span>)</h6>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="selectAllReleaseTermSis" onchange="toggleSelectAllReleaseTermSis()">
-                  <label class="form-check-label fw-bold text-warning" for="selectAllReleaseTermSis">Seleccionar Todos</label>
-                </div>
-              </div>
-              <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
-                <table class="table table-sm table-hover mb-0">
-                  <thead class="table-light sticky-top">
-                    <tr>
-                      <th style="width: 40px;"></th>
-                      <th>ID Canvas</th>
-                      <th>Nombre</th>
-                      <th>SIS ID actual</th>
-                      <th>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody id="releaseTermSisList"></tbody>
-                </table>
-              </div>
-              <div id="releaseTermSisNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
-                <strong>No encontrados:</strong> <span id="releaseTermSisNotFound"></span>
-              </div>
-              <div class="d-flex justify-content-end mt-3">
-                <button class="btn btn-outline-secondary me-2" onclick="cancelReleaseTermSisPreview()">
-                  <i class="bi bi-arrow-left me-1"></i>Volver
-                </button>
-                <button class="btn btn-warning" id="btnExecuteReleaseTermSis" onclick="executeReleaseTermSis()" disabled>
-                  <i class="bi bi-unlock-fill me-1"></i>Liberar Seleccionados (<span id="selectedReleaseTermSisCount">0</span>)
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div> <!-- End Tab Liberar Período -->
-
-  <!-- Tab: Corregir Rol Coordinador -->
-  <div class="tab-pane fade" id="fix-coord-role" role="tabpanel" aria-labelledby="fix-coord-role-tab">
-    <div class="row">
-      <div class="col-md-8 offset-md-2 mb-4">
-        <div class="card shadow-sm border-primary h-100">
-          <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="bi bi-person-gear me-2"></i>Corregir Rol de Coordinador (Diseñador → Coordinador)</h5>
-          </div>
-          <div class="card-body">
-            <div class="alert alert-info">
-              Los coordinadores/diseñadores cargados desde la planilla se inscribieron con el rol
-              base <b>Diseñador</b> antes de que existiera el rol personalizado <b>Coordinador</b> en Canvas.
-              Esto lee la misma planilla de cursos, detecta esas inscripciones y las migra al rol
-              <b>Coordinador</b> (se quita la inscripción de Diseñador y se crea una nueva como Coordinador,
-              porque Canvas no permite cambiar el rol de una inscripción existente).
-            </div>
-
-            <div id="fixCoordRoleFormWrap">
-              <div class="btn-group mb-3" role="group" aria-label="Modo de búsqueda">
-                <button type="button" class="btn btn-primary" id="btnFixCoordModeExcel" onclick="setFixCoordRoleMode('excel')">
-                  <i class="bi bi-file-earmark-spreadsheet me-1"></i>Por Planilla
-                </button>
-                <button type="button" class="btn btn-outline-primary" id="btnFixCoordModeCourse" onclick="setFixCoordRoleMode('course')">
-                  <i class="bi bi-hash me-1"></i>Por ID de Curso
-                </button>
-              </div>
-
-              <div id="fixCoordRoleExcelMode">
-                <label class="form-label fw-bold">URL de OneDrive de la planilla de cursos</label>
-                <div class="input-group mb-2">
-                  <input type="url" id="fixCoordRoleUrl" class="form-control" placeholder="https://usilpy-my.sharepoint.com/:x:/g/personal/...">
-                  <button class="btn btn-outline-primary" id="btnLoadFixCoordRoleSheets" onclick="fetchFixCoordRoleSheets()">
-                    <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
-                  </button>
-                </div>
-                <label class="form-label fw-bold">Pestaña</label>
-                <select class="form-select mb-3" id="fixCoordRoleSheet">
-                  <option value="">Selecciona una pestaña...</option>
-                </select>
-                <div class="d-flex justify-content-end">
-                  <button class="btn btn-primary" id="btnPreviewFixCoordRole" onclick="previewFixCoordRole()">
-                    <i class="bi bi-search me-1"></i>Detectar Coordinadores
-                  </button>
-                </div>
-              </div>
-
-              <div id="fixCoordRoleCourseMode" style="display:none;">
-                <label class="form-label fw-bold">IDs de Canvas o SIS IDs de los cursos a corregir</label>
-                <textarea class="form-control mb-3" id="fixCoordRoleCourseTextarea" rows="6" placeholder="1963&#10;GA26050&#10;1970"></textarea>
-                <div class="alert alert-secondary small py-2 mb-3">
-                  Busca <b>todos</b> los inscritos como Diseñador en cada curso indicado (sin necesitar
-                  la planilla) — útil para corregir solo algunos cursos puntuales.
-                </div>
-                <div class="d-flex justify-content-end">
-                  <button class="btn btn-primary" id="btnPreviewFixCoordRoleByCourse" onclick="previewFixCoordRoleByCourse()">
-                    <i class="bi bi-search me-1"></i>Buscar en esos Cursos
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div id="fixCoordRolePreviewWrap" style="display:none;">
-              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                <h6 class="fw-bold mb-0">Inscripciones a migrar (<span id="fixCoordRoleCount">0</span>)</h6>
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="selectAllFixCoordRole" onchange="toggleSelectAllFixCoordRole()">
-                  <label class="form-check-label fw-bold text-primary" for="selectAllFixCoordRole">Seleccionar Todos</label>
-                </div>
-              </div>
-              <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
-                <table class="table table-sm table-hover mb-0">
-                  <thead class="table-light sticky-top">
-                    <tr>
-                      <th style="width: 40px;"></th>
-                      <th>Curso</th>
-                      <th>Coordinador</th>
-                      <th>Rol actual</th>
-                    </tr>
-                  </thead>
-                  <tbody id="fixCoordRoleList"></tbody>
-                </table>
-              </div>
-              <div id="fixCoordRoleAlreadyOkWrap" style="display:none;" class="alert alert-success mt-3 mb-0 py-2 small">
-                <span id="fixCoordRoleAlreadyOk"></span> coordinador(es) ya tenían el rol Coordinador correcto — no requieren cambios.
-              </div>
-              <div id="fixCoordRoleNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
-                <strong>No encontrados / sin cambios:</strong> <span id="fixCoordRoleNotFound"></span>
-              </div>
-              <div class="d-flex justify-content-end mt-3">
-                <button class="btn btn-outline-secondary me-2" onclick="cancelFixCoordRolePreview()">
-                  <i class="bi bi-arrow-left me-1"></i>Volver
-                </button>
-                <button class="btn btn-primary" id="btnExecuteFixCoordRole" onclick="executeFixCoordRole()" disabled>
-                  <i class="bi bi-person-gear me-1"></i>Migrar Seleccionados (<span id="selectedFixCoordRoleCount">0</span>)
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div> <!-- End Tab Corregir Rol Coordinador -->
-
-  <!-- Tab: Corregir SIS ID -->
-  <div class="tab-pane fade" id="fix-sis-id" role="tabpanel" aria-labelledby="fix-sis-id-tab">
-    <div class="row">
-      <div class="col-md-8 offset-md-2 mb-4">
-        <div class="card shadow-sm border-primary h-100">
-          <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="bi bi-pencil-square me-2"></i>Corregir SIS ID de cursos ya creados</h5>
-          </div>
-          <div class="card-body">
-            <div class="alert alert-info">
-              Para cursos que ya se crearon en Canvas con un SIS ID mal cargado. Lee la misma planilla
-              de cursos: usa <b>ID CANVAS (Autogenerado)</b> para identificar el curso ya existente, y
-              <b>Identificación del SIS (Canvas)</b> como el valor <b>correcto</b> al que debe quedar.
-              Corregí la columna del SIS en la planilla primero, después ejecutá esto — el valor
-              anterior se libera solo (un curso solo puede tener un SIS ID a la vez).
-            </div>
-
-            <div id="fixSisIdFormWrap">
-              <label class="form-label fw-bold">URL de OneDrive de la planilla de cursos</label>
-              <div class="input-group mb-2">
-                <input type="url" id="fixSisIdUrl" class="form-control" placeholder="https://usilpy-my.sharepoint.com/:x:/g/personal/...">
-                <button class="btn btn-outline-primary" id="btnLoadFixSisIdSheets" onclick="fetchFixSisIdSheets()">
-                  <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
-                </button>
-              </div>
-              <label class="form-label fw-bold">Pestaña</label>
-              <select class="form-select mb-3" id="fixSisIdSheet">
-                <option value="">Selecciona una pestaña...</option>
-              </select>
-              <div class="d-flex justify-content-end">
-                <button class="btn btn-primary" id="btnPreviewFixSisId" onclick="previewFixSisId()">
-                  <i class="bi bi-search me-1"></i>Detectar Cursos a Corregir
-                </button>
-              </div>
-            </div>
-
-            <div id="fixSisIdPreviewWrap" style="display:none;">
-              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                <h6 class="fw-bold mb-0">Cursos a corregir (<span id="fixSisIdCount">0</span>)</h6>
-              </div>
-              <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
-                <table class="table table-sm table-hover mb-0">
-                  <thead class="table-light sticky-top">
-                    <tr>
-                      <th>Curso</th>
-                      <th>ID Canvas</th>
-                      <th>SIS actual</th>
-                      <th>SIS nuevo</th>
-                    </tr>
-                  </thead>
-                  <tbody id="fixSisIdList"></tbody>
-                </table>
-              </div>
-              <div id="fixSisIdAlreadyOkWrap" style="display:none;" class="alert alert-success mt-3 mb-0 py-2 small">
-                <span id="fixSisIdAlreadyOk"></span> curso(s) ya tenían el SIS ID correcto — no requieren cambios.
-              </div>
-              <div id="fixSisIdNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0 py-2 small">
-                <span id="fixSisIdNotFound"></span> fila(s) con ID Canvas que no se encontró en Canvas — revisalas antes de reintentar.
-              </div>
-              <div class="d-flex justify-content-end mt-3">
-                <button class="btn btn-outline-secondary me-2" onclick="cancelFixSisIdPreview()">
-                  <i class="bi bi-arrow-left me-1"></i>Volver
-                </button>
-                <button class="btn btn-primary" id="btnExecuteFixSisId" onclick="executeFixSisId()">
-                  <i class="bi bi-pencil-square me-1"></i>Corregir Todos
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div> <!-- End Tab Corregir SIS ID -->
-</div> <!-- End Tabs Content -->
-
-<!-- Modal: Eliminación por Período -->
-<div class="modal fade" id="periodDeleteModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content border-danger">
-      <div class="modal-header bg-danger text-white">
-        <h5 class="modal-title"><i class="bi bi-trash me-2"></i>Eliminar Cursos por Período</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body bg-light">
-        <div class="row align-items-end mb-4">
-            <div class="col-md-9">
-                <label class="form-label fw-bold">Seleccionar Período Académico</label>
-                <select class="form-select" id="periodSelect">
-                    <option value="">Cargando períodos...</option>
-                </select>
-            </div>
-            <div class="col-md-3">
-                <button class="btn btn-danger w-100" id="btnSearchCoursesByPeriod" onclick="searchCoursesByPeriod()">
-                    <i class="bi bi-search me-1"></i>Buscar
-                </button>
-            </div>
-        </div>
-
-        <div id="periodCoursesWrap" style="display:none;">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                <h6 class="fw-bold mb-0">Cursos Encontrados (<span id="periodCoursesCount">0</span>)</h6>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="selectAllCourses" onchange="toggleSelectAllCourses()">
-                    <label class="form-check-label fw-bold text-danger" for="selectAllCourses">Seleccionar Todos</label>
-                </div>
-            </div>
-            <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
-                <table class="table table-sm table-hover mb-0">
-                    <thead class="table-light sticky-top">
-                        <tr>
-                            <th style="width: 40px;"></th>
-                            <th>ID Canvas</th>
-                            <th>SIS ID</th>
-                            <th>Nombre del Curso</th>
-                        </tr>
-                    </thead>
-                    <tbody id="periodCoursesList">
-                    </tbody>
-                </table>
-            </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-danger" id="btnExecutePeriodDelete" onclick="executePeriodDelete()" disabled>
-            <i class="bi bi-exclamation-triangle-fill me-1"></i>Eliminar Seleccionados (<span id="selectedDeleteCount">0</span>)
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal: Eliminación por lista de IDs -->
-<div class="modal fade" id="idDeleteModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content border-danger">
-      <div class="modal-header bg-danger text-white">
-        <h5 class="modal-title"><i class="bi bi-list-ol me-2"></i>Eliminar Cursos por ID de Canvas</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body bg-light">
-        <div id="idDeleteFormWrap">
-            <div class="alert alert-info">
-                Pega los <b>IDs de curso de Canvas</b> a eliminar (uno por línea, o separados por coma / espacio).
-                Útil para depurar cursos que no estén siendo utilizados.
-            </div>
-            <label class="form-label fw-bold">IDs de Canvas</label>
-            <textarea class="form-control mb-3" id="idDeleteTextarea" rows="6" placeholder="1234&#10;5678&#10;91011"></textarea>
+            <label class="form-label fw-bold">Pestaña</label>
+            <select class="form-select mb-3" id="fixCoordRoleSheet">
+              <option value="">Selecciona una pestaña...</option>
+            </select>
             <div class="d-flex justify-content-end">
-                <button class="btn btn-danger" id="btnPreviewIdDelete" onclick="previewIdDelete()">
-                    <i class="bi bi-search me-1"></i>Verificar Cursos
+              <button class="btn btn-primary" id="btnPreviewFixCoordRole" onclick="previewFixCoordRole()">
+                <i class="bi bi-search me-1"></i>Detectar Coordinadores
+              </button>
+            </div>
+          </div>
+
+          <div id="fixCoordRoleCourseMode" style="display:none;">
+            <label class="form-label fw-bold">IDs de Canvas o SIS IDs de los cursos a corregir</label>
+            <textarea class="form-control mb-3" id="fixCoordRoleCourseTextarea" rows="6" placeholder="1963&#10;GA26050&#10;1970"></textarea>
+            <div class="alert alert-secondary small py-2 mb-3">
+              Busca <b>todos</b> los inscritos como Diseñador en cada curso indicado (sin necesitar
+              la planilla) — útil para corregir solo algunos cursos puntuales.
+            </div>
+            <div class="d-flex justify-content-end">
+              <button class="btn btn-primary" id="btnPreviewFixCoordRoleByCourse" onclick="previewFixCoordRoleByCourse()">
+                <i class="bi bi-search me-1"></i>Buscar en esos Cursos
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="fixCoordRolePreviewWrap" style="display:none;">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h6 class="fw-bold mb-0">Inscripciones a migrar (<span id="fixCoordRoleCount">0</span>)</h6>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="selectAllFixCoordRole" onchange="toggleSelectAllFixCoordRole()">
+              <label class="form-check-label fw-bold text-primary" for="selectAllFixCoordRole">Seleccionar Todos</label>
+            </div>
+          </div>
+          <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th>Curso</th>
+                  <th>Coordinador</th>
+                  <th>Rol actual</th>
+                </tr>
+              </thead>
+              <tbody id="fixCoordRoleList"></tbody>
+            </table>
+          </div>
+          <div id="fixCoordRoleAlreadyOkWrap" style="display:none;" class="alert alert-success mt-3 mb-0 py-2 small">
+            <span id="fixCoordRoleAlreadyOk"></span> coordinador(es) ya tenían el rol Coordinador correcto — no requieren cambios.
+          </div>
+          <div id="fixCoordRoleNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+            <strong>No encontrados / sin cambios:</strong> <span id="fixCoordRoleNotFound"></span>
+          </div>
+          <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-outline-secondary me-2" onclick="cancelFixCoordRolePreview()">
+              <i class="bi bi-arrow-left me-1"></i>Volver
+            </button>
+            <button class="btn btn-primary" id="btnExecuteFixCoordRole" onclick="executeFixCoordRole()" disabled>
+              <i class="bi bi-person-gear me-1"></i>Migrar Seleccionados (<span id="selectedFixCoordRoleCount">0</span>)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Corregir SIS ID -->
+<div class="modal fade" id="fixSisIdModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-primary">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Corregir SIS ID de cursos ya creados</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          Para cursos que ya se crearon en Canvas con un SIS ID mal cargado. Lee la misma planilla
+          de cursos: usa <b>ID CANVAS (Autogenerado)</b> para identificar el curso ya existente, y
+          <b>Identificación del SIS (Canvas)</b> como el valor <b>correcto</b> al que debe quedar.
+          Corregí la columna del SIS en la planilla primero, después ejecutá esto — el valor
+          anterior se libera solo (un curso solo puede tener un SIS ID a la vez).
+        </div>
+
+        <div id="fixSisIdFormWrap">
+          <label class="form-label fw-bold">URL de OneDrive de la planilla de cursos</label>
+          <div class="input-group mb-2">
+            <input type="url" id="fixSisIdUrl" class="form-control" placeholder="https://usilpy-my.sharepoint.com/:x:/g/personal/...">
+            <button class="btn btn-outline-primary" id="btnLoadFixSisIdSheets" onclick="fetchFixSisIdSheets()">
+              <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
+            </button>
+          </div>
+          <label class="form-label fw-bold">Pestaña</label>
+          <select class="form-select mb-3" id="fixSisIdSheet">
+            <option value="">Selecciona una pestaña...</option>
+          </select>
+          <div class="d-flex justify-content-end">
+            <button class="btn btn-primary" id="btnPreviewFixSisId" onclick="previewFixSisId()">
+              <i class="bi bi-search me-1"></i>Detectar Cursos a Corregir
+            </button>
+          </div>
+        </div>
+
+        <div id="fixSisIdPreviewWrap" style="display:none;">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <h6 class="fw-bold mb-0">Cursos a corregir (<span id="fixSisIdCount">0</span>)</h6>
+          </div>
+          <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th>Curso</th>
+                  <th>ID Canvas</th>
+                  <th>SIS actual</th>
+                  <th>SIS nuevo</th>
+                </tr>
+              </thead>
+              <tbody id="fixSisIdList"></tbody>
+            </table>
+          </div>
+          <div id="fixSisIdAlreadyOkWrap" style="display:none;" class="alert alert-success mt-3 mb-0 py-2 small">
+            <span id="fixSisIdAlreadyOk"></span> curso(s) ya tenían el SIS ID correcto — no requieren cambios.
+          </div>
+          <div id="fixSisIdNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0 py-2 small">
+            <span id="fixSisIdNotFound"></span> fila(s) con ID Canvas que no se encontró en Canvas — revisalas antes de reintentar.
+          </div>
+          <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-outline-secondary me-2" onclick="cancelFixSisIdPreview()">
+              <i class="bi bi-arrow-left me-1"></i>Volver
+            </button>
+            <button class="btn btn-primary" id="btnExecuteFixSisId" onclick="executeFixSisId()">
+              <i class="bi bi-pencil-square me-1"></i>Corregir Todos
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Modales: Equipos (Teams) ═══════════ -->
+
+<!-- Modal: Eliminación masiva de Teams por ID o nombre -->
+<div class="modal fade" id="teamsIdDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-danger">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title"><i class="bi bi-list-ol me-2"></i>Eliminar Equipos por ID o Nombre</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div id="teamsIdDeleteFormWrap">
+            <div class="alert alert-info">
+                Pega <b>IDs de grupo/Team</b> o <b>nombres exactos de equipo</b> a eliminar (uno por línea, o separados por coma). Se puede mezclar IDs y nombres en la misma lista.
+            </div>
+            <label class="form-label fw-bold">IDs o Nombres de Equipo</label>
+            <textarea class="form-control mb-3" id="teamsIdDeleteTextarea" rows="6" placeholder="a1b2c3d4-...&#10;Gestión de Empresas GA2026&#10;Matemática II"></textarea>
+            <div class="d-flex justify-content-end">
+                <button class="btn btn-danger" id="btnPreviewTeamsIdDelete" onclick="previewTeamsIdDelete()">
+                    <i class="bi bi-search me-1"></i>Verificar Equipos
                 </button>
             </div>
         </div>
 
-        <div id="idDeletePreviewWrap" style="display:none;">
+        <div id="teamsIdDeletePreviewWrap" style="display:none;">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                <h6 class="fw-bold mb-0">Cursos Encontrados (<span id="idDeleteCount">0</span>)</h6>
+                <h6 class="fw-bold mb-0">Equipos Encontrados (<span id="teamsIdDeleteCount">0</span>)</h6>
                 <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="selectAllIdCourses" onchange="toggleSelectAllIdCourses()">
-                    <label class="form-check-label fw-bold text-danger" for="selectAllIdCourses">Seleccionar Todos</label>
+                    <input class="form-check-input" type="checkbox" id="selectAllTeamsIdDelete" onchange="toggleSelectAllTeamsIdDelete()">
+                    <label class="form-check-label fw-bold text-danger" for="selectAllTeamsIdDelete">Seleccionar Todos</label>
                 </div>
             </div>
             <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
@@ -634,38 +435,148 @@
                     <thead class="table-light sticky-top">
                         <tr>
                             <th style="width: 40px;"></th>
-                            <th>ID Canvas</th>
-                            <th>SIS ID</th>
-                            <th>Nombre del Curso</th>
-                            <th>Estado</th>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Ingresado como</th>
                         </tr>
                     </thead>
-                    <tbody id="idCoursesList"></tbody>
+                    <tbody id="teamsIdDeleteList"></tbody>
                 </table>
             </div>
-            <div id="idDeleteNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
-                <strong>No encontrados:</strong> <span id="idDeleteNotFound"></span>
+            <div id="teamsIdDeleteNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+                <strong>No encontrados:</strong> <span id="teamsIdDeleteNotFound"></span>
             </div>
             <div class="d-flex justify-content-end mt-3">
-                <button class="btn btn-outline-secondary me-2" onclick="cancelIdDeletePreview()">
+                <button class="btn btn-outline-secondary me-2" onclick="cancelTeamsIdDeletePreview()">
                     <i class="bi bi-arrow-left me-1"></i>Volver
                 </button>
             </div>
         </div>
       </div>
-      <div class="modal-footer" id="idDeleteFooter" style="display:none;">
+      <div class="modal-footer" id="teamsIdDeleteFooter" style="display:none;">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-danger" id="btnExecuteIdDelete" onclick="executeIdDelete()" disabled>
-            <i class="bi bi-exclamation-triangle-fill me-1"></i>Eliminar Seleccionados (<span id="selectedIdDeleteCount">0</span>)
+        <button type="button" class="btn btn-danger" id="btnExecuteTeamsIdDelete" onclick="executeTeamsIdDelete()" disabled>
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>Eliminar Seleccionados (<span id="selectedTeamsIdDeleteCount">0</span>)
         </button>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Modal: Grupos Eliminados (Papelera de 30 días) -->
+<div class="modal fade" id="deletedGroupsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content border-warning">
+      <div class="modal-header bg-warning text-dark">
+        <h5 class="modal-title"><i class="bi bi-recycle me-2"></i>Grupos Eliminados (Papelera de 30 días)</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          Los grupos eliminados de Microsoft 365 quedan recuperables durante <b>30 días</b> antes de purgarse
+          definitivamente. Seleccioná los que quieras verificar — el sistema los <b>restaura</b> y cuenta sus
+          propietarios y miembros reales, para que decidas cuáles conservar (tenían gente matriculada) y cuáles
+          volver a eliminar (estaban vacíos).
+        </div>
+
+        <div id="deletedGroupsListWrap">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="selectAllDeletedGroups" onchange="toggleSelectAllDeletedGroups()">
+              <label class="form-check-label fw-bold text-warning" for="selectAllDeletedGroups">Seleccionar Todos</label>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadDeletedGroups()"><i class="bi bi-arrow-clockwise me-1"></i>Recargar</button>
+          </div>
+          <div class="table-responsive border rounded bg-white" style="max-height:350px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width: 40px;"></th>
+                  <th>Nombre</th>
+                  <th>Eliminado el</th>
+                </tr>
+              </thead>
+              <tbody id="deletedGroupsList">
+                <tr><td colspan="3" class="text-center py-4"><span class="spinner-border spinner-border-sm"></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="deletedGroupsResultsWrap" style="display:none;" class="mt-3">
+          <h6 class="fw-bold">Resultado de la verificación</h6>
+          <div class="table-responsive border rounded bg-white" style="max-height:350px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th>Nombre</th>
+                  <th>Propietarios</th>
+                  <th>Miembros</th>
+                  <th>¿Tenía gente matriculada?</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="deletedGroupsResults"></tbody>
+            </table>
+          </div>
+          <small class="text-muted d-block mt-2">
+            "Miembros" incluye a los propietarios — si Miembros &gt; Propietarios, hay gente matriculada además del
+            admin/docente/coordinadores. Todos los grupos verificados ya quedaron <b>restaurados y activos</b>;
+            los que marques como vacíos podés volver a eliminarlos con "Eliminación Masiva" pegando su ID.
+          </small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-warning" id="btnRestoreAndCheck" onclick="executeRestoreAndCheck()" disabled>
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Restaurar y Verificar (<span id="selectedDeletedGroupsCount">0</span>)
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Agregar miembros existentes a CUALQUIER grupo (Team, lista de distribución, etc.) por ID -->
+<div class="modal fade" id="groupMembersModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content border-info">
+      <div class="modal-header bg-info text-dark">
+        <h5 class="modal-title"><i class="bi bi-person-plus-fill me-2"></i>Agregar Miembros Existentes a un Grupo por ID</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body bg-light">
+        <div class="alert alert-info">
+          A diferencia de "Añadir miembros Excel" (que solo funciona con equipos de Teams reales),
+          esta herramienta agrega usuarios existentes como miembros por ID a <b>Teams reales y a
+          grupos de seguridad/Microsoft 365 sin correo habilitado</b>.
+        </div>
+        <div class="alert alert-warning">
+          <b>No funciona</b> con listas de distribución ni grupos de seguridad
+          <b>con correo habilitado</b> — Microsoft Graph no permite gestionar su membresía
+          en absoluto (hay que hacerlo desde Exchange Online o el centro de administración
+          de Microsoft 365).
+        </div>
+        <label class="form-label fw-bold">ID del grupo (Azure AD / Microsoft 365)</label>
+        <input type="text" class="form-control mb-3" id="groupMembersGroupId" placeholder="Ej: 976a5ad1-2559-4c58-acf9-047819473b3e">
+        <label class="form-label fw-bold">Correos de los usuarios a agregar</label>
+        <textarea class="form-control mb-3" id="groupMembersEmails" rows="6" placeholder="usuario1@usil.edu.py&#10;usuario2@usil.edu.py"></textarea>
+        <div id="groupMembersResultsWrap" style="display:none;" class="mt-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="btn btn-info text-dark" id="btnExecuteGroupMembers" onclick="executeGroupMembersAdd()">
+          <i class="bi bi-person-plus-fill me-1"></i>Agregar Miembros
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
+/* ══════════════════════════ CURSOS (Canvas) ══════════════════════════ */
 let _allCourses = [];
 
 /* ── Estado: etiqueta + colores Canvas-style ── */
@@ -704,7 +615,7 @@ function applyFilters() {
 
   document.getElementById('courseCount').textContent =
     filtered.length + (filtered.length !== _allCourses.length ? ` / ${_allCourses.length}` : '') + ' cursos';
-  pgInit('tableWrap', filtered, renderCoursesTable);
+  pgInit('coursesTableWrap', filtered, renderCoursesTable);
 }
 
 /* ── Tabla estilo Canvas LMS ── */
@@ -712,7 +623,7 @@ function renderCoursesTable(courses) {
   const esc  = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#x27;');
   const fmtDate = d => d ? new Date(d).toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
 
-  document.getElementById('tableWrap').innerHTML = `
+  document.getElementById('coursesTableWrap').innerHTML = `
     <table class="table table-sm table-hover mb-0">
       <thead>
         <tr>
@@ -729,7 +640,6 @@ function renderCoursesTable(courses) {
       <tbody>
         ${courses.map(row => {
           const termName = row.term?.name || '—';
-          const termId   = row.enrollment_term_id || '';
           return `
           <tr class="course-row" data-course='${esc(JSON.stringify(row))}'>
             <td>
@@ -778,25 +688,25 @@ function renderCoursesTable(courses) {
       </tbody>
     </table>`;
 
-  document.querySelectorAll('#tableWrap .copy-btn').forEach(btn =>
+  document.querySelectorAll('#coursesTableWrap .copy-btn').forEach(btn =>
     btn.addEventListener('click', e => { e.stopPropagation(); copyToClipboard(btn.dataset.copyId, btn.dataset.copyLabel); })
   );
-  document.querySelectorAll('#tableWrap .course-row').forEach(row =>
+  document.querySelectorAll('#coursesTableWrap .course-row').forEach(row =>
     row.addEventListener('click', () => openEditCourse(JSON.parse(row.dataset.course.replace(/&#x27;/g,"'"))))
   );
-  document.querySelectorAll('#tableWrap .view-enrollments-btn').forEach(btn =>
+  document.querySelectorAll('#coursesTableWrap .view-enrollments-btn').forEach(btn =>
     btn.addEventListener('click', e => { e.stopPropagation(); viewEnrollments(btn.dataset.courseId, btn.dataset.courseName); })
   );
-  document.querySelectorAll('#tableWrap .attendance-btn').forEach(btn =>
+  document.querySelectorAll('#coursesTableWrap .attendance-btn').forEach(btn =>
     btn.addEventListener('click', e => { e.stopPropagation(); openAttendanceModal(btn.dataset.courseId, btn.dataset.courseName); })
   );
-  document.querySelectorAll('#tableWrap .delete-course-btn').forEach(btn =>
+  document.querySelectorAll('#coursesTableWrap .delete-course-btn').forEach(btn =>
     btn.addEventListener('click', e => { e.stopPropagation(); deleteCourse(btn.dataset.courseId, btn.dataset.courseName); })
   );
 }
 
 async function loadCourses() {
-  document.getElementById('tableWrap').innerHTML =
+  document.getElementById('coursesTableWrap').innerHTML =
     '<div class="text-center py-5"><span class="spinner-border"></span><div class="text-muted small mt-2">Cargando todos los cursos…</div></div>';
   try {
     const courses = await api.get('/canvas/courses');
@@ -813,9 +723,9 @@ async function loadCourses() {
     });
 
     document.getElementById('courseCount').textContent = courses.length + ' cursos';
-    pgInit('tableWrap', _allCourses, renderCoursesTable);
+    pgInit('coursesTableWrap', _allCourses, renderCoursesTable);
   } catch(e) {
-    document.getElementById('tableWrap').innerHTML = `
+    document.getElementById('coursesTableWrap').innerHTML = `
       <div class="text-center py-5 text-muted">
         <i class="bi bi-exclamation-triangle fs-1 d-block mb-2 text-warning"></i>
         <div class="mb-3">No se pudieron cargar los cursos: ${e.message}</div>
@@ -1038,701 +948,17 @@ function downloadAttendanceExcel(courseId, courseName) {
   XLSX.writeFile(wb, `REPORTE_ASISTENCIA_${courseId}_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
+/* ══════════════════ Mantenimiento de Cursos (modales del dropdown) ══════════════════ */
 
-function openBulkAttendanceDownload() {
-  const courseOptions = _allCourses.map(c =>
-    `<label class="form-check mb-2">
-      <input class="form-check-input course-checkbox" type="checkbox" value="${c.id}" data-name="${c.name}">
-      <span class="form-check-label">[${c.id}] ${c.name}</span>
-    </label>`
-  ).join('');
-
-  showModal('Descargar reportes de asistencias conjuntos', `
-    <p class="text-muted small mb-3">Selecciona los cursos de los cuales deseas obtener el reporte de asistencias. Se descargará un archivo Excel por cada curso.</p>
-    <div style="max-height:400px;overflow-y:auto;border:1px solid var(--card-border);padding:12px;border-radius:6px">
-      ${courseOptions || '<div class="text-muted text-center py-3">Cargando cursos...</div>'}
-    </div>
-    <div class="mt-3">
-      <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="selectAllCourses(true)"><i class="bi bi-check-all me-1"></i>Seleccionar todos</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllCourses(false)"><i class="bi bi-x me-1"></i>Deseleccionar todos</button>
-    </div>
-    <div id="bulkProgress" class="mt-3" style="display:none">
-      <div class="progress mb-2" style="height:24px">
-        <div id="progressBar" class="progress-bar bg-success" style="width:0%;line-height:24px;font-size:0.85rem">0%</div>
-      </div>
-      <div id="progressText" class="text-muted small"></div>
-    </div>`,
-    `<button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-     <button class="btn btn-primary" id="bulkDownloadBtn" onclick="doBulkAttendanceDownload()"><i class="bi bi-download me-1"></i>Descargar seleccionados</button>`);
+let releaseSisModalInst = null;
+function openReleaseSisModal() {
+  if (!releaseSisModalInst) releaseSisModalInst = new bootstrap.Modal(document.getElementById('releaseSisModal'));
+  cancelReleaseSisPreview();
+  document.getElementById('releaseSisTextarea').value = '';
+  releaseSisModalInst.show();
 }
-
-function selectAllCourses(select) {
-  document.querySelectorAll('.course-checkbox').forEach(cb => { cb.checked = select; });
-}
-
-async function doBulkAttendanceDownload() {
-  const selected = Array.from(document.querySelectorAll('.course-checkbox:checked'))
-    .map(cb => ({id: cb.value, name: cb.dataset.name}));
-
-  if (!selected.length) {
-    toast('Selecciona al menos un curso', 'warning');
-    return;
-  }
-
-  const btn = document.getElementById('bulkDownloadBtn');
-  const progress = document.getElementById('bulkProgress');
-  const progressBar = document.getElementById('progressBar');
-  const progressText = document.getElementById('progressText');
-
-  btn.disabled = true;
-  progress.style.display = 'block';
-
-  let completed = 0;
-  for (const course of selected) {
-    try {
-      const resp = await fetch(`/canvas/courses/${course.id}/attendance`);
-      if (!resp.ok) throw new Error(`Error ${resp.status}`);
-      const data = await resp.json();
-
-      // Construir Excel
-      const dates = Object.keys(data.dates || {}).sort();
-      const rows = [
-        ['Reporte de Asistencias', course.name],
-        ['Generado:', new Date().toLocaleString()],
-        [],
-        ['Estudiante', 'ID', 'Total', ...dates.map(() => '')],
-      ];
-
-      data.students.forEach(student => {
-        const attendance = (data.attendance || {})[String(student.id)] || {};
-        const total = Object.values(attendance).filter(v => v === 'P').length;
-        rows.push([
-          student.name,
-          student.id,
-          total,
-          ...dates.map(date => {
-            const status = attendance[date];
-            return status === 'P' ? 'Presente' : status === 'A' ? 'Ausente' : '';
-          })
-        ]);
-      });
-
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Asistencias');
-      XLSX.writeFile(wb, `asistencias_${course.id}_${course.name}.xlsx`);
-
-      completed++;
-      const percent = Math.round((completed / selected.length) * 100);
-      progressBar.style.width = percent + '%';
-      progressBar.textContent = percent + '%';
-      progressText.textContent = `Descargados ${completed} de ${selected.length} reportes...`;
-
-      // Pequeña pausa entre descargas
-      await new Promise(r => setTimeout(r, 300));
-    } catch(e) {
-      toast(`Error en curso ${course.id}: ${e.message}`, 'danger');
-      console.error(e);
-    }
-  }
-
-  progressText.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i><strong>${completed} reportes descargados exitosamente</strong>`;
-  btn.disabled = false;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   CARGA DE CURSOS DESDE PLANILLA ONEDRIVE
-   ═══════════════════════════════════════════════════════════════════ */
-
-
-// Recuperar la url maestra al cargar la página
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('coursesOdUrl').value = localStorage.getItem('coursesOdUrl') || '';
-    setTimeout(() => {
-        const el = document.getElementById('coursesReportUrl');
-        if(el) el.value = localStorage.getItem('masterReportUrl') || '';
-    }, 100);
-});
-
-function cancelPreviewCourses() {
-    document.getElementById('coursesOdPreviewWrap').style.display = 'none';
-}
-
-async function fetchCoursesSheets() {
-  localStorage.setItem('coursesOdUrl', document.getElementById('coursesOdUrl').value);
-  const urlInput = document.getElementById('coursesOdUrl').value.trim();
-  if (!urlInput) { toast('Por favor, ingresa la URL primero.', 'warning'); return; }
-
-  const btn = document.getElementById('btnLoadCoursesSheets');
-  const select = document.getElementById('coursesOdSheet');
-  const oldText = btn.innerHTML;
-
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Cargando...';
-  btn.disabled = true;
-  select.innerHTML = '<option value="">Cargando pestañas...</option>';
-
-  try {
-    const sheets = await api.post('/excel/courses/sheets', { url: urlInput });
-    if (sheets && sheets.length > 0) {
-      select.innerHTML = '<option value="">Selecciona una pestaña...</option>';
-      sheets.forEach(sheet => {
-        const opt = document.createElement('option');
-        opt.value = sheet; opt.textContent = sheet;
-        select.appendChild(opt);
-      });
-      toast('Pestañas cargadas correctamente.', 'success');
-    } else {
-      select.innerHTML = '<option value="">No se encontraron pestañas.</option>';
-    }
-  } catch (e) {
-    toast('Error al cargar pestañas: ' + (e.detail || e.message || e), 'danger');
-    select.innerHTML = '<option value="">Error al cargar.</option>';
-  } finally {
-    btn.innerHTML = oldText;
-    btn.disabled = false;
-  }
-}
-
-
-async function doPreviewCourses() {
-  const urlInput = document.getElementById('coursesOdUrl').value.trim();
-  const sheetInput = document.getElementById('coursesOdSheet').value.trim();
-  const reportUrlInput = document.getElementById('coursesReportUrl');
-  if (reportUrlInput) {
-    localStorage.setItem('masterReportUrl', reportUrlInput.value.trim());
-  }
-
-  if (!sheetInput) return; // Placeholder seleccionado, todavía no hay nada que previsualizar
-
-  if (!urlInput) {
-    toast('Por favor, ingresa la URL primero.', 'warning');
-    return;
-  }
-
-  const btn = document.getElementById('btnConfirmCourses');
-  setLoading(btn, true);
-  toast('Analizando la planilla...', 'info');
-
-  try {
-    const preview = await api.post('/excel/courses/preview', { url: urlInput, sheet_name: sheetInput });
-
-    if (preview.courses_to_create > 100) {
-      toast(`⚠️ LÍMITE EXCEDIDO: ${preview.courses_to_create} cursos. Máximo 100 por vez.`, 'danger');
-      setLoading(btn, false);
-      return;
-    }
-
-    if (preview.courses_to_create === 0) {
-      toast('No hay cursos nuevos por crear en esta pestaña (todos ya tienen Canvas ID).', 'warning');
-      setLoading(btn, false);
-      return;
-    }
-
-    const cols = preview.headers && preview.headers.length ? preview.headers : ['Nombre del Curso', 'SIS ID', 'Docente'];
-
-    let tableHtml = `<div class="table-responsive mt-3" style="max-height:400px;overflow-y:auto">
-      <table class="table table-sm table-bordered table-striped table-hover">
-        <thead class="table-light" style="position:sticky;top:0;z-index:1">
-          <tr><th class="text-center" style="width:50px">Nº</th>${cols.map(h => `<th>${h}</th>`).join('')}</tr>
-        </thead>
-        <tbody>`;
-
-    preview.course_details.forEach((c, idx) => {
-      const row = c.row || {};
-      tableHtml += `<tr><td class="text-center">${idx + 1}</td>`;
-      cols.forEach(h => {
-        const val = row[h] ?? '';
-        const hLower = h.toLowerCase();
-        if (hLower.includes('docente') || hLower.includes('instructor') || hLower.includes('profesor')) {
-          tableHtml += `<td>${val ? `<span class="badge bg-info text-dark">${val}</span>` : '<span class="text-muted">—</span>'}</td>`;
-        } else if (hLower.includes('coordinador') || hLower.includes('diseñador') || hLower.includes('disenador')) {
-          const emails = String(val).split(/[,;/\n]+/).map(s => s.trim()).filter(Boolean);
-          tableHtml += `<td>${emails.length ? emails.map(e => `<span class="badge bg-secondary me-1 mb-1">${e}</span>`).join('') : '<span class="text-muted">—</span>'}</td>`;
-        } else {
-          tableHtml += `<td>${val || '<span class="text-muted">—</span>'}</td>`;
-        }
-      });
-      tableHtml += '</tr>';
-    });
-    tableHtml += '</tbody></table></div>';
-
-    const platformNote = preview.platform === 'canvas' ? ' (esta pestaña es solo Canvas — no se crea equipo de Teams)'
-      : preview.platform === 'teams' ? ' (esta pestaña es solo Teams — no se crea curso de Canvas)'
-      : '';
-    const docenteRoles = preview.platform === 'canvas' ? 'Teacher en Canvas'
-      : preview.platform === 'teams' ? 'Owner en Teams'
-      : 'Teacher en Canvas y Owner en Teams';
-    const coordRoles = preview.platform === 'canvas' ? 'Designer en Canvas'
-      : preview.platform === 'teams' ? 'Owner en Teams'
-      : 'Designer en Canvas y Owner en Teams';
-
-    document.getElementById('coursesOdPreviewContent').innerHTML = `
-      <div class="alert alert-warning mb-0">
-        <strong>Revisa los datos cuidadosamente antes de continuar.</strong><br>
-        Se van a crear <b>${preview.courses_to_create}</b> cursos nuevos${platformNote}.<br>
-        <small class="text-muted">Cursos ignorados (ya creados): ${preview.courses_already_created}</small><br>
-        ${preview.course_details.some(c => c.docente) ? `<small class="text-muted d-block"><i class="bi bi-person-check"></i> Los cursos con docente indicado inscribirán automáticamente a ese usuario como ${docenteRoles}.</small>` : ''}
-        ${preview.course_details.some(c => c.coordinadores) ? `<small class="text-muted d-block"><i class="bi bi-people-fill"></i> Los coordinadores/diseñadores indicados se inscribirán como ${coordRoles}.</small>` : ''}
-      </div>
-      ${tableHtml}
-    `;
-    
-    // Save state for execution
-    window._coursesOdCurrentUrl = urlInput;
-    window._coursesOdCurrentSheet = sheetInput;
-    
-    
-    document.getElementById('coursesOdPreviewWrap').style.display = 'block';
-  } catch (e) {
-    toast('Error: ' + (e.detail || e.message || e), 'danger');
-  } finally {
-    setLoading(btn, false);
-  }
-}
-
-let _coursesJobPollInterval = null;
-
-async function executeCreateCourses() {
-  const urlInput = window._coursesOdCurrentUrl;
-  const sheetInput = window._coursesOdCurrentSheet;
-
-  const btn = document.getElementById('btnConfirmCourses');
-  setLoading(btn, true);
-
-  try {
-    const reportUrl = localStorage.getItem('masterReportUrl') || '';
-    const res = await api.post('/excel/courses', { url: urlInput, sheet_name: sheetInput, report_url: reportUrl });
-
-    if (!res.job_id) {
-      throw new Error('No se recibió ID del trabajo.');
-    }
-    toast('Creación de cursos iniciada en segundo plano.', 'info');
-    startCoursesJobPolling(res.job_id);
-  } catch (e) {
-    toast('Error: ' + (e.detail || e.message || e), 'danger');
-    setLoading(btn, false);
-  }
-}
-
-function startCoursesJobPolling(jobId) {
-  const btn = document.getElementById('btnConfirmCourses');
-  const cancelBtn = document.getElementById('btnCancelCourses');
-  if (cancelBtn) cancelBtn.disabled = true;
-  if (_coursesJobPollInterval) clearInterval(_coursesJobPollInterval);
-
-  document.getElementById('coursesOdPreviewContent').insertAdjacentHTML('beforeend', `
-    <div id="coursesJobProgressWrap" class="alert alert-info mt-3">
-      <div class="mb-2"><b>Procesando en segundo plano...</b> (Trabajo #${jobId})</div>
-      <div class="progress" style="height: 20px;">
-        <div id="coursesJobProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 5%;">5%</div>
-      </div>
-      <div id="coursesJobProgressDetail" class="mt-2 small text-muted">Inicializando (los equipos de Teams pueden tardar hasta 1 minuto cada uno)...</div>
-    </div>
-  `);
-
-  _coursesJobPollInterval = setInterval(async () => {
-    try {
-      const job = await api.get(`/excel/jobs/${jobId}`);
-      if (!job) return;
-
-      const total = job.data_json ? (JSON.parse(job.data_json).total_to_process || 0) : 0;
-      const processed = (job.result_count || 0) + (job.error_count || 0);
-      const percent = total > 0 ? Math.round((processed / total) * 100) : (job.status === 'completed' || job.status === 'completed_with_errors' || job.status === 'failed' ? 100 : 5);
-
-      const bar = document.getElementById('coursesJobProgressBar');
-      if (bar) { bar.style.width = `${percent}%`; bar.innerText = `${percent}%`; }
-      const detail = document.getElementById('coursesJobProgressDetail');
-      if (detail) detail.innerHTML = `Completados: ${job.result_count || 0} | Errores: ${job.error_count || 0}${total > 0 ? ' | Total: ' + total : ''}`;
-
-      if (['completed', 'completed_with_errors', 'failed'].includes(job.status)) {
-        clearInterval(_coursesJobPollInterval);
-        setLoading(btn, false);
-        if (cancelBtn) cancelBtn.disabled = false;
-
-        if (job.status === 'failed') {
-          toast('❌ El proceso falló: ' + (job.error_message || ''), 'danger');
-        } else {
-          const failCount = job.error_count || 0;
-          toast(`✅ ${job.result_count || 0} cursos creados.${failCount > 0 ? ` ⚠️ ${failCount} con advertencias/errores.` : ''} ${job.error_message || ''}`, failCount > 0 ? 'warning' : 'success');
-        }
-
-        cancelPreviewCourses();
-        document.getElementById('coursesOdUrl').value = '';
-        document.getElementById('coursesOdSheet').innerHTML = '<option value="">Primero haz clic en Cargar Pestañas...</option>';
-        loadCourses();
-      }
-    } catch (e) {
-      console.error('Error consultando estado del trabajo', e);
-    }
-  }, 4000);
-}
-
-// ==========================================
-// ELIMINACION DE CURSOS (ONEDRIVE)
-// ==========================================
-
-async function fetchDeleteSheets() {
-    const urlInput = document.getElementById('deleteOdUrl').value.trim();
-    if (!urlInput) { toast('Por favor, ingresa la URL de OneDrive.', 'warning'); return; }
-
-    const btn = document.getElementById('btnLoadDeleteSheets');
-    setLoading(btn, true);
-
-    try {
-        const sheets = await api.post('/excel/courses/sheets', { url: urlInput });
-        const select = document.getElementById('deleteOdSheet');
-        select.innerHTML = '<option value="">Selecciona una pestaña...</option>';
-        sheets.forEach(s => {
-            select.innerHTML += `<option value="${s}">${s}</option>`;
-        });
-        toast('Pestañas cargadas exitosamente', 'success');
-    } catch (e) {
-        toast('Error al cargar pestañas: ' + (e.detail || e.message || e), 'danger');
-    } finally {
-        setLoading(btn, false);
-    }
-}
-
-async function previewDeleteOd() {
-    const urlInput = document.getElementById('deleteOdUrl').value.trim();
-    const sheetInput = document.getElementById('deleteOdSheet').value.trim();
-    
-    if (!urlInput || !sheetInput) return;
-    
-    toast('Analizando la planilla para eliminar...', 'info');
-    document.getElementById('deleteOdPreviewWrap').style.display = 'none';
-
-    try {
-        const preview = await api.post('/excel/courses/delete/preview', { url: urlInput, sheet_name: sheetInput });
-        
-        document.getElementById('deleteToProcess').innerText = `${preview.students_to_process} a eliminar`;
-        document.getElementById('deleteAlreadyProcessed').innerText = `${preview.students_already_processed} ignorados`;
-        
-        const thead = document.getElementById('deleteOdHeaders');
-        const tbody = document.getElementById('deleteOdBody');
-        
-        thead.innerHTML = preview.headers.map(h => `<th>${h}</th>`).join('');
-        
-        let bodyHTML = '';
-        preview.sample_rows.forEach(r => {
-            let rowHtml = '';
-            preview.headers.forEach(h => {
-                let cellVal = r[h] || '';
-                if (h.toLowerCase().includes('estado') || h.toLowerCase().includes('enviado') || h.toLowerCase().includes('eliminado')) {
-                    if (cellVal.toLowerCase() === 'ok' || cellVal.toLowerCase().includes('eliminado') || cellVal.toLowerCase().includes('baja')) {
-                        cellVal = `<span class="badge bg-warning text-dark">${cellVal}</span>`;
-                    } else if (cellVal.toLowerCase().includes('error')) {
-                        cellVal = `<span class="badge bg-danger">${cellVal}</span><span class="badge bg-success ms-1">Reintento</span>`;
-                    } else {
-                        cellVal = `<span class="badge bg-danger">A eliminar</span>`;
-                    }
-                }
-                rowHtml += `<td>${cellVal}</td>`;
-            });
-            bodyHTML += `<tr>${rowHtml}</tr>`;
-        });
-        tbody.innerHTML = bodyHTML;
-        
-        document.getElementById('deleteOdPreviewWrap').style.display = 'block';
-    } catch (e) {
-        toast('Error: ' + (e.detail || e.message || e), 'danger');
-    }
-}
-
-async function executeDeleteOd() {
-    const urlInput = document.getElementById('deleteOdUrl').value.trim();
-    const sheetInput = document.getElementById('deleteOdSheet').value.trim();
-    
-    if (!urlInput || !sheetInput) return;
-    if (!confirm('¿Estás seguro de que deseas ELIMINAR masivamente los cursos leídos en esta planilla y sus Equipos asociados en Teams? Esta acción es irreversible para Teams.')) return;
-    
-    const btn = document.getElementById('btnConfirmDeleteOd');
-    setLoading(btn, true);
-    
-    try {
-        const res = await api.post('/excel/courses/delete/import', { url: urlInput, sheet_name: sheetInput });
-        toast(`Éxito: ${res.succeeded.length} eliminados. Errores: ${res.failed.length}`, 'success');
-        previewDeleteOd(); // Reload preview
-    } catch (e) {
-        toast('Error: ' + (e.detail || e.message || e), 'danger');
-    } finally {
-        setLoading(btn, false);
-    }
-}
-
-// ==========================================
-// ELIMINACION DE CURSOS (PERIODO)
-// ==========================================
-
-let periodModal = null;
-let currentPeriodCourses = [];
-
-async function openPeriodDeleteModal() {
-    if (!periodModal) {
-        periodModal = new bootstrap.Modal(document.getElementById('periodDeleteModal'));
-    }
-    periodModal.show();
-    
-    // Load terms
-    try {
-        const select = document.getElementById('periodSelect');
-        if (select.options.length <= 1) { // Not loaded yet
-            const terms = await api.get('/canvas/terms');
-            select.innerHTML = '<option value="">Seleccione un período...</option>';
-            terms.forEach(t => {
-                select.innerHTML += `<option value="${t.id}">${t.name} (SIS ID: ${t.sis_term_id || 'N/A'})</option>`;
-            });
-        }
-    } catch (e) {
-        toast('Error cargando períodos: ' + (e.detail || e.message || e), 'danger');
-    }
-}
-
-async function searchCoursesByPeriod() {
-    const termId = document.getElementById('periodSelect').value;
-    if (!termId) { toast('Seleccione un período primero', 'warning'); return; }
-    
-    const btn = document.getElementById('btnSearchCoursesByPeriod');
-    setLoading(btn, true);
-    document.getElementById('periodCoursesWrap').style.display = 'none';
-    
-    try {
-        currentPeriodCourses = await api.get(`/canvas/courses/by-term/${termId}?per_page=100`);
-        document.getElementById('periodCoursesCount').innerText = currentPeriodCourses.length;
-        
-        const tbody = document.getElementById('periodCoursesList');
-        let html = '';
-        currentPeriodCourses.forEach(c => {
-            html += `
-            <tr>
-                <td><input class="form-check-input course-checkbox" type="checkbox" value="${c.id}" onchange="updateSelectedDeleteCount()"></td>
-                <td>${c.id}</td>
-                <td><span class="badge bg-secondary">${c.sis_course_id || 'N/A'}</span></td>
-                <td>${c.name}</td>
-            </tr>`;
-        });
-        
-        if (currentPeriodCourses.length === 0) {
-            html = `<tr><td colspan="4" class="text-center text-muted">No se encontraron cursos en este período.</td></tr>`;
-        }
-        
-        tbody.innerHTML = html;
-        document.getElementById('selectAllCourses').checked = false;
-        updateSelectedDeleteCount();
-        
-        document.getElementById('periodCoursesWrap').style.display = 'block';
-    } catch (e) {
-        toast('Error buscando cursos: ' + (e.detail || e.message || e), 'danger');
-    } finally {
-        setLoading(btn, false);
-    }
-}
-
-function toggleSelectAllCourses() {
-    const selectAll = document.getElementById('selectAllCourses').checked;
-    const checkboxes = document.querySelectorAll('.course-checkbox');
-    checkboxes.forEach(cb => cb.checked = selectAll);
-    updateSelectedDeleteCount();
-}
-
-function updateSelectedDeleteCount() {
-    const selected = document.querySelectorAll('.course-checkbox:checked').length;
-    document.getElementById('selectedDeleteCount').innerText = selected;
-    document.getElementById('btnExecutePeriodDelete').disabled = selected === 0;
-}
-
-async function executePeriodDelete() {
-    const checkboxes = document.querySelectorAll('.course-checkbox:checked');
-    const courseIds = Array.from(checkboxes).map(cb => cb.value);
-    
-    if (courseIds.length === 0) return;
-    
-    if (!confirm(`¿Está absolutamente seguro de ELIMINAR los ${courseIds.length} cursos seleccionados y sus respectivos Equipos en Teams? Esta acción NO SE PUEDE DESHACER para Microsoft Teams.`)) return;
-    
-    const btn = document.getElementById('btnExecutePeriodDelete');
-    setLoading(btn, true);
-    
-    try {
-        const res = await api.post('/canvas/courses/bulk-delete', { course_ids: courseIds, delete_teams: true });
-        
-        let msg = `Éxito: ${res.succeeded.length} eliminados.`;
-        if (res.failed.length > 0) {
-            msg += ` Errores: ${res.failed.length}. Revisa la consola para detalles.`;
-            console.error("Cursos fallidos:", res.failed);
-            toast(msg, 'warning');
-        } else {
-            toast(msg, 'success');
-        }
-        
-        // Refresh list
-        searchCoursesByPeriod();
-    } catch (e) {
-        toast('Error durante la eliminación masiva: ' + (e.detail || e.message || e), 'danger');
-    } finally {
-        setLoading(btn, false);
-    }
-}
-
-// ==========================================
-// ELIMINACION DE CURSOS (POR LISTA DE IDs)
-// ==========================================
-
-let idDeleteModal = null;
-let currentIdCourses = [];
-
-function openIdDeleteModal() {
-    if (!idDeleteModal) {
-        idDeleteModal = new bootstrap.Modal(document.getElementById('idDeleteModal'));
-    }
-    document.getElementById('idDeleteTextarea').value = '';
-    document.getElementById('idDeleteFormWrap').style.display = 'block';
-    document.getElementById('idDeletePreviewWrap').style.display = 'none';
-    document.getElementById('idDeleteFooter').style.display = 'none';
-    currentIdCourses = [];
-    idDeleteModal.show();
-}
-
-function _parseIdList(raw) {
-    return [...new Set(
-        raw.split(/[\s,;]+/)
-            .map(s => s.trim())
-            .filter(s => /^\d+$/.test(s))
-    )];
-}
-
-async function previewIdDelete() {
-    const raw = document.getElementById('idDeleteTextarea').value;
-    const ids = _parseIdList(raw);
-
-    if (ids.length === 0) {
-        toast('Ingresa al menos un ID de curso válido.', 'warning');
-        return;
-    }
-
-    const btn = document.getElementById('btnPreviewIdDelete');
-    setLoading(btn, true);
-
-    currentIdCourses = [];
-    const notFound = [];
-
-    try {
-        const results = await Promise.all(ids.map(async id => {
-            try {
-                const c = await api.get(`/canvas/courses/${id}`);
-                return { ok: true, course: c };
-            } catch (e) {
-                return { ok: false, id };
-            }
-        }));
-
-        results.forEach(r => {
-            if (r.ok) currentIdCourses.push(r.course);
-            else notFound.push(r.id);
-        });
-
-        const tbody = document.getElementById('idCoursesList');
-        let html = '';
-        currentIdCourses.forEach(c => {
-            const cfg = _STATE_CFG[c.workflow_state] || { label: c.workflow_state || '—', bg: '#6C7982' };
-            html += `
-            <tr>
-                <td><input class="form-check-input id-course-checkbox" type="checkbox" value="${c.id}" onchange="updateSelectedIdDeleteCount()"></td>
-                <td>${c.id}</td>
-                <td><span class="badge bg-secondary">${c.sis_course_id || 'N/A'}</span></td>
-                <td>${c.name}</td>
-                <td><span class="badge" style="background:${cfg.bg};">${cfg.label}</span></td>
-            </tr>`;
-        });
-        if (currentIdCourses.length === 0) {
-            html = `<tr><td colspan="5" class="text-center text-muted">Ningún curso encontrado.</td></tr>`;
-        }
-        tbody.innerHTML = html;
-        document.getElementById('idDeleteCount').innerText = currentIdCourses.length;
-        document.getElementById('selectAllIdCourses').checked = false;
-
-        if (notFound.length > 0) {
-            document.getElementById('idDeleteNotFoundWrap').style.display = 'block';
-            document.getElementById('idDeleteNotFound').innerText = notFound.join(', ');
-        } else {
-            document.getElementById('idDeleteNotFoundWrap').style.display = 'none';
-        }
-
-        document.getElementById('idDeleteFormWrap').style.display = 'none';
-        document.getElementById('idDeletePreviewWrap').style.display = 'block';
-        document.getElementById('idDeleteFooter').style.display = 'flex';
-        updateSelectedIdDeleteCount();
-    } catch (e) {
-        toast('Error verificando cursos: ' + (e.detail || e.message || e), 'danger');
-    } finally {
-        setLoading(btn, false);
-    }
-}
-
-function cancelIdDeletePreview() {
-    document.getElementById('idDeleteFormWrap').style.display = 'block';
-    document.getElementById('idDeletePreviewWrap').style.display = 'none';
-    document.getElementById('idDeleteFooter').style.display = 'none';
-}
-
-function toggleSelectAllIdCourses() {
-    const selectAll = document.getElementById('selectAllIdCourses').checked;
-    document.querySelectorAll('.id-course-checkbox').forEach(cb => cb.checked = selectAll);
-    updateSelectedIdDeleteCount();
-}
-
-function updateSelectedIdDeleteCount() {
-    const selected = document.querySelectorAll('.id-course-checkbox:checked').length;
-    document.getElementById('selectedIdDeleteCount').innerText = selected;
-    document.getElementById('btnExecuteIdDelete').disabled = selected === 0;
-}
-
-async function executeIdDelete() {
-    const checkboxes = document.querySelectorAll('.id-course-checkbox:checked');
-    const courseIds = Array.from(checkboxes).map(cb => cb.value);
-
-    if (courseIds.length === 0) return;
-
-    if (!confirm(`¿Está absolutamente seguro de ELIMINAR los ${courseIds.length} cursos seleccionados y sus respectivos Equipos en Teams? Esta acción NO SE PUEDE DESHACER para Microsoft Teams.`)) return;
-
-    const btn = document.getElementById('btnExecuteIdDelete');
-    setLoading(btn, true);
-
-    try {
-        const res = await api.post('/canvas/courses/bulk-delete', { course_ids: courseIds, delete_teams: true });
-
-        let msg = `Éxito: ${res.succeeded.length} eliminados.`;
-        if (res.failed.length > 0) {
-            msg += ` Errores: ${res.failed.length}. Revisa la consola para detalles.`;
-            console.error("Cursos fallidos:", res.failed);
-            toast(msg, 'warning');
-        } else {
-            toast(msg, 'success');
-        }
-
-        idDeleteModal.hide();
-    } catch (e) {
-        toast('Error durante la eliminación masiva: ' + (e.detail || e.message || e), 'danger');
-    } finally {
-        setLoading(btn, false);
-    }
-}
-
-// ==========================================
-// LIBERAR SIS ID BLOQUEADO
-// ==========================================
 
 let currentReleaseSisCandidates = [];
-
-function _parseReleaseSisEntries(raw) {
-    // Solo separa por línea o ";" — NO por coma: algunos nombres de curso/período
-    // contienen comas de verdad (ej. "Sociedad, Estado y Empresa (GA) 2026-02"),
-    // y separar por coma los partía en fragmentos que no matcheaban nada.
-    return [...new Set(
-        raw.split(/[\n;]+/)
-            .map(s => s.trim())
-            .filter(s => s.length > 0)
-    )];
-}
 
 async function previewReleaseSis() {
     const raw = document.getElementById('releaseSisTextarea').value;
@@ -1805,6 +1031,10 @@ function updateSelectedReleaseSisCount() {
     document.getElementById('btnExecuteReleaseSis').disabled = selected === 0;
 }
 
+function _parseReleaseSisEntries(raw) {
+    return [...new Set((raw || '').split(/[\n;]+/).map(s => s.trim()).filter(Boolean))];
+}
+
 async function executeReleaseSis() {
     const checkboxes = document.querySelectorAll('.release-sis-checkbox:checked');
     const courseIds = Array.from(checkboxes).map(cb => cb.value);
@@ -1835,9 +1065,13 @@ async function executeReleaseSis() {
     }
 }
 
-// ==========================================
-// LIBERAR SIS ID DE PERIODOS BLOQUEADOS
-// ==========================================
+let releaseTermSisModalInst = null;
+function openReleaseTermSisModal() {
+  if (!releaseTermSisModalInst) releaseTermSisModalInst = new bootstrap.Modal(document.getElementById('releaseTermSisModal'));
+  cancelReleaseTermSisPreview();
+  document.getElementById('releaseTermSisTextarea').value = '';
+  releaseTermSisModalInst.show();
+}
 
 let currentReleaseTermSisCandidates = [];
 
@@ -1950,7 +1184,6 @@ function renderReleaseErrorDetails(containerId, failed, idKey) {
     if (!container) {
         container = document.createElement('div');
         container.id = containerId;
-        // Se inserta después del botón de acción correspondiente
         const anchorId = containerId === 'releaseTermSisErrorsWrap' ? 'releaseTermSisPreviewWrap'
             : containerId === 'fixCoordRoleErrorsWrap' ? 'fixCoordRolePreviewWrap'
             : 'releaseSisPreviewWrap';
@@ -1969,10 +1202,16 @@ function renderReleaseErrorDetails(containerId, failed, idKey) {
         </div>`;
 }
 
-
 // ==========================================
 // CORREGIR ROL DE COORDINADOR (Diseñador -> Coordinador)
 // ==========================================
+
+let fixCoordRoleModalInst = null;
+function openFixCoordRoleModal() {
+  if (!fixCoordRoleModalInst) fixCoordRoleModalInst = new bootstrap.Modal(document.getElementById('fixCoordRoleModal'));
+  cancelFixCoordRolePreview();
+  fixCoordRoleModalInst.show();
+}
 
 let currentFixCoordRoleItems = [];
 
@@ -2164,6 +1403,14 @@ async function executeFixCoordRole() {
 // ==========================================
 // CORREGIR SIS ID (POR PLANILLA)
 // ==========================================
+
+let fixSisIdModalInst = null;
+function openFixSisIdModal() {
+  if (!fixSisIdModalInst) fixSisIdModalInst = new bootstrap.Modal(document.getElementById('fixSisIdModal'));
+  cancelFixSisIdPreview();
+  fixSisIdModalInst.show();
+}
+
 let _fixSisIdJobPollInterval = null;
 let _fixSisIdUrl = '';
 let _fixSisIdSheet = '';
@@ -2319,14 +1566,707 @@ function startFixSisIdJobPolling(jobId) {
     }, 4000);
 }
 
-// Activa la pestaña indicada por ?tab= (llegando desde el submenú del sidebar)
-(function activateTabFromQuery() {
-    const tab = new URLSearchParams(window.location.search).get('tab');
-    if (!tab) return;
-    const btn = document.getElementById(tab + '-tab');
-    if (btn) new bootstrap.Tab(btn).show();
-})();
+/* ══════════════════════════ EQUIPOS (Teams) ══════════════════════════ */
 
+let _teamSearchTimer = null;
+function debouncedLoadTeams(query) {
+  clearTimeout(_teamSearchTimer);
+  _teamSearchTimer = setTimeout(() => loadTeams(query), 400);
+}
+
+async function loadTeams(query = '') {
+  try {
+    document.getElementById('teamsTableWrap').innerHTML = '<div class="text-center py-5"><span class="spinner-border text-primary"></span></div>';
+    const url = query ? `/teams/teams?search_term=${encodeURIComponent(query)}&top=100` : '/teams/teams?top=100';
+    const teams = await api.get(url);
+    document.getElementById('teamCount').textContent = teams.length + ' Teams';
+
+    const html = `<table class="table table-sm table-hover mb-0">
+      <thead style="background:var(--card-border);position:sticky;top:0;z-index:10">
+        <tr>
+          <th style="max-width:150px">ID</th>
+          <th>Nombre</th>
+          <th>Descripción</th>
+          <th>Visibilidad</th>
+          <th style="width:180px">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${teams.map(row => `
+          <tr>
+            <td style="display:flex;align-items:center;gap:0.5rem;flex-wrap:nowrap" title="${row.id}">
+              <span class="small text-muted" style="min-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong>${row.id.substring(0, 20)}...</strong></span>
+              <button type="button" class="btn btn-sm btn-link p-0 copy-btn" style="color:var(--text-muted);padding:0!important;flex-shrink:0" title="Copiar ID" data-copy-id="${row.id}" data-copy-label="Team ID"><i class="bi bi-files"></i></button>
+            </td>
+            <td class="fw-semibold small" style="color:var(--sidebar-accent)">${row.displayName}</td>
+            <td class="small text-muted">${(row.description || '').substring(0, 50)}${(row.description || '').length > 50 ? '...' : ''}</td>
+            <td class="small"><span class="badge ${row.visibility === 'Public' ? 'bg-success' : 'bg-warning text-dark'}">${row.visibility || '—'}</span></td>
+            <td>
+              <button class="btn btn-sm btn-outline-info me-1 view-team-btn" title="Miembros" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-people"></i></button>
+              <button class="btn btn-sm btn-outline-secondary me-1 channels-btn" title="Canales" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-hash"></i></button>
+              <button class="btn btn-sm btn-outline-danger delete-team-btn" title="Eliminar" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+
+    document.getElementById('teamsTableWrap').innerHTML = html;
+
+    document.querySelectorAll('#teamsTableWrap .copy-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyToClipboard(btn.dataset.copyId, btn.dataset.copyLabel);
+      });
+    });
+
+    document.querySelectorAll('#teamsTableWrap .view-team-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        viewTeamDetail(btn.dataset.teamId, btn.dataset.teamName);
+      });
+    });
+
+    document.querySelectorAll('#teamsTableWrap .channels-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        viewChannels(btn.dataset.teamId, btn.dataset.teamName);
+      });
+    });
+
+    document.querySelectorAll('#teamsTableWrap .delete-team-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        deleteTeam(btn.dataset.teamId, btn.dataset.teamName);
+      });
+    });
+
+  } catch(e) {
+    document.getElementById('teamsTableWrap').innerHTML = `
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-exclamation-triangle fs-1 d-block mb-2 text-warning"></i>
+        <div class="mb-3">No se pudieron cargar los Teams: ${e.message}</div>
+        <button class="btn btn-sm btn-outline-primary" onclick="loadTeams()"><i class="bi bi-arrow-clockwise me-1"></i>Reintentar</button>
+      </div>`;
+    toast('Error cargando Teams: ' + e.message, 'danger');
+  }
+}
+
+function viewTeamDetail(teamId, name) {
+  showModal('Miembros: ' + name, `
+    <div class="mb-3 d-flex gap-2 flex-wrap">
+
+      <button class="btn btn-outline-primary" onclick="openBulkAddModal('${teamId}')"><i class="bi bi-people"></i> Carga Múltiple</button>
+      <button class="btn btn-outline-warning text-dark" onclick="openBulkEmailModal('${teamId}', '${name}')"><i class="bi bi-envelope-paper"></i> Carga por Correos</button>
+    </div>
+    <div id="memberTable"><div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div></div>`,
+    `<button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>`);
+
+
+
+  loadMembers(teamId);
+}
+
+async function loadMembers(teamId) {
+  try {
+    const members = await api.get(`/teams/teams/${teamId}/members`);
+
+    const html = `<table class="table table-sm table-hover mb-0">
+      <thead style="background:var(--card-border)">
+        <tr>
+          <th style="max-width:120px">User ID</th>
+          <th>Nombre</th>
+          <th>Rol</th>
+          <th style="width:80px">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${members.map(row => `
+          <tr>
+            <td style="display:flex;align-items:center;gap:0.5rem;flex-wrap:nowrap" title="${row.userId}">
+              <span class="small text-muted" style="min-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong>${row.userId ? row.userId.substring(0, 15) + '...' : '—'}</strong></span>
+              ${row.userId ? `<button type="button" class="btn btn-sm btn-link p-0 copy-btn" style="color:var(--text-muted);padding:0!important;flex-shrink:0" title="Copiar ID" data-copy-id="${row.userId}" data-copy-label="User ID"><i class="bi bi-files"></i></button>` : ''}
+            </td>
+            <td class="small fw-semibold">${row.displayName}</td>
+            <td class="small"><span class="badge ${row.roles && row.roles.includes('owner') ? 'bg-warning text-dark' : 'bg-primary'}">${row.roles && row.roles.includes('owner') ? 'Owner' : 'Miembro'}</span></td>
+            <td>
+              <button class="btn btn-sm btn-outline-danger remove-member-btn" title="Quitar" data-team-id="${teamId}" data-member-id="${row.id}" data-member-name="${row.displayName}"><i class="bi bi-person-dash"></i></button>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+
+    document.getElementById('memberTable').innerHTML = html;
+
+    document.querySelectorAll('#memberTable .copy-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyToClipboard(btn.dataset.copyId, btn.dataset.copyLabel);
+      });
+    });
+
+    document.querySelectorAll('#memberTable .remove-member-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        removeMember(btn.dataset.teamId, btn.dataset.memberId, btn.dataset.memberName);
+      });
+    });
+  } catch(e) { document.getElementById('memberTable').innerHTML = `<p class="text-danger p-3">${e.message}</p>`; }
+}
+
+
+
+function removeMember(teamId, membershipId, name) {
+  confirmAction(`¿Quitar a <strong>${name}</strong> del Team?`, async () => {
+    try {
+      await api.del(`/teams/teams/${teamId}/members/${membershipId}`);
+      toast('Miembro eliminado', 'success'); loadMembers(teamId);
+    } catch(e) { toast('Error: ' + e.message, 'danger'); }
+  });
+}
+
+function viewChannels(teamId, name) {
+  showModal('Canales: ' + name, `
+    <div class="mb-3 d-flex gap-2 flex-wrap">
+      <input class="form-control" id="channelName" placeholder="Nombre del canal" style="max-width:240px">
+      <input class="form-control" id="channelDesc" placeholder="Descripción (opcional)" style="max-width:240px">
+      <select class="form-select" id="channelType" style="max-width:140px">
+        <option value="standard">Estándar</option>
+        <option value="private">Privado</option>
+      </select>
+      <button class="btn btn-success" onclick="createChannel('${teamId}')"><i class="bi bi-plus"></i> Crear</button>
+    </div>
+    <div id="channelTable"><div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div></div>`,
+    `<button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>`);
+  loadChannels(teamId);
+}
+
+async function loadChannels(teamId) {
+  try {
+    const channels = await api.get(`/teams/teams/${teamId}/channels`);
+
+    const html = `<table class="table table-sm table-hover mb-0">
+      <thead style="background:var(--card-border)">
+        <tr>
+          <th style="max-width:120px">ID</th>
+          <th>Nombre</th>
+          <th>Descripción</th>
+          <th>Tipo</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${channels.map(row => `
+          <tr>
+            <td style="display:flex;align-items:center;gap:0.5rem;flex-wrap:nowrap" title="${row.id}">
+              <span class="small text-muted" style="min-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong>${row.id.substring(0, 15)}...</strong></span>
+              <button type="button" class="btn btn-sm btn-link p-0 copy-btn" style="color:var(--text-muted);padding:0!important;flex-shrink:0" title="Copiar ID" data-copy-id="${row.id}" data-copy-label="Channel ID"><i class="bi bi-files"></i></button>
+            </td>
+            <td class="small fw-semibold"># ${row.displayName}</td>
+            <td class="small text-muted">${(row.description || '').substring(0, 40)}${(row.description || '').length > 40 ? '...' : ''}</td>
+            <td class="small"><span class="badge ${row.membershipType === 'private' ? 'bg-danger' : 'bg-secondary'}">${row.membershipType === 'private' ? 'Privado' : 'Estándar'}</span></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+
+    document.getElementById('channelTable').innerHTML = html;
+
+    document.querySelectorAll('#channelTable .copy-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyToClipboard(btn.dataset.copyId, btn.dataset.copyLabel);
+      });
+    });
+  } catch(e) { document.getElementById('channelTable').innerHTML = `<p class="text-danger p-3">${e.message}</p>`; }
+}
+
+async function createChannel(teamId) {
+  const name = document.getElementById('channelName').value.trim();
+  const desc = document.getElementById('channelDesc').value.trim();
+  const type = document.getElementById('channelType').value;
+  if (!name) { toast('Ingresa un nombre para el canal', 'warning'); return; }
+  try {
+    await api.post(`/teams/teams/${teamId}/channels`, { display_name: name, description: desc || null, membership_type: type });
+    toast('Canal creado', 'success'); loadChannels(teamId);
+  } catch(e) { toast('Error: ' + e.message, 'danger'); }
+}
+
+function deleteTeam(id, name) {
+  confirmAction(`¿Eliminar el Team <strong>${name}</strong>? Esta acción no se puede deshacer.`, async () => {
+    try { await api.del('/teams/teams/' + id); toast('Team eliminado', 'success'); loadTeams(); }
+    catch(e) { toast('Error: ' + e.message, 'danger'); }
+  });
+}
+
+// ==========================================
+// ELIMINACION MASIVA DE TEAMS (POR ID O NOMBRE)
+// ==========================================
+
+let teamsIdDeleteModal = null;
+let currentTeamsIdCandidates = [];
+
+function openTeamsIdDeleteModal() {
+  if (!teamsIdDeleteModal) {
+    teamsIdDeleteModal = new bootstrap.Modal(document.getElementById('teamsIdDeleteModal'));
+  }
+  document.getElementById('teamsIdDeleteTextarea').value = '';
+  document.getElementById('teamsIdDeleteFormWrap').style.display = 'block';
+  document.getElementById('teamsIdDeletePreviewWrap').style.display = 'none';
+  document.getElementById('teamsIdDeleteFooter').style.display = 'none';
+  currentTeamsIdCandidates = [];
+  teamsIdDeleteModal.show();
+}
+
+function _parseTeamsEntryList(raw) {
+  return [...new Set(
+    raw.split(/[\n;]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 0)
+  )];
+}
+
+async function previewTeamsIdDelete() {
+  const raw = document.getElementById('teamsIdDeleteTextarea').value;
+  const entries = _parseTeamsEntryList(raw);
+
+  if (entries.length === 0) {
+    toast('Ingresa al menos un ID o nombre de equipo.', 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('btnPreviewTeamsIdDelete');
+  setLoading(btn, true);
+
+  try {
+    const resolved = await api.post('/teams/teams/resolve', { entries });
+    currentTeamsIdCandidates = resolved.filter(r => r.found);
+    const notFound = resolved.filter(r => !r.found);
+
+    const tbody = document.getElementById('teamsIdDeleteList');
+    let html = '';
+    currentTeamsIdCandidates.forEach(r => {
+      html += `
+      <tr>
+        <td><input class="form-check-input teams-id-checkbox" type="checkbox" value="${r.team_id}" onchange="updateSelectedTeamsIdDeleteCount()"></td>
+        <td class="small text-muted">${r.team_id}</td>
+        <td>${r.name}</td>
+        <td><span class="badge bg-secondary">${r.input}</span></td>
+      </tr>`;
+    });
+    if (currentTeamsIdCandidates.length === 0) {
+      html = `<tr><td colspan="4" class="text-center text-muted">Ningún equipo encontrado.</td></tr>`;
+    }
+    tbody.innerHTML = html;
+    document.getElementById('teamsIdDeleteCount').innerText = currentTeamsIdCandidates.length;
+    document.getElementById('selectAllTeamsIdDelete').checked = false;
+
+    if (notFound.length > 0) {
+      document.getElementById('teamsIdDeleteNotFoundWrap').style.display = 'block';
+      document.getElementById('teamsIdDeleteNotFound').innerText = notFound.map(r => r.input).join(', ');
+    } else {
+      document.getElementById('teamsIdDeleteNotFoundWrap').style.display = 'none';
+    }
+
+    document.getElementById('teamsIdDeleteFormWrap').style.display = 'none';
+    document.getElementById('teamsIdDeletePreviewWrap').style.display = 'block';
+    document.getElementById('teamsIdDeleteFooter').style.display = 'flex';
+    updateSelectedTeamsIdDeleteCount();
+  } catch (e) {
+    toast('Error verificando equipos: ' + (e.detail || e.message || e), 'danger');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+function cancelTeamsIdDeletePreview() {
+  document.getElementById('teamsIdDeleteFormWrap').style.display = 'block';
+  document.getElementById('teamsIdDeletePreviewWrap').style.display = 'none';
+  document.getElementById('teamsIdDeleteFooter').style.display = 'none';
+}
+
+function toggleSelectAllTeamsIdDelete() {
+  const selectAll = document.getElementById('selectAllTeamsIdDelete').checked;
+  document.querySelectorAll('.teams-id-checkbox').forEach(cb => cb.checked = selectAll);
+  updateSelectedTeamsIdDeleteCount();
+}
+
+function updateSelectedTeamsIdDeleteCount() {
+  const selected = document.querySelectorAll('.teams-id-checkbox:checked').length;
+  document.getElementById('selectedTeamsIdDeleteCount').innerText = selected;
+  document.getElementById('btnExecuteTeamsIdDelete').disabled = selected === 0;
+}
+
+async function executeTeamsIdDelete() {
+  const checkboxes = document.querySelectorAll('.teams-id-checkbox:checked');
+  const teamIds = Array.from(checkboxes).map(cb => cb.value);
+
+  if (teamIds.length === 0) return;
+
+  if (!confirm(`¿Está absolutamente seguro de ELIMINAR los ${teamIds.length} equipos seleccionados? Esta acción NO SE PUEDE DESHACER.`)) return;
+
+  const btn = document.getElementById('btnExecuteTeamsIdDelete');
+  setLoading(btn, true);
+
+  try {
+    const res = await api.post('/teams/teams/bulk-delete', { team_ids: teamIds });
+
+    let msg = `Éxito: ${res.succeeded.length} eliminados.`;
+    if (res.failed.length > 0) {
+      msg += ` Errores: ${res.failed.length}. Revisa la consola para detalles.`;
+      console.error("Equipos fallidos:", res.failed);
+      toast(msg, 'warning');
+    } else {
+      toast(msg, 'success');
+    }
+
+    teamsIdDeleteModal.hide();
+    loadTeams();
+  } catch (e) {
+    toast('Error durante la eliminación masiva: ' + (e.detail || e.message || e), 'danger');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+// ==========================================
+// GRUPOS ELIMINADOS (PAPELERA DE 30 DIAS)
+// ==========================================
+
+let deletedGroupsModal = null;
+let currentDeletedGroups = [];
+
+function openDeletedGroupsModal() {
+  if (!deletedGroupsModal) {
+    deletedGroupsModal = new bootstrap.Modal(document.getElementById('deletedGroupsModal'));
+  }
+  document.getElementById('deletedGroupsListWrap').style.display = 'block';
+  document.getElementById('deletedGroupsResultsWrap').style.display = 'none';
+  document.getElementById('btnRestoreAndCheck').style.display = 'inline-block';
+  deletedGroupsModal.show();
+  loadDeletedGroups();
+}
+
+async function loadDeletedGroups() {
+  const tbody = document.getElementById('deletedGroupsList');
+  tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4"><span class="spinner-border spinner-border-sm"></span></td></tr>';
+  document.getElementById('selectAllDeletedGroups').checked = false;
+  updateSelectedDeletedGroupsCount();
+
+  try {
+    currentDeletedGroups = await api.get('/teams/teams/deleted');
+    if (currentDeletedGroups.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">No hay grupos eliminados en la papelera.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = currentDeletedGroups.map(g => `
+      <tr>
+        <td><input class="form-check-input deleted-group-checkbox" type="checkbox" value="${g.id}" onchange="updateSelectedDeletedGroupsCount()"></td>
+        <td>${g.displayName || '—'}</td>
+        <td class="small text-muted">${g.deletedDateTime ? new Date(g.deletedDateTime).toLocaleString('es-ES') : '—'}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger py-4">Error cargando grupos eliminados: ${e.detail || e.message || e}</td></tr>`;
+  }
+}
+
+function toggleSelectAllDeletedGroups() {
+  const selectAll = document.getElementById('selectAllDeletedGroups').checked;
+  document.querySelectorAll('.deleted-group-checkbox').forEach(cb => cb.checked = selectAll);
+  updateSelectedDeletedGroupsCount();
+}
+
+function updateSelectedDeletedGroupsCount() {
+  const selected = document.querySelectorAll('.deleted-group-checkbox:checked').length;
+  document.getElementById('selectedDeletedGroupsCount').innerText = selected;
+  document.getElementById('btnRestoreAndCheck').disabled = selected === 0;
+}
+
+async function executeRestoreAndCheck() {
+  const checkboxes = document.querySelectorAll('.deleted-group-checkbox:checked');
+  const groupIds = Array.from(checkboxes).map(cb => cb.value);
+  if (groupIds.length === 0) return;
+
+  if (!confirm(`¿Restaurar y verificar ${groupIds.length} grupo(s)? Quedarán activos de nuevo mientras se cuentan sus miembros — los que resulten vacíos los podés volver a eliminar después con "Eliminación Masiva".`)) return;
+
+  const btn = document.getElementById('btnRestoreAndCheck');
+  setLoading(btn, true);
+
+  try {
+    const results = await api.post('/teams/teams/deleted/restore-and-check', { group_ids: groupIds });
+
+    const tbody = document.getElementById('deletedGroupsResults');
+    tbody.innerHTML = results.map(r => {
+      if (r.error && !r.restored) {
+        return `<tr><td>${r.name || r.group_id}</td><td colspan="2" class="text-danger small">${r.error}</td><td colspan="2"></td></tr>`;
+      }
+      const hasExtra = (r.members_count ?? 0) > (r.owners_count ?? 0);
+      const badge = hasExtra
+        ? '<span class="badge bg-success">Sí — tenía gente matriculada</span>'
+        : '<span class="badge bg-secondary">No — solo owners (parece duplicado vacío)</span>';
+      return `
+        <tr>
+          <td>${r.name || r.group_id}</td>
+          <td>${r.owners_count ?? '—'}</td>
+          <td>${r.members_count ?? '—'}</td>
+          <td>${badge}</td>
+          <td><button class="btn btn-sm btn-link p-0" onclick="copyToClipboard('${r.group_id}', 'ID')">Copiar ID</button></td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('deletedGroupsListWrap').style.display = 'none';
+    document.getElementById('deletedGroupsResultsWrap').style.display = 'block';
+    document.getElementById('btnRestoreAndCheck').style.display = 'none';
+
+    const withMembers = results.filter(r => (r.members_count ?? 0) > (r.owners_count ?? 0)).length;
+    toast(`${results.length} restaurados y verificados. ${withMembers} tenían gente matriculada.`, withMembers > 0 ? 'warning' : 'success');
+    loadTeams();
+  } catch (e) {
+    toast('Error restaurando/verificando: ' + (e.detail || e.message || e), 'danger');
+  } finally {
+    setLoading(btn, false);
+  }
+}
+
+function openExcelMembers() {
+  showSpreadsheet({
+    title: 'Añadir miembros a Teams masivamente',
+    columns: [
+      { key: 'team_id', label: 'ID Team', required: true, width: 220 },
+      { key: 'user_id', label: 'ID Usuario (Email/UPN)', required: true, width: 220 },
+      { key: 'role', label: 'Rol', required: false, width: 100,
+        options: [
+          { value: 'member', label: 'Miembro' },
+          { value: 'owner', label: 'Owner' }
+        ] }
+    ],
+    onImport: async (rows) => {
+      const result = { succeeded: [], failed: [] };
+      for (const m of rows) {
+        try {
+          const res = await api.post(`/teams/teams/${m.team_id}/members/bulk-add-emails`, { emails: [m.user_id], role: m.role || 'member' });
+          result.succeeded.push(res);
+        } catch(e) {
+          result.failed.push({ input: { team_id: m.team_id, user_id: m.user_id }, error: e.message });
+        }
+      }
+      return result;
+    }
+  });
+}
+
+// --- BULK ADD MULTIPLE USERS ---
+let _bulkAddPicked = [];
+let _currentTeamId = null;
+
+function openBulkAddModal(teamId) {
+    _currentTeamId = teamId;
+    _bulkAddPicked = [];
+    showModal('Añadir Múltiples Miembros', `
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Buscar usuarios para agregar</label>
+        <div class="d-flex gap-2">
+            <div class="autocomplete-container" style="flex:1;">
+                <input type="text" class="form-control" id="bulk_search_user" placeholder="Buscar por nombre o email..." autocomplete="off">
+                <input type="hidden" id="bulk_add_user_id">
+                <div class="autocomplete-dropdown" id="bulk_add_user_results"></div>
+            </div>
+            <select class="form-select" id="bulkRole" style="max-width:140px">
+                <option value="member">Miembro</option>
+                <option value="owner">Owner</option>
+            </select>
+            <button class="btn btn-primary" onclick="addBulkPickedUser()"><i class="bi bi-plus"></i> Seleccionar</button>
+        </div>
+      </div>
+      <div class="mb-3">
+        <h6>Usuarios Seleccionados:</h6>
+        <div id="bulkPickedContainer" class="p-3 bg-light rounded" style="min-height:60px">
+           <span class="text-muted small">No hay usuarios seleccionados</span>
+        </div>
+      </div>
+    `, `
+      <button class="btn btn-secondary" onclick="viewTeamDetail('${teamId}', 'Equipo')">Volver</button>
+      <button class="btn btn-success" onclick="saveBulkAdd()"><i class="bi bi-save"></i> Guardar Cambios</button>
+    `);
+
+    setupAutocomplete('bulk_search_user', 'bulk_add_user_id', 'bulk_add_user_results', '/teams/users',
+        (u) => `<div class="autocomplete-title">${u.displayName}</div><div class="autocomplete-sub">${u.userPrincipalName || 'Sin email'}</div>`,
+        (u, input, hidden) => { input.value = u.displayName; hidden.value = u.id; input.dataset.upn = u.userPrincipalName; }
+    );
+}
+
+function addBulkPickedUser() {
+    const hidden = document.getElementById('bulk_add_user_id');
+    const input = document.getElementById('bulk_search_user');
+    const roleSel = document.getElementById('bulkRole');
+    if(!hidden.value) { toast('Debe seleccionar un usuario', 'warning'); return; }
+    const id = hidden.value;
+    const name = input.value;
+    const upn = input.dataset.upn;
+    const role = roleSel.value;
+    if (!_bulkAddPicked.find(u => u.id === id)) { _bulkAddPicked.push({id, name, upn, role}); renderBulkPicked(); }
+    hidden.value = ''; input.value = ''; input.dataset.upn = '';
+}
+
+function renderBulkPicked() {
+    const container = document.getElementById('bulkPickedContainer');
+    if (_bulkAddPicked.length === 0) { container.innerHTML = '<span class="text-muted small">No hay usuarios seleccionados</span>'; return; }
+    container.innerHTML = _bulkAddPicked.map(u =>
+        `<span class="badge bg-${u.role === 'owner' ? 'warning text-dark' : 'primary'} me-1 mb-1" style="font-size:.78rem">${u.name} (${u.role}) <button type="button" class="btn-close ms-1" style="font-size:.5rem" onclick="removeBulkPicked('${u.id}')"></button></span>`
+    ).join('');
+}
+
+function removeBulkPicked(id) { _bulkAddPicked = _bulkAddPicked.filter(u => u.id !== id); renderBulkPicked(); }
+
+async function saveBulkAdd() {
+    if (_bulkAddPicked.length === 0) { toast('No has seleccionado a nadie.', 'warning'); return; }
+    try {
+        const payload = { team_id: _currentTeamId, members: _bulkAddPicked.map(u => ({ user_id: u.id, role: u.role })) };
+        await api.post(`/teams/teams/${_currentTeamId}/members/bulk-add`, payload);
+        toast('Añadidos en lote con éxito.', 'success');
+        viewTeamDetail(_currentTeamId, 'Equipo');
+    } catch(e) { toast('Error agregando: ' + e.message, 'danger'); }
+}
+
+// --- BULK ADD BY EMAILS ---
+function openBulkEmailModal(teamId, teamName) {
+    _currentTeamId = teamId;
+    showModal('Carga masiva por Correos: ' + teamName, `
+      <div class="alert alert-info">
+        Pega la lista de correos electrónicos (uno por línea). El sistema los buscará y añadirá automáticamente al equipo.
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-bold">Lista de Correos</label>
+        <textarea class="form-control" id="bulkEmailList" rows="8" placeholder="usuario1@usil.edu.py\nusuario2@usil.edu.py"></textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-bold">Rol a asignar</label>
+        <select class="form-select" id="bulkEmailRole">
+            <option value="member">Miembro</option>
+            <option value="owner">Owner (Propietario)</option>
+        </select>
+      </div>
+      <div id="bulkEmailResultContainer" class="mt-3"></div>
+    `, `
+      <button class="btn btn-secondary" onclick="viewTeamDetail('${teamId}', '${teamName}')">Volver</button>
+      <button class="btn btn-success" id="btnSaveBulkEmails" onclick="saveBulkEmails('${teamName}')"><i class="bi bi-cloud-arrow-up"></i> Procesar Correos</button>
+    `);
+}
+
+async function saveBulkEmails(teamName) {
+    const emailText = document.getElementById('bulkEmailList').value;
+    const role = document.getElementById('bulkEmailRole').value;
+
+    const emails = emailText.split(/[\n,]+/).map(e => e.trim()).filter(e => e.length > 0);
+
+    if (emails.length === 0) {
+        toast('No has ingresado ningún correo válido.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnSaveBulkEmails');
+    const resultContainer = document.getElementById('bulkEmailResultContainer');
+
+    setLoading(btn, true);
+    toast(`Procesando ${emails.length} correos...`, 'info');
+    resultContainer.innerHTML = '<div class="text-center text-muted"><span class="spinner-border spinner-border-sm me-2"></span>Buscando en Azure AD y asignando...</div>';
+
+    try {
+        const payload = { emails: emails, role: role };
+        const res = await api.post(`/teams/teams/${_currentTeamId}/members/bulk-add-emails`, payload);
+
+        const successCount = res.succeeded ? res.succeeded.length : 0;
+        const failedCount = res.failed ? res.failed.length : 0;
+
+        let resultHtml = `<div class="alert alert-${successCount > 0 ? 'success' : 'warning'}">
+            <strong>Proceso completado.</strong><br>
+            Añadidos con éxito: ${successCount}<br>
+            Fallidos / No encontrados: ${failedCount}
+        </div>`;
+
+        if (failedCount > 0) {
+            resultHtml += `<div class="mt-2">
+                <p class="mb-1 fw-bold text-danger">Errores:</p>
+                <ul class="list-group list-group-sm" style="max-height: 150px; overflow-y: auto;">
+                    ${res.failed.map(f => `<li class="list-group-item py-1 px-2 text-danger small"><b>${f.input}</b>: ${f.error}</li>`).join('')}
+                </ul>
+            </div>`;
+        }
+
+        resultContainer.innerHTML = resultHtml;
+        toast(`Se procesaron los correos. ${successCount} añadidos.`, successCount > 0 ? 'success' : 'warning');
+
+        if (successCount > 0 && failedCount === 0) {
+            document.getElementById('bulkEmailList').value = '';
+        }
+
+    } catch(e) {
+        toast('Error procesando correos: ' + (e.detail || e.message || e), 'danger');
+        resultContainer.innerHTML = `<div class="alert alert-danger">Error: ${e.detail || e.message || e}</div>`;
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+// ==========================================
+// AGREGAR MIEMBROS A CUALQUIER GRUPO POR ID
+// (Teams, listas de distribución, grupos de seguridad, etc.)
+// ==========================================
+
+let groupMembersModal = null;
+
+function openGroupMembersModal() {
+    if (!groupMembersModal) {
+        groupMembersModal = new bootstrap.Modal(document.getElementById('groupMembersModal'));
+    }
+    document.getElementById('groupMembersResultsWrap').style.display = 'none';
+    groupMembersModal.show();
+}
+
+async function executeGroupMembersAdd() {
+    const groupId = document.getElementById('groupMembersGroupId').value.trim();
+    const emails = document.getElementById('groupMembersEmails').value
+        .split(/[\n;,]+/).map(s => s.trim()).filter(Boolean);
+
+    if (!groupId) { toast('Ingresá el ID del grupo.', 'warning'); return; }
+    if (emails.length === 0) { toast('Ingresá al menos un correo.', 'warning'); return; }
+
+    const btn = document.getElementById('btnExecuteGroupMembers');
+    setLoading(btn, true);
+    const resultWrap = document.getElementById('groupMembersResultsWrap');
+    resultWrap.style.display = 'none';
+
+    try {
+        const res = await api.post(`/teams/teams/${groupId}/members/bulk-add-to-group`, { emails });
+        const successCount = res.succeeded.length;
+        const failedCount = res.failed.length;
+
+        let html = `<div class="alert ${failedCount > 0 ? 'alert-warning' : 'alert-success'} mb-0">
+            Agregados: ${successCount} | Fallidos: ${failedCount}
+        </div>`;
+        if (failedCount > 0) {
+            html += `<div class="mt-2">
+                <p class="mb-1 fw-bold text-danger">Errores:</p>
+                <ul class="list-group list-group-sm" style="max-height: 150px; overflow-y: auto;">
+                    ${res.failed.map(f => `<li class="list-group-item py-1 px-2 text-danger small"><b>${f.input}</b>: ${f.error}</li>`).join('')}
+                </ul>
+            </div>`;
+        }
+        resultWrap.innerHTML = html;
+        resultWrap.style.display = 'block';
+        toast(`Se procesaron los correos. ${successCount} añadidos.`, successCount > 0 ? 'success' : 'warning');
+
+        if (successCount > 0 && failedCount === 0) {
+            document.getElementById('groupMembersEmails').value = '';
+        }
+    } catch (e) {
+        toast('Error agregando miembros: ' + (e.detail || e.message || e), 'danger');
+        resultWrap.innerHTML = `<div class="alert alert-danger">Error: ${e.detail || e.message || e}</div>`;
+        resultWrap.style.display = 'block';
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+/* ══════════════════ Carga inicial de ambas pestañas ══════════════════ */
 loadCourses();
+loadTeams();
 </script>
 {% endblock %}

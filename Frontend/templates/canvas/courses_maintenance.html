@@ -1,0 +1,939 @@
+{% extends "base.html" %}
+{% block title %}Mantenimiento de Cursos{% endblock %}
+{% block breadcrumb %}Administración › Mantenimiento de Cursos{% endblock %}
+{% block nav_ccmt %}active{% endblock %}
+{% block nav_ccmt_expanded %}true{% endblock %}
+{% block nav_ccmt_show %}show{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-4 gap-3 flex-wrap">
+  <div><div class="page-title">Mantenimiento de Cursos</div><div class="page-subtitle">Herramientas técnicas de corrección y limpieza — uso esporádico, perfil TI</div></div>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="coursesMaintTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active fw-bold text-warning" id="release-sis-tab" data-bs-toggle="tab" data-bs-target="#release-sis" type="button" role="tab" aria-controls="release-sis" aria-selected="true">
+      <i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-warning" id="release-term-sis-tab" data-bs-toggle="tab" data-bs-target="#release-term-sis" type="button" role="tab" aria-controls="release-term-sis" aria-selected="false">
+      <i class="bi bi-unlock-fill me-2"></i>Liberar Período
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-primary" id="fix-coord-role-tab" data-bs-toggle="tab" data-bs-target="#fix-coord-role" type="button" role="tab" aria-controls="fix-coord-role" aria-selected="false">
+      <i class="bi bi-person-gear me-2"></i>Corregir Rol Coordinador
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link fw-bold text-primary" id="fix-sis-id-tab" data-bs-toggle="tab" data-bs-target="#fix-sis-id" type="button" role="tab" aria-controls="fix-sis-id" aria-selected="false">
+      <i class="bi bi-pencil-square me-2"></i>Corregir SIS ID
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content" id="coursesMaintTabsContent">
+  <div class="tab-pane fade show active" id="release-sis" role="tabpanel" aria-labelledby="release-sis-tab">
+    <div class="row">
+      <div class="col-md-8 offset-md-2 mb-4">
+        <div class="card shadow-sm border-warning h-100">
+          <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID bloqueado</h5>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              Cuando un curso se elimina en Canvas, el <b>SIS ID no se libera automáticamente</b> —
+              el curso desaparece de los listados normales pero sigue reservando ese ID, bloqueando la
+              creación de un curso nuevo con el mismo SIS ID (típico al recrear una materia en un período nuevo).
+              Esto limpia el campo SIS ID de esos cursos viejos <b>sin tocar su contenido</b>.
+            </div>
+
+            <div id="releaseSisFormWrap">
+              <label class="form-label fw-bold">SIS IDs o IDs de Canvas bloqueados</label>
+              <textarea class="form-control mb-3" id="releaseSisTextarea" rows="6" placeholder="GA26050&#10;GA26051&#10;4321"></textarea>
+              <div class="d-flex justify-content-end">
+                <button class="btn btn-warning" id="btnPreviewReleaseSis" onclick="previewReleaseSis()">
+                  <i class="bi bi-search me-1"></i>Verificar Cursos
+                </button>
+              </div>
+            </div>
+
+            <div id="releaseSisPreviewWrap" style="display:none;">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h6 class="fw-bold mb-0">Cursos Encontrados (<span id="releaseSisCount">0</span>)</h6>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="selectAllReleaseSis" onchange="toggleSelectAllReleaseSis()">
+                  <label class="form-check-label fw-bold text-warning" for="selectAllReleaseSis">Seleccionar Todos</label>
+                </div>
+              </div>
+              <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th style="width: 40px;"></th>
+                      <th>ID Canvas</th>
+                      <th>Nombre</th>
+                      <th>SIS ID actual</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="releaseSisList"></tbody>
+                </table>
+              </div>
+              <div id="releaseSisNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+                <strong>No encontrados:</strong> <span id="releaseSisNotFound"></span>
+              </div>
+              <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-outline-secondary me-2" onclick="cancelReleaseSisPreview()">
+                  <i class="bi bi-arrow-left me-1"></i>Volver
+                </button>
+                <button class="btn btn-warning" id="btnExecuteReleaseSis" onclick="executeReleaseSis()" disabled>
+                  <i class="bi bi-unlock-fill me-1"></i>Liberar Seleccionados (<span id="selectedReleaseSisCount">0</span>)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div> <!-- End Tab Liberar SIS ID -->
+  <div class="tab-pane fade" id="release-term-sis" role="tabpanel" aria-labelledby="release-term-sis-tab">
+    <div class="row">
+      <div class="col-md-8 offset-md-2 mb-4">
+        <div class="card shadow-sm border-warning h-100">
+          <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID de un Período bloqueado</h5>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              Igual que con los cursos: cuando un <b>período académico</b> se elimina en Canvas, su SIS ID
+              no se libera automáticamente — el período desaparece de los listados normales pero sigue
+              reservando ese ID, bloqueando la creación de un período nuevo con el mismo SIS ID. Esto limpia
+              el campo SIS ID de esos períodos viejos <b>sin tocar los cursos</b> que tuvieron.
+            </div>
+
+            <div id="releaseTermSisFormWrap">
+              <label class="form-label fw-bold">SIS IDs o IDs de Canvas de períodos bloqueados</label>
+              <textarea class="form-control mb-3" id="releaseTermSisTextarea" rows="6" placeholder="GA2026-02&#10;10"></textarea>
+              <div class="d-flex justify-content-end">
+                <button class="btn btn-warning" id="btnPreviewReleaseTermSis" onclick="previewReleaseTermSis()">
+                  <i class="bi bi-search me-1"></i>Verificar Períodos
+                </button>
+              </div>
+            </div>
+
+            <div id="releaseTermSisPreviewWrap" style="display:none;">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h6 class="fw-bold mb-0">Períodos Encontrados (<span id="releaseTermSisCount">0</span>)</h6>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="selectAllReleaseTermSis" onchange="toggleSelectAllReleaseTermSis()">
+                  <label class="form-check-label fw-bold text-warning" for="selectAllReleaseTermSis">Seleccionar Todos</label>
+                </div>
+              </div>
+              <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th style="width: 40px;"></th>
+                      <th>ID Canvas</th>
+                      <th>Nombre</th>
+                      <th>SIS ID actual</th>
+                      <th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="releaseTermSisList"></tbody>
+                </table>
+              </div>
+              <div id="releaseTermSisNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+                <strong>No encontrados:</strong> <span id="releaseTermSisNotFound"></span>
+              </div>
+              <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-outline-secondary me-2" onclick="cancelReleaseTermSisPreview()">
+                  <i class="bi bi-arrow-left me-1"></i>Volver
+                </button>
+                <button class="btn btn-warning" id="btnExecuteReleaseTermSis" onclick="executeReleaseTermSis()" disabled>
+                  <i class="bi bi-unlock-fill me-1"></i>Liberar Seleccionados (<span id="selectedReleaseTermSisCount">0</span>)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div> <!-- End Tab Liberar Período -->
+  <div class="tab-pane fade" id="fix-coord-role" role="tabpanel" aria-labelledby="fix-coord-role-tab">
+    <div class="row">
+      <div class="col-md-8 offset-md-2 mb-4">
+        <div class="card shadow-sm border-primary h-100">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-person-gear me-2"></i>Corregir Rol de Coordinador (Diseñador → Coordinador)</h5>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              Los coordinadores/diseñadores cargados desde la planilla se inscribieron con el rol
+              base <b>Diseñador</b> antes de que existiera el rol personalizado <b>Coordinador</b> en Canvas.
+              Esto lee la misma planilla de cursos, detecta esas inscripciones y las migra al rol
+              <b>Coordinador</b> (se quita la inscripción de Diseñador y se crea una nueva como Coordinador,
+              porque Canvas no permite cambiar el rol de una inscripción existente).
+            </div>
+
+            <div id="fixCoordRoleFormWrap">
+              <div class="btn-group mb-3" role="group" aria-label="Modo de búsqueda">
+                <button type="button" class="btn btn-primary" id="btnFixCoordModeExcel" onclick="setFixCoordRoleMode('excel')">
+                  <i class="bi bi-file-earmark-spreadsheet me-1"></i>Por Planilla
+                </button>
+                <button type="button" class="btn btn-outline-primary" id="btnFixCoordModeCourse" onclick="setFixCoordRoleMode('course')">
+                  <i class="bi bi-hash me-1"></i>Por ID de Curso
+                </button>
+              </div>
+
+              <div id="fixCoordRoleExcelMode">
+                <label class="form-label fw-bold">URL de OneDrive de la planilla de cursos</label>
+                <div class="input-group mb-2">
+                  <input type="url" id="fixCoordRoleUrl" class="form-control" placeholder="https://usilpy-my.sharepoint.com/:x:/g/personal/...">
+                  <button class="btn btn-outline-primary" id="btnLoadFixCoordRoleSheets" onclick="fetchFixCoordRoleSheets()">
+                    <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
+                  </button>
+                </div>
+                <label class="form-label fw-bold">Pestaña</label>
+                <select class="form-select mb-3" id="fixCoordRoleSheet">
+                  <option value="">Selecciona una pestaña...</option>
+                </select>
+                <div class="d-flex justify-content-end">
+                  <button class="btn btn-primary" id="btnPreviewFixCoordRole" onclick="previewFixCoordRole()">
+                    <i class="bi bi-search me-1"></i>Detectar Coordinadores
+                  </button>
+                </div>
+              </div>
+
+              <div id="fixCoordRoleCourseMode" style="display:none;">
+                <label class="form-label fw-bold">IDs de Canvas o SIS IDs de los cursos a corregir</label>
+                <textarea class="form-control mb-3" id="fixCoordRoleCourseTextarea" rows="6" placeholder="1963&#10;GA26050&#10;1970"></textarea>
+                <div class="alert alert-secondary small py-2 mb-3">
+                  Busca <b>todos</b> los inscritos como Diseñador en cada curso indicado (sin necesitar
+                  la planilla) — útil para corregir solo algunos cursos puntuales.
+                </div>
+                <div class="d-flex justify-content-end">
+                  <button class="btn btn-primary" id="btnPreviewFixCoordRoleByCourse" onclick="previewFixCoordRoleByCourse()">
+                    <i class="bi bi-search me-1"></i>Buscar en esos Cursos
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div id="fixCoordRolePreviewWrap" style="display:none;">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h6 class="fw-bold mb-0">Inscripciones a migrar (<span id="fixCoordRoleCount">0</span>)</h6>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="selectAllFixCoordRole" onchange="toggleSelectAllFixCoordRole()">
+                  <label class="form-check-label fw-bold text-primary" for="selectAllFixCoordRole">Seleccionar Todos</label>
+                </div>
+              </div>
+              <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th style="width: 40px;"></th>
+                      <th>Curso</th>
+                      <th>Coordinador</th>
+                      <th>Rol actual</th>
+                    </tr>
+                  </thead>
+                  <tbody id="fixCoordRoleList"></tbody>
+                </table>
+              </div>
+              <div id="fixCoordRoleAlreadyOkWrap" style="display:none;" class="alert alert-success mt-3 mb-0 py-2 small">
+                <span id="fixCoordRoleAlreadyOk"></span> coordinador(es) ya tenían el rol Coordinador correcto — no requieren cambios.
+              </div>
+              <div id="fixCoordRoleNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0">
+                <strong>No encontrados / sin cambios:</strong> <span id="fixCoordRoleNotFound"></span>
+              </div>
+              <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-outline-secondary me-2" onclick="cancelFixCoordRolePreview()">
+                  <i class="bi bi-arrow-left me-1"></i>Volver
+                </button>
+                <button class="btn btn-primary" id="btnExecuteFixCoordRole" onclick="executeFixCoordRole()" disabled>
+                  <i class="bi bi-person-gear me-1"></i>Migrar Seleccionados (<span id="selectedFixCoordRoleCount">0</span>)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div> <!-- End Tab Corregir Rol Coordinador -->
+  <div class="tab-pane fade" id="fix-sis-id" role="tabpanel" aria-labelledby="fix-sis-id-tab">
+    <div class="row">
+      <div class="col-md-8 offset-md-2 mb-4">
+        <div class="card shadow-sm border-primary h-100">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-pencil-square me-2"></i>Corregir SIS ID de cursos ya creados</h5>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info">
+              Para cursos que ya se crearon en Canvas con un SIS ID mal cargado. Lee la misma planilla
+              de cursos: usa <b>ID CANVAS (Autogenerado)</b> para identificar el curso ya existente, y
+              <b>Identificación del SIS (Canvas)</b> como el valor <b>correcto</b> al que debe quedar.
+              Corregí la columna del SIS en la planilla primero, después ejecutá esto — el valor
+              anterior se libera solo (un curso solo puede tener un SIS ID a la vez).
+            </div>
+
+            <div id="fixSisIdFormWrap">
+              <label class="form-label fw-bold">URL de OneDrive de la planilla de cursos</label>
+              <div class="input-group mb-2">
+                <input type="url" id="fixSisIdUrl" class="form-control" placeholder="https://usilpy-my.sharepoint.com/:x:/g/personal/...">
+                <button class="btn btn-outline-primary" id="btnLoadFixSisIdSheets" onclick="fetchFixSisIdSheets()">
+                  <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
+                </button>
+              </div>
+              <label class="form-label fw-bold">Pestaña</label>
+              <select class="form-select mb-3" id="fixSisIdSheet">
+                <option value="">Selecciona una pestaña...</option>
+              </select>
+              <div class="d-flex justify-content-end">
+                <button class="btn btn-primary" id="btnPreviewFixSisId" onclick="previewFixSisId()">
+                  <i class="bi bi-search me-1"></i>Detectar Cursos a Corregir
+                </button>
+              </div>
+            </div>
+
+            <div id="fixSisIdPreviewWrap" style="display:none;">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                <h6 class="fw-bold mb-0">Cursos a corregir (<span id="fixSisIdCount">0</span>)</h6>
+              </div>
+              <div class="table-responsive border rounded bg-white" style="max-height:300px; overflow-y:auto;">
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th>Curso</th>
+                      <th>ID Canvas</th>
+                      <th>SIS actual</th>
+                      <th>SIS nuevo</th>
+                    </tr>
+                  </thead>
+                  <tbody id="fixSisIdList"></tbody>
+                </table>
+              </div>
+              <div id="fixSisIdAlreadyOkWrap" style="display:none;" class="alert alert-success mt-3 mb-0 py-2 small">
+                <span id="fixSisIdAlreadyOk"></span> curso(s) ya tenían el SIS ID correcto — no requieren cambios.
+              </div>
+              <div id="fixSisIdNotFoundWrap" style="display:none;" class="alert alert-warning mt-3 mb-0 py-2 small">
+                <span id="fixSisIdNotFound"></span> fila(s) con ID Canvas que no se encontró en Canvas — revisalas antes de reintentar.
+              </div>
+              <div class="d-flex justify-content-end mt-3">
+                <button class="btn btn-outline-secondary me-2" onclick="cancelFixSisIdPreview()">
+                  <i class="bi bi-arrow-left me-1"></i>Volver
+                </button>
+                <button class="btn btn-primary" id="btnExecuteFixSisId" onclick="executeFixSisId()">
+                  <i class="bi bi-pencil-square me-1"></i>Corregir Todos
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div> <!-- End Tab Corregir SIS ID -->
+
+</div> <!-- End Tabs Content -->
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function previewReleaseSis() {
+    const raw = document.getElementById('releaseSisTextarea').value;
+    const entries = _parseReleaseSisEntries(raw);
+
+    if (entries.length === 0) {
+        toast('Ingresa al menos un SIS ID o ID de Canvas.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnPreviewReleaseSis');
+    setLoading(btn, true);
+
+    try {
+        const resolved = await api.post('/canvas/courses/release-sis-id/resolve', { entries });
+        currentReleaseSisCandidates = resolved.filter(r => r.found);
+        const notFound = resolved.filter(r => !r.found);
+
+        const tbody = document.getElementById('releaseSisList');
+        let html = '';
+        currentReleaseSisCandidates.forEach(r => {
+            const cfg = _STATE_CFG[r.workflow_state] || { label: r.workflow_state || '—', bg: '#6C7982' };
+            html += `
+            <tr>
+                <td><input class="form-check-input release-sis-checkbox" type="checkbox" value="${r.course_id}" onchange="updateSelectedReleaseSisCount()"></td>
+                <td>${r.course_id}</td>
+                <td>${r.name}</td>
+                <td><span class="badge bg-secondary">${r.current_sis_id || '—'}</span></td>
+                <td><span class="badge" style="background:${cfg.bg};">${cfg.label}</span></td>
+            </tr>`;
+        });
+        if (currentReleaseSisCandidates.length === 0) {
+            html = `<tr><td colspan="5" class="text-center text-muted">Ningún curso encontrado.</td></tr>`;
+        }
+        tbody.innerHTML = html;
+        document.getElementById('releaseSisCount').innerText = currentReleaseSisCandidates.length;
+        document.getElementById('selectAllReleaseSis').checked = false;
+
+        if (notFound.length > 0) {
+            document.getElementById('releaseSisNotFoundWrap').style.display = 'block';
+            document.getElementById('releaseSisNotFound').innerText = notFound.map(r => r.input).join(', ');
+        } else {
+            document.getElementById('releaseSisNotFoundWrap').style.display = 'none';
+        }
+
+        document.getElementById('releaseSisFormWrap').style.display = 'none';
+        document.getElementById('releaseSisPreviewWrap').style.display = 'block';
+        updateSelectedReleaseSisCount();
+    } catch (e) {
+        toast('Error verificando cursos: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function cancelReleaseSisPreview() {
+    document.getElementById('releaseSisFormWrap').style.display = 'block';
+    document.getElementById('releaseSisPreviewWrap').style.display = 'none';
+}
+
+function toggleSelectAllReleaseSis() {
+    const selectAll = document.getElementById('selectAllReleaseSis').checked;
+    document.querySelectorAll('.release-sis-checkbox').forEach(cb => cb.checked = selectAll);
+    updateSelectedReleaseSisCount();
+}
+
+function updateSelectedReleaseSisCount() {
+    const selected = document.querySelectorAll('.release-sis-checkbox:checked').length;
+    document.getElementById('selectedReleaseSisCount').innerText = selected;
+    document.getElementById('btnExecuteReleaseSis').disabled = selected === 0;
+}
+
+async function executeReleaseSis() {
+    const checkboxes = document.querySelectorAll('.release-sis-checkbox:checked');
+    const courseIds = Array.from(checkboxes).map(cb => cb.value);
+
+    if (courseIds.length === 0) return;
+
+    if (!confirm(`¿Liberar el SIS ID de los ${courseIds.length} cursos seleccionados? No se toca su contenido, solo se les quita el SIS ID para que quede disponible para un curso nuevo.`)) return;
+
+    const btn = document.getElementById('btnExecuteReleaseSis');
+    setLoading(btn, true);
+
+    try {
+        const res = await api.post('/canvas/courses/release-sis-id', { course_ids: courseIds });
+
+        renderReleaseErrorDetails('releaseSisErrorsWrap', res.failed, 'course_id');
+
+        if (res.failed.length > 0) {
+            toast(`Éxito: ${res.succeeded.length} SIS ID liberados. Errores: ${res.failed.length} (detalle abajo).`, 'warning');
+        } else {
+            toast(`Éxito: ${res.succeeded.length} SIS ID liberados.`, 'success');
+            document.getElementById('releaseSisTextarea').value = '';
+            cancelReleaseSisPreview();
+        }
+    } catch (e) {
+        toast('Error liberando SIS ID: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+// ==========================================
+// LIBERAR SIS ID DE PERIODOS BLOQUEADOS
+// ==========================================
+
+let currentReleaseTermSisCandidates = [];
+
+async function previewReleaseTermSis() {
+    const raw = document.getElementById('releaseTermSisTextarea').value;
+    const entries = _parseReleaseSisEntries(raw);
+
+    if (entries.length === 0) {
+        toast('Ingresa al menos un SIS ID o ID de período.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnPreviewReleaseTermSis');
+    setLoading(btn, true);
+
+    try {
+        const resolved = await api.post('/canvas/terms/release-sis-id/resolve', { entries });
+        currentReleaseTermSisCandidates = resolved.filter(r => r.found);
+        const notFound = resolved.filter(r => !r.found);
+
+        const tbody = document.getElementById('releaseTermSisList');
+        let html = '';
+        currentReleaseTermSisCandidates.forEach(r => {
+            const cfg = _STATE_CFG[r.workflow_state] || { label: r.workflow_state || '—', bg: '#6C7982' };
+            html += `
+            <tr>
+                <td><input class="form-check-input release-term-sis-checkbox" type="checkbox" value="${r.term_id}" onchange="updateSelectedReleaseTermSisCount()"></td>
+                <td>${r.term_id}</td>
+                <td>${r.name}</td>
+                <td><span class="badge bg-secondary">${r.current_sis_id || '—'}</span></td>
+                <td><span class="badge" style="background:${cfg.bg};">${cfg.label}</span></td>
+            </tr>`;
+        });
+        if (currentReleaseTermSisCandidates.length === 0) {
+            html = `<tr><td colspan="5" class="text-center text-muted">Ningún período encontrado.</td></tr>`;
+        }
+        tbody.innerHTML = html;
+        document.getElementById('releaseTermSisCount').innerText = currentReleaseTermSisCandidates.length;
+        document.getElementById('selectAllReleaseTermSis').checked = false;
+
+        if (notFound.length > 0) {
+            document.getElementById('releaseTermSisNotFoundWrap').style.display = 'block';
+            document.getElementById('releaseTermSisNotFound').innerText = notFound.map(r => r.input).join(', ');
+        } else {
+            document.getElementById('releaseTermSisNotFoundWrap').style.display = 'none';
+        }
+
+        document.getElementById('releaseTermSisFormWrap').style.display = 'none';
+        document.getElementById('releaseTermSisPreviewWrap').style.display = 'block';
+        updateSelectedReleaseTermSisCount();
+    } catch (e) {
+        toast('Error verificando períodos: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function cancelReleaseTermSisPreview() {
+    document.getElementById('releaseTermSisFormWrap').style.display = 'block';
+    document.getElementById('releaseTermSisPreviewWrap').style.display = 'none';
+}
+
+function toggleSelectAllReleaseTermSis() {
+    const selectAll = document.getElementById('selectAllReleaseTermSis').checked;
+    document.querySelectorAll('.release-term-sis-checkbox').forEach(cb => cb.checked = selectAll);
+    updateSelectedReleaseTermSisCount();
+}
+
+function updateSelectedReleaseTermSisCount() {
+    const selected = document.querySelectorAll('.release-term-sis-checkbox:checked').length;
+    document.getElementById('selectedReleaseTermSisCount').innerText = selected;
+    document.getElementById('btnExecuteReleaseTermSis').disabled = selected === 0;
+}
+
+async function executeReleaseTermSis() {
+    const checkboxes = document.querySelectorAll('.release-term-sis-checkbox:checked');
+    const termIds = Array.from(checkboxes).map(cb => cb.value);
+
+    if (termIds.length === 0) return;
+
+    if (!confirm(`¿Liberar el SIS ID de los ${termIds.length} períodos seleccionados? No se tocan los cursos que tuvieron, solo se les quita el SIS ID para que quede disponible para un período nuevo.`)) return;
+
+    const btn = document.getElementById('btnExecuteReleaseTermSis');
+    setLoading(btn, true);
+
+    try {
+        const res = await api.post('/canvas/terms/release-sis-id', { term_ids: termIds });
+
+        renderReleaseErrorDetails('releaseTermSisErrorsWrap', res.failed, 'term_id');
+
+        if (res.failed.length > 0) {
+            toast(`Éxito: ${res.succeeded.length} SIS ID liberados. Errores: ${res.failed.length} (detalle abajo).`, 'warning');
+        } else {
+            toast(`Éxito: ${res.succeeded.length} SIS ID liberados.`, 'success');
+            document.getElementById('releaseTermSisTextarea').value = '';
+            cancelReleaseTermSisPreview();
+        }
+    } catch (e) {
+        toast('Error liberando SIS ID: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+// Muestra el detalle de errores de una operación en lote directamente en
+// pantalla (en vez de solo en la consola del navegador, que muchos usuarios
+// no llegan a abrir).
+function renderReleaseErrorDetails(containerId, failed, idKey) {
+    let container = document.getElementById(containerId);
+    if (!container) {
+        container = document.createElement('div');
+        container.id = containerId;
+        // Se inserta después del botón de acción correspondiente
+        const anchorId = containerId === 'releaseTermSisErrorsWrap' ? 'releaseTermSisPreviewWrap'
+            : containerId === 'fixCoordRoleErrorsWrap' ? 'fixCoordRolePreviewWrap'
+            : 'releaseSisPreviewWrap';
+        document.getElementById(anchorId).appendChild(container);
+    }
+    if (!failed || failed.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    container.innerHTML = `
+        <div class="alert alert-danger mt-3 mb-0">
+            <strong>Detalle de errores:</strong>
+            <ul class="mb-0 mt-2">
+                ${failed.map(f => `<li><b>${f.name || f[idKey]}</b> (ID ${f[idKey]}): ${f.error}</li>`).join('')}
+            </ul>
+        </div>`;
+}
+
+
+// ==========================================
+// CORREGIR ROL DE COORDINADOR (Diseñador -> Coordinador)
+// ==========================================
+
+let currentFixCoordRoleItems = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('fixCoordRoleUrl');
+    if (el) el.value = localStorage.getItem('coursesOdUrl') || '';
+});
+
+async function fetchFixCoordRoleSheets() {
+    const urlInput = document.getElementById('fixCoordRoleUrl').value.trim();
+    if (!urlInput) { toast('Por favor, ingresa la URL primero.', 'warning'); return; }
+    localStorage.setItem('coursesOdUrl', urlInput);
+
+    const btn = document.getElementById('btnLoadFixCoordRoleSheets');
+    const select = document.getElementById('fixCoordRoleSheet');
+    setLoading(btn, true);
+    select.innerHTML = '<option value="">Cargando pestañas...</option>';
+
+    try {
+        const sheets = await api.post('/excel/courses/sheets', { url: urlInput });
+        select.innerHTML = '<option value="">Selecciona una pestaña...</option>';
+        (sheets || []).forEach(sheet => {
+            const opt = document.createElement('option');
+            opt.value = sheet; opt.textContent = sheet;
+            select.appendChild(opt);
+        });
+        toast('Pestañas cargadas correctamente.', 'success');
+    } catch (e) {
+        toast('Error al cargar pestañas: ' + (e.detail || e.message || e), 'danger');
+        select.innerHTML = '<option value="">Error al cargar.</option>';
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function setFixCoordRoleMode(mode) {
+    const isExcel = mode === 'excel';
+    document.getElementById('fixCoordRoleExcelMode').style.display = isExcel ? 'block' : 'none';
+    document.getElementById('fixCoordRoleCourseMode').style.display = isExcel ? 'none' : 'block';
+    document.getElementById('btnFixCoordModeExcel').classList.toggle('btn-primary', isExcel);
+    document.getElementById('btnFixCoordModeExcel').classList.toggle('btn-outline-primary', !isExcel);
+    document.getElementById('btnFixCoordModeCourse').classList.toggle('btn-primary', !isExcel);
+    document.getElementById('btnFixCoordModeCourse').classList.toggle('btn-outline-primary', isExcel);
+}
+
+function _renderFixCoordRolePreview(res) {
+    currentFixCoordRoleItems = res.items || [];
+
+    const tbody = document.getElementById('fixCoordRoleList');
+    let html = '';
+    currentFixCoordRoleItems.forEach((it, idx) => {
+        html += `
+        <tr>
+            <td><input class="form-check-input fix-coord-role-checkbox" type="checkbox" value="${idx}" onchange="updateSelectedFixCoordRoleCount()"></td>
+            <td>${it.course_name || it.course_id}</td>
+            <td>${it.email}</td>
+            <td><span class="badge bg-secondary">${it.current_role || 'Diseñador'}</span></td>
+        </tr>`;
+    });
+    if (currentFixCoordRoleItems.length === 0) {
+        html = `<tr><td colspan="4" class="text-center text-muted">Ninguna inscripción de Diseñador pendiente de migrar.</td></tr>`;
+    }
+    tbody.innerHTML = html;
+    document.getElementById('fixCoordRoleCount').innerText = currentFixCoordRoleItems.length;
+    document.getElementById('selectAllFixCoordRole').checked = false;
+
+    if (res.already_correct > 0) {
+        document.getElementById('fixCoordRoleAlreadyOkWrap').style.display = 'block';
+        document.getElementById('fixCoordRoleAlreadyOk').innerText = res.already_correct;
+    } else {
+        document.getElementById('fixCoordRoleAlreadyOkWrap').style.display = 'none';
+    }
+
+    if (res.not_found && res.not_found.length > 0) {
+        document.getElementById('fixCoordRoleNotFoundWrap').style.display = 'block';
+        document.getElementById('fixCoordRoleNotFound').innerText = res.not_found.join('; ');
+    } else {
+        document.getElementById('fixCoordRoleNotFoundWrap').style.display = 'none';
+    }
+
+    document.getElementById('fixCoordRoleFormWrap').style.display = 'none';
+    document.getElementById('fixCoordRolePreviewWrap').style.display = 'block';
+    updateSelectedFixCoordRoleCount();
+}
+
+async function previewFixCoordRole() {
+    const urlInput = document.getElementById('fixCoordRoleUrl').value.trim();
+    const sheetInput = document.getElementById('fixCoordRoleSheet').value.trim();
+    if (!urlInput) { toast('Por favor, ingresa la URL primero.', 'warning'); return; }
+    if (!sheetInput) { toast('Selecciona una pestaña primero.', 'warning'); return; }
+
+    const btn = document.getElementById('btnPreviewFixCoordRole');
+    setLoading(btn, true);
+    toast('Analizando la planilla...', 'info');
+
+    try {
+        const res = await api.post('/excel/courses/fix-coordinador-role/preview', { url: urlInput, sheet_name: sheetInput });
+        _renderFixCoordRolePreview(res);
+    } catch (e) {
+        toast('Error detectando coordinadores: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function _parseFixCoordRoleCourseEntries(raw) {
+    return (raw || '').split(/[\n;]+/).map(s => s.trim()).filter(Boolean);
+}
+
+async function previewFixCoordRoleByCourse() {
+    const raw = document.getElementById('fixCoordRoleCourseTextarea').value;
+    const entries = _parseFixCoordRoleCourseEntries(raw);
+    if (entries.length === 0) {
+        toast('Ingresa al menos un ID de Canvas o SIS ID de curso.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btnPreviewFixCoordRoleByCourse');
+    setLoading(btn, true);
+    toast('Buscando inscripciones de Diseñador...', 'info');
+
+    try {
+        const res = await api.post('/excel/courses/fix-coordinador-role/resolve-by-course', { entries });
+        _renderFixCoordRolePreview(res);
+    } catch (e) {
+        toast('Error buscando en los cursos: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function cancelFixCoordRolePreview() {
+    document.getElementById('fixCoordRoleFormWrap').style.display = 'block';
+    document.getElementById('fixCoordRolePreviewWrap').style.display = 'none';
+}
+
+function toggleSelectAllFixCoordRole() {
+    const selectAll = document.getElementById('selectAllFixCoordRole').checked;
+    document.querySelectorAll('.fix-coord-role-checkbox').forEach(cb => cb.checked = selectAll);
+    updateSelectedFixCoordRoleCount();
+}
+
+function updateSelectedFixCoordRoleCount() {
+    const selected = document.querySelectorAll('.fix-coord-role-checkbox:checked').length;
+    document.getElementById('selectedFixCoordRoleCount').innerText = selected;
+    document.getElementById('btnExecuteFixCoordRole').disabled = selected === 0;
+}
+
+async function executeFixCoordRole() {
+    const checkboxes = document.querySelectorAll('.fix-coord-role-checkbox:checked');
+    const items = Array.from(checkboxes).map(cb => currentFixCoordRoleItems[parseInt(cb.value, 10)]);
+    if (items.length === 0) return;
+
+    if (!confirm(`¿Migrar ${items.length} inscripción(es) de Diseñador a Coordinador? Se quita la inscripción de Diseñador y se crea una nueva como Coordinador para cada uno.`)) return;
+
+    const btn = document.getElementById('btnExecuteFixCoordRole');
+    setLoading(btn, true);
+
+    try {
+        const res = await api.post('/excel/courses/fix-coordinador-role/execute', { items });
+
+        let errWrap = document.getElementById('fixCoordRoleErrorsWrap');
+        if (!errWrap) {
+            errWrap = document.createElement('div');
+            errWrap.id = 'fixCoordRoleErrorsWrap';
+            document.getElementById('fixCoordRolePreviewWrap').appendChild(errWrap);
+        }
+        if (res.failed && res.failed.length > 0) {
+            errWrap.innerHTML = `
+                <div class="alert alert-danger mt-3 mb-0">
+                    <strong>Detalle de errores:</strong>
+                    <ul class="mb-0 mt-2">
+                        ${res.failed.map(f => `<li><b>${f.item}</b>: ${f.error}</li>`).join('')}
+                    </ul>
+                </div>`;
+            toast(`Éxito: ${res.succeeded.length} migrados. Errores: ${res.failed.length} (detalle abajo).`, 'warning');
+        } else {
+            errWrap.innerHTML = '';
+            toast(`Éxito: ${res.succeeded.length} coordinador(es) migrados a Coordinador.`, 'success');
+            cancelFixCoordRolePreview();
+        }
+    } catch (e) {
+        toast('Error migrando coordinadores: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+// ==========================================
+// CORREGIR SIS ID (POR PLANILLA)
+// ==========================================
+let _fixSisIdJobPollInterval = null;
+let _fixSisIdUrl = '';
+let _fixSisIdSheet = '';
+
+async function fetchFixSisIdSheets() {
+    const urlInput = document.getElementById('fixSisIdUrl').value.trim();
+    if (!urlInput) { toast('Por favor, ingresa la URL primero.', 'warning'); return; }
+
+    const btn = document.getElementById('btnLoadFixSisIdSheets');
+    const select = document.getElementById('fixSisIdSheet');
+    setLoading(btn, true);
+    select.innerHTML = '<option value="">Cargando pestañas...</option>';
+
+    try {
+        const sheets = await api.post('/excel/courses/sheets', { url: urlInput });
+        if (sheets && sheets.length > 0) {
+            select.innerHTML = '<option value="">Selecciona una pestaña...</option>';
+            sheets.forEach(sheet => {
+                const opt = document.createElement('option');
+                opt.value = sheet; opt.textContent = sheet;
+                select.appendChild(opt);
+            });
+            toast('Pestañas cargadas correctamente.', 'success');
+        } else {
+            select.innerHTML = '<option value="">No se encontraron pestañas.</option>';
+        }
+    } catch (e) {
+        toast('Error al cargar pestañas: ' + (e.detail || e.message || e), 'danger');
+        select.innerHTML = '<option value="">Error al cargar.</option>';
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+async function previewFixSisId() {
+    const urlInput = document.getElementById('fixSisIdUrl').value.trim();
+    const sheetInput = document.getElementById('fixSisIdSheet').value.trim();
+    if (!urlInput || !sheetInput) { toast('Completá la URL y elegí una pestaña.', 'warning'); return; }
+
+    _fixSisIdUrl = urlInput;
+    _fixSisIdSheet = sheetInput;
+
+    const btn = document.getElementById('btnPreviewFixSisId');
+    setLoading(btn, true);
+
+    try {
+        const res = await api.post('/excel/courses/fix-sis-id/preview', { url: urlInput, sheet_name: sheetInput });
+
+        document.getElementById('fixSisIdCount').innerText = res.to_fix;
+        document.getElementById('fixSisIdList').innerHTML = res.sample_rows.map(r => `
+            <tr>
+                <td>${r.nombre || '<span class="text-muted">—</span>'}</td>
+                <td>${r.canvas_id}</td>
+                <td><span class="badge bg-danger">${r.sis_actual}</span></td>
+                <td><span class="badge bg-success">${r.sis_nuevo}</span></td>
+            </tr>
+        `).join('') || '<tr><td colspan="4" class="text-center text-muted p-3">No hay cursos pendientes de corrección.</td></tr>';
+
+        if (res.already_correct > 0) {
+            document.getElementById('fixSisIdAlreadyOkWrap').style.display = 'block';
+            document.getElementById('fixSisIdAlreadyOk').innerText = res.already_correct;
+        } else {
+            document.getElementById('fixSisIdAlreadyOkWrap').style.display = 'none';
+        }
+        if (res.no_course_found > 0) {
+            document.getElementById('fixSisIdNotFoundWrap').style.display = 'block';
+            document.getElementById('fixSisIdNotFound').innerText = res.no_course_found;
+        } else {
+            document.getElementById('fixSisIdNotFoundWrap').style.display = 'none';
+        }
+
+        document.getElementById('btnExecuteFixSisId').disabled = res.to_fix === 0;
+        document.getElementById('fixSisIdFormWrap').style.display = 'none';
+        document.getElementById('fixSisIdPreviewWrap').style.display = 'block';
+    } catch (e) {
+        toast('Error: ' + (e.detail || e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function cancelFixSisIdPreview() {
+    document.getElementById('fixSisIdFormWrap').style.display = 'block';
+    document.getElementById('fixSisIdPreviewWrap').style.display = 'none';
+    const progressWrap = document.getElementById('fixSisIdJobProgressWrap');
+    if (progressWrap) progressWrap.remove();
+}
+
+async function executeFixSisId() {
+    if (!confirm('¿Corregir el SIS ID de todos los cursos detectados? El valor anterior de cada uno se libera automáticamente al reemplazarlo.')) return;
+
+    const btn = document.getElementById('btnExecuteFixSisId');
+    setLoading(btn, true);
+
+    try {
+        const res = await api.post('/excel/courses/fix-sis-id', { url: _fixSisIdUrl, sheet_name: _fixSisIdSheet });
+        toast('Corrección de SIS ID iniciada en segundo plano.', 'info');
+        startFixSisIdJobPolling(res.job_id);
+    } catch (e) {
+        toast('Error: ' + (e.detail || e.message || e), 'danger');
+        setLoading(btn, false);
+    }
+}
+
+function startFixSisIdJobPolling(jobId) {
+    const btn = document.getElementById('btnExecuteFixSisId');
+    if (_fixSisIdJobPollInterval) clearInterval(_fixSisIdJobPollInterval);
+
+    let progressWrap = document.getElementById('fixSisIdJobProgressWrap');
+    if (progressWrap) progressWrap.remove();
+    document.getElementById('fixSisIdPreviewWrap').insertAdjacentHTML('beforeend', `
+        <div id="fixSisIdJobProgressWrap" class="alert alert-info mt-3">
+            <div class="mb-2"><b>Procesando en segundo plano...</b> (Trabajo #${jobId})</div>
+            <div class="progress" style="height: 20px;">
+                <div id="fixSisIdJobProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 5%;">5%</div>
+            </div>
+            <div id="fixSisIdJobProgressDetail" class="mt-2 small text-muted">Inicializando...</div>
+        </div>
+    `);
+
+    _fixSisIdJobPollInterval = setInterval(async () => {
+        try {
+            const job = await api.get(`/excel/jobs/${jobId}`);
+            if (!job) return;
+
+            const processed = (job.result_count || 0) + (job.error_count || 0);
+            const total = parseInt(document.getElementById('fixSisIdCount').innerText, 10) || 0;
+            const percent = total > 0 ? Math.round((processed / total) * 100) : (['completed', 'completed_with_errors', 'failed'].includes(job.status) ? 100 : 5);
+
+            const bar = document.getElementById('fixSisIdJobProgressBar');
+            if (bar) { bar.style.width = `${percent}%`; bar.innerText = `${percent}%`; }
+            const detail = document.getElementById('fixSisIdJobProgressDetail');
+            if (detail) detail.innerHTML = `Completados: ${job.result_count || 0} | Errores: ${job.error_count || 0}`;
+
+            if (['completed', 'completed_with_errors', 'failed'].includes(job.status)) {
+                clearInterval(_fixSisIdJobPollInterval);
+                setLoading(btn, false);
+
+                if (job.status === 'failed') {
+                    toast('❌ El proceso falló: ' + (job.error_message || ''), 'danger');
+                } else {
+                    const failCount = job.error_count || 0;
+                    toast(`✅ ${job.result_count || 0} curso(s) corregido(s).${failCount > 0 ? ` ⚠️ ${failCount} con errores.` : ''}`, failCount > 0 ? 'warning' : 'success');
+                }
+
+                cancelFixSisIdPreview();
+                document.getElementById('fixSisIdUrl').value = '';
+                document.getElementById('fixSisIdSheet').innerHTML = '<option value="">Selecciona una pestaña...</option>';
+            }
+        } catch (e) {
+            console.error('Error consultando estado del trabajo', e);
+        }
+    }, 4000);
+}
+
+// Activa la pestaña indicada por ?tab= (llegando desde el submenú del sidebar)
+(function activateTabFromQuery() {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    if (!tab) return;
+    const btn = document.getElementById(tab + '-tab');
+    if (btn) new bootstrap.Tab(btn).show();
+})();
+
+
+</script>
+{% endblock %}

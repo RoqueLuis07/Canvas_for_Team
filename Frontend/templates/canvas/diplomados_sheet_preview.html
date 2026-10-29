@@ -1,0 +1,304 @@
+{% extends "base.html" %}
+{% block title %}Vista previa · Planilla de Diplomado{% endblock %}
+{% block breadcrumb %}Maqueta › Planilla de Diplomado{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-3 flex-wrap">
+  <div>
+    <div class="page-title">Planilla de Diplomado — modelo de vista</div>
+    <div class="page-subtitle">Maqueta: cómo se vería trabajar un diplomado puntual, con la fuente comercial a mano para traspasar alumnos nuevos</div>
+  </div>
+</div>
+
+<div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+  <i class="bi bi-cone-striped"></i>
+  <div>
+    <strong>Esto es una maqueta, no una función real todavía.</strong>
+    Los datos de abajo son ficticios y no se guardan — es para validar la forma antes de conectarla a Datos UBS y a las tablas reales.
+  </div>
+</div>
+
+<!-- Encabezado del diplomado: identidad del lote -->
+<div class="canvas-panel mb-3 dip-head">
+  <div class="dip-head-row">
+    <div class="dip-head-main">
+      <div class="dip-head-label">Diplomado</div>
+      <div class="dip-head-title">Diplomado en Gerencia de Procesos y Transformación Operativa — Febrero (demo)</div>
+    </div>
+    <div class="dip-head-meta">
+      <div class="dip-chip"><i class="bi bi-people-fill"></i> Equipo: <strong>TEAM-GP-2026-02</strong></div>
+      <div class="dip-chip"><i class="bi bi-calendar-event"></i> Período: <strong>2026-02</strong></div>
+    </div>
+  </div>
+  <div class="dip-owners">
+    <span class="dip-owners-label">Propietarios</span>
+    <span class="dip-owner-chip"><span class="dip-owner-dot">NC</span> Ninoska Cerrada</span>
+    <span class="dip-owner-chip"><span class="dip-owner-dot">YR</span> Yeruti Recalde</span>
+    <button type="button" class="btn btn-xs btn-outline-secondary" disabled><i class="bi bi-plus-lg"></i> Agregar propietario</button>
+  </div>
+</div>
+
+<!-- Fuente comercial: candidatos de Datos UBS, filtrados por este diplomado -->
+<div class="canvas-panel mb-3">
+  <div class="card-header flex-wrap gap-2">
+    <i class="bi bi-cloud-arrow-down text-muted"></i>
+    <span class="fw-semibold">Candidatos — PL Comercial (Datos UBS)</span>
+    <span class="badge-readonly ms-1"><i class="bi bi-lock-fill"></i> solo lectura</span>
+    <span class="dip-cross-badge ms-1"><i class="bi bi-arrow-left-right"></i> Cruce automático por cédula</span>
+    <span class="ms-auto text-muted small">Filtrado por programa · 3 encontrados</span>
+  </div>
+  <div class="dip-cross-note">
+    El sistema compara cada candidato de Datos UBS contra la planilla de este diplomado por <strong>cédula</strong>.
+    <span class="dip-tag dip-tag-ok">Ya tiene credenciales</span> = ya está en la planilla de abajo, no hace falta tocarlo.
+    Lo demás es lo que falta enviar — tildá y traspasá.
+  </div>
+  <div class="table-responsive">
+    <table class="dip-source-table">
+      <thead>
+        <tr>
+          <th style="width:36px"></th>
+          <th>Nombre completo</th>
+          <th>Cédula</th>
+          <th>Correo</th>
+          <th>Teléfono</th>
+          <th>Vendedor</th>
+          <th>Cruce</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><input type="checkbox" checked></td>
+          <td>Micaela Allende (demo)</td>
+          <td>6.125.763</td>
+          <td class="text-muted">allendemmic@demo.com.py</td>
+          <td>0981 647145</td>
+          <td>Ninoska Cerrada</td>
+          <td><span class="dip-tag dip-tag-pend">Falta enviar</span></td>
+        </tr>
+        <tr>
+          <td><input type="checkbox" checked></td>
+          <td>Manuel Campos (demo)</td>
+          <td>4.550.591</td>
+          <td class="text-muted">manuchocampos@demo.es</td>
+          <td>0982 376435</td>
+          <td>Yeruti Recalde</td>
+          <td><span class="dip-tag dip-tag-pend">Falta enviar</span></td>
+        </tr>
+        <tr class="dip-row-dim">
+          <td><input type="checkbox" disabled></td>
+          <td>Lilian Leguizamón (demo)</td>
+          <td>2.355.788</td>
+          <td class="text-muted">lilian_demo@demo.com</td>
+          <td>0971 512051</td>
+          <td>Ninoska Cerrada</td>
+          <td><span class="dip-tag dip-tag-ok"><i class="bi bi-check-circle-fill"></i> Ya tiene credenciales</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="dip-source-actions">
+    <span class="text-muted small">2 seleccionados · 1 ya cruzado, se oculta de la selección</span>
+    <button type="button" class="btn btn-sm btn-primary ms-auto" disabled>
+      <i class="bi bi-arrow-down-circle-fill me-1"></i> Traspasar seleccionados a la planilla ↓
+    </button>
+  </div>
+</div>
+
+<!-- Planilla de trabajo del diplomado -->
+<div class="canvas-panel">
+  <div class="card-header flex-wrap gap-2">
+    <i class="bi bi-table text-muted"></i>
+    <span class="fw-semibold">Planilla — Alta y envío de credenciales</span>
+    <span class="ms-auto text-muted small">4 alumnos</span>
+  </div>
+  <div class="table-responsive">
+    <table class="dip-work-table" id="dipWorkTable">
+      <thead>
+        <tr>
+          <th style="width:110px">Fecha</th>
+          <th>Nombre completo</th>
+          <th style="width:130px">Cédula</th>
+          <th>Correo (Gmail)</th>
+          <th style="width:140px">Teléfono</th>
+          <th style="width:150px">Vendedor</th>
+          <th style="width:130px">Rol</th>
+          <th style="width:110px">Estado</th>
+          <th style="width:60px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td contenteditable>26/10/2026</td>
+          <td contenteditable>Micaela Allende (demo)</td>
+          <td contenteditable>6.125.763</td>
+          <td contenteditable>micaela.allende@gmail.com</td>
+          <td contenteditable>0981 647145</td>
+          <td contenteditable>Ninoska Cerrada</td>
+          <td>
+            <select class="dip-role-select"><option>Alumno</option><option>Coordinador</option><option>Docente</option></select>
+          </td>
+          <td><span class="dip-tag dip-tag-pend">Pendiente</span></td>
+          <td class="dip-row-actions">
+            <button type="button" class="btn-row-icon" title="Eliminar fila"><i class="bi bi-trash3"></i></button>
+          </td>
+        </tr>
+        <tr>
+          <td contenteditable>26/10/2026</td>
+          <td contenteditable>Manuel Campos (demo)</td>
+          <td contenteditable>4.550.591</td>
+          <td contenteditable>manuel.campos@gmail.com</td>
+          <td contenteditable>0982 376435</td>
+          <td contenteditable>Yeruti Recalde</td>
+          <td>
+            <select class="dip-role-select"><option>Alumno</option><option>Coordinador</option><option>Docente</option></select>
+          </td>
+          <td><span class="dip-tag dip-tag-ok">Enviado</span></td>
+          <td class="dip-row-actions">
+            <button type="button" class="btn-row-icon" title="Eliminar fila"><i class="bi bi-trash3"></i></button>
+          </td>
+        </tr>
+        <tr>
+          <td contenteditable>24/10/2026</td>
+          <td contenteditable>Rocío Ramírez (demo)</td>
+          <td contenteditable>1.262.148</td>
+          <td contenteditable>rocio.ramirez@gmail.com</td>
+          <td contenteditable>0981 485243</td>
+          <td contenteditable>Jose Rotela</td>
+          <td>
+            <select class="dip-role-select"><option>Alumno</option><option>Coordinador</option><option>Docente</option></select>
+          </td>
+          <td><span class="dip-tag dip-tag-ok">Enviado</span></td>
+          <td class="dip-row-actions">
+            <button type="button" class="btn-row-icon" title="Eliminar fila"><i class="bi bi-trash3"></i></button>
+          </td>
+        </tr>
+        <tr>
+          <td contenteditable>20/10/2026</td>
+          <td contenteditable>David Vázquez (demo)</td>
+          <td contenteditable>5.261.960</td>
+          <td contenteditable>david.vazquez@gmail.com</td>
+          <td contenteditable>0985 518616</td>
+          <td contenteditable>Ninoska Cerrada</td>
+          <td>
+            <select class="dip-role-select"><option selected>Coordinador</option><option>Alumno</option><option>Docente</option></select>
+          </td>
+          <td><span class="dip-tag dip-tag-error">Error</span></td>
+          <td class="dip-row-actions">
+            <button type="button" class="btn-row-icon" title="Eliminar fila"><i class="bi bi-trash3"></i></button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="dip-work-footer">
+    <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddDipRow">
+      <i class="bi bi-plus-lg me-1"></i> Agregar alumno
+    </button>
+    <span class="text-muted small ms-2">También podés pegar un rango copiado directo de Excel sobre cualquier celda</span>
+    <button type="button" class="btn btn-sm btn-primary ms-auto" disabled>
+      <i class="bi bi-send-fill me-1"></i> Guardar y enviar credenciales
+    </button>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* ── Encabezado del diplomado ── */
+.dip-head { padding: 18px 22px; }
+.dip-head-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.dip-head-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); font-weight: 700; }
+.dip-head-title { font-size: 1.25rem; font-weight: 700; color: var(--text-primary); margin-top: 2px; }
+.dip-head-meta { display: flex; gap: 10px; flex-wrap: wrap; }
+.dip-chip {
+  background: var(--brand-blue-soft, #E6F2F8); color: var(--canvas-blue);
+  border-radius: 999px; padding: 6px 14px; font-size: .8rem; font-weight: 600;
+  display: flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.dip-owners { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--card-border); flex-wrap: wrap; }
+.dip-owners-label { font-size: .78rem; color: var(--text-muted); font-weight: 600; margin-right: 4px; }
+.dip-owner-chip { display: flex; align-items: center; gap: 7px; font-size: .83rem; color: var(--text-primary); background: var(--header-bg); border-radius: 999px; padding: 4px 12px 4px 4px; }
+.dip-owner-dot { width: 22px; height: 22px; border-radius: 50%; background: var(--canvas-blue); color: #fff; font-size: .62rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.btn-xs { font-size: .72rem; padding: 3px 10px; }
+
+/* ── Badge de solo-lectura (fuente comercial protegida) ── */
+.badge-readonly { font-size: .68rem; color: var(--canvas-yellow); background: rgba(198,138,10,.1); border-radius: 999px; padding: 2px 9px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+.dip-cross-badge { font-size: .68rem; color: var(--canvas-blue); background: var(--brand-blue-soft, #E6F2F8); border-radius: 999px; padding: 2px 9px; display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+.dip-cross-note { font-size: .8rem; color: var(--text-muted); padding: 10px 14px; background: var(--header-bg); border-bottom: 1px solid var(--card-border); }
+
+/* ── Tabla de candidatos (fuente, compacta, tenue) ── */
+.dip-source-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.dip-source-table thead th { text-align: left; padding: 8px 14px; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: var(--text-muted); border-bottom: 1px solid var(--card-border); }
+.dip-source-table tbody td { padding: 8px 14px; border-bottom: 1px solid var(--card-border); color: var(--text-primary); }
+.dip-source-table tbody tr.dip-row-dim { opacity: .5; }
+.dip-source-actions { display: flex; align-items: center; padding: 10px 14px; border-top: 1px solid var(--card-border); }
+.dip-tag { font-size: .7rem; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.dip-tag-ok { background: rgba(11,135,75,.1); color: var(--canvas-green); }
+.dip-tag-pend { background: rgba(198,138,10,.1); color: var(--canvas-yellow); }
+.dip-tag-error { background: rgba(199,0,61,.1); color: var(--canvas-red); }
+
+/* ── Planilla de trabajo: tabla editable prolija, no look de grilla cruda ── */
+.dip-work-table { width: 100%; border-collapse: collapse; font-size: .87rem; }
+.dip-work-table thead th { text-align: left; padding: 10px 14px; font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: var(--text-muted); background: var(--brand-blue-soft, #E6F2F8); border-bottom: 1px solid var(--card-border); }
+.dip-work-table tbody tr { transition: background .12s; }
+.dip-work-table tbody tr:hover { background: var(--table-hover-bg); }
+.dip-work-table tbody td { padding: 10px 14px; border-bottom: 1px solid var(--card-border); color: var(--text-primary); }
+.dip-work-table tbody td[contenteditable] { cursor: text; border-radius: 6px; }
+.dip-work-table tbody td[contenteditable]:focus { outline: 2px solid var(--canvas-blue); outline-offset: -2px; background: #fff; }
+.dip-role-select { border: 1px solid var(--input-border); border-radius: 6px; padding: 5px 8px; font-size: .82rem; background: var(--input-bg); color: var(--text-primary); width: 100%; }
+.dip-row-actions { text-align: center; }
+.btn-row-icon { border: none; background: transparent; color: var(--text-muted); width: 30px; height: 30px; border-radius: 6px; transition: background .12s, color .12s; }
+.btn-row-icon:hover { background: rgba(199,0,61,.1); color: var(--canvas-red); }
+.dip-work-footer { display: flex; align-items: center; gap: 4px; padding: 12px 14px; border-top: 1px solid var(--card-border); flex-wrap: wrap; }
+</style>
+
+<script>
+// Pegado tipo Excel: si pegás un rango copiado (separado por tabs/saltos de
+// línea) sobre una celda editable, lo distribuye en las celdas siguientes
+// en vez de pegar todo el bloque en una sola celda — esto es una maqueta,
+// la versión real reusará el mismo mecanismo que ya probamos en Planillas en Vivo.
+document.getElementById('dipWorkTable').addEventListener('paste', function (e) {
+  const target = e.target.closest('td[contenteditable]');
+  if (!target) return;
+  const text = (e.clipboardData || window.clipboardData).getData('text');
+  if (!text.includes('\t') && !text.includes('\n')) return; // pegado simple, dejar comportamiento normal
+  e.preventDefault();
+  const rows = text.replace(/\r/g, '').split('\n').filter(r => r.length);
+  const startRow = target.closest('tr');
+  let row = startRow;
+  rows.forEach((rowText, rIdx) => {
+    if (rIdx > 0) row = row.nextElementSibling;
+    if (!row) return;
+    const cells = [...row.querySelectorAll('td[contenteditable]')];
+    const startIdx = rIdx === 0 ? cells.indexOf(target) : 0;
+    rowText.split('\t').forEach((val, cIdx) => {
+      const cell = cells[startIdx + cIdx];
+      if (cell) cell.textContent = val;
+    });
+  });
+});
+
+document.getElementById('btnAddDipRow').addEventListener('click', function () {
+  const tbody = document.querySelector('#dipWorkTable tbody');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td contenteditable></td>
+    <td contenteditable></td>
+    <td contenteditable></td>
+    <td contenteditable></td>
+    <td contenteditable></td>
+    <td contenteditable></td>
+    <td><select class="dip-role-select"><option>Alumno</option><option>Coordinador</option><option>Docente</option></select></td>
+    <td><span class="dip-tag dip-tag-pend">Pendiente</span></td>
+    <td class="dip-row-actions"><button type="button" class="btn-row-icon" title="Eliminar fila"><i class="bi bi-trash3"></i></button></td>
+  `;
+  tbody.appendChild(tr);
+  tr.querySelector('td[contenteditable]').focus();
+});
+
+document.getElementById('dipWorkTable').addEventListener('click', function (e) {
+  const btn = e.target.closest('.btn-row-icon');
+  if (btn) btn.closest('tr').remove();
+});
+</script>
+{% endblock %}

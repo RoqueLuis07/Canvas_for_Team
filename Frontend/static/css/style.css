@@ -24,23 +24,25 @@
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(255, 255, 255, 0.5);
 
-  /* Sidebar (Premium dark) */
-  --sidebar-bg: linear-gradient(180deg, #1A1F2B 0%, #11151D 100%);
+  /* Sidebar (Premium dark, azul institucional) */
+  --sidebar-bg: linear-gradient(180deg, #0B2740 0%, #071B2E 100%);
   --sidebar-border: rgba(255,255,255,.05);
   --sidebar-text: rgba(255,255,255,.65);
   --sidebar-text-hover: #ffffff;
   --sidebar-hover-bg: rgba(255,255,255,.06);
-  --sidebar-active-bg: linear-gradient(90deg, rgba(230,96,0,.15) 0%, transparent 100%);
-  --sidebar-active-border: #E66000;
+  --sidebar-active-bg: linear-gradient(90deg, rgba(7,112,163,.22) 0%, transparent 100%);
+  --sidebar-active-border: var(--canvas-blue);
 
   /* Topbar */
   --topbar-bg: rgba(255, 255, 255, 0.8);
   --topbar-border: rgba(255, 255, 255, 0.4);
 
-  /* Body / cards */
-  --body-bg: #F0F4F8; /* Lighter slightly blueish tint */
-  --card-bg: rgba(255, 255, 255, 0.85);
+  /* Body / cards — identidad azul y blanco */
+  --body-bg: #F4F8FC;
+  --card-bg: rgba(255, 255, 255, 0.92);
   --card-border: rgba(255, 255, 255, 0.6);
+  --brand-blue-deep: #04517A;
+  --brand-blue-soft: #E6F2F8;
 
   /* Text */
   --text-primary: #1E293B;
@@ -56,8 +58,8 @@
   --accent-light: rgba(7,112,163,.08);
 
   /* Aliases kept for backward compat */
-  --sidebar-accent: var(--canvas-orange);
-  --sidebar-accent-hover: rgba(230,96,0,.16);
+  --sidebar-accent: var(--canvas-blue);
+  --sidebar-accent-hover: rgba(7,112,163,.16);
 }
 
 /* ── 2. Dark mode ── */
@@ -207,7 +209,7 @@ html:not(.dark-mode) .sidebar-brand-logo { filter: brightness(0) invert(1); }
 }
 .sidebar-section-btn[aria-expanded="false"] i { transform: rotate(-90deg); }
 .sidebar-section-btn:focus-visible {
-  outline: 2px solid var(--canvas-orange); outline-offset: -2px;
+  outline: 2px solid var(--canvas-blue); outline-offset: -2px;
 }
 /* El collapse envuelve los links de la sección — necesita ser flex-column
    como el propio #sidebar para que sus hijos (.sidebar-link, etc.) sigan
@@ -235,19 +237,19 @@ html:not(.dark-mode) .sidebar-brand-logo { filter: brightness(0) invert(1); }
 .sidebar-link:hover {
   background: var(--sidebar-hover-bg);
   color: var(--sidebar-text-hover);
-  border-left-color: rgba(230,96,0,.45);
+  border-left-color: rgba(7,112,163,.45);
 }
 .sidebar-link:hover i { opacity: 1; }
 .sidebar-link.active {
   background: var(--sidebar-active-bg);
   color: #fff; font-weight: 600;
-  border-left-color: var(--canvas-orange);
+  border-left-color: var(--canvas-blue);
 }
 .sidebar-link.active i { opacity: 1; }
 /* Anillo de foco visible para navegación por teclado — el outline por
    defecto del navegador es poco visible contra el fondo oscuro del sidebar. */
 .sidebar-link:focus-visible {
-  outline: 2px solid var(--canvas-orange);
+  outline: 2px solid var(--canvas-blue);
   outline-offset: -2px;
   background: var(--sidebar-hover-bg);
   color: var(--sidebar-text-hover);
@@ -262,7 +264,7 @@ html:not(.dark-mode) .sidebar-brand-logo { filter: brightness(0) invert(1); }
 }
 .sidebar-caret-btn:hover { background: var(--sidebar-hover-bg); color: var(--sidebar-text-hover); }
 .sidebar-caret-btn:focus-visible {
-  outline: 2px solid var(--canvas-orange); outline-offset: -2px;
+  outline: 2px solid var(--canvas-blue); outline-offset: -2px;
 }
 .sidebar-caret-btn i { font-size: .8rem; transition: transform .2s; display: block; }
 .sidebar-caret-btn[aria-expanded="true"] i { transform: rotate(180deg); }
@@ -278,10 +280,10 @@ html:not(.dark-mode) .sidebar-brand-logo { filter: brightness(0) invert(1); }
 .sidebar-sublink:hover { background: var(--sidebar-hover-bg); color: var(--sidebar-text-hover); }
 .sidebar-sublink.active {
   background: var(--sidebar-active-bg); color: #fff; font-weight: 600;
-  border-left-color: var(--canvas-orange);
+  border-left-color: var(--canvas-blue);
 }
 .sidebar-sublink:focus-visible {
-  outline: 2px solid var(--canvas-orange); outline-offset: -2px;
+  outline: 2px solid var(--canvas-blue); outline-offset: -2px;
   background: var(--sidebar-hover-bg); color: var(--sidebar-text-hover);
 }
 
@@ -342,7 +344,7 @@ html.dark-mode .topbar { background: var(--topbar-bg); }
 .topbar-user:hover { background: var(--table-hover-bg); }
 .topbar-avatar {
   width: 32px; height: 32px; border-radius: 50%;
-  background: var(--canvas-orange);
+  background: var(--canvas-blue);
   color: #fff; font-weight: 700; font-size: .8rem;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -888,7 +890,7 @@ html.dark-mode .page-footer .footer-logo { filter: brightness(0) invert(1); opac
 .sidebar-brand-link { text-decoration: none; color: inherit; }
 .sidebar-logo {
   width: 34px; height: 34px; border-radius: var(--radius);
-  background: var(--canvas-orange);
+  background: var(--canvas-blue);
   display: flex; align-items: center; justify-content: center;
   font-size: 1rem; color: #fff; flex-shrink: 0;
 }

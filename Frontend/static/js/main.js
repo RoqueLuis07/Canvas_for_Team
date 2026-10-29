@@ -104,23 +104,11 @@ async function onGlobalSearch(q) {
 
   _gsearchTimeout = setTimeout(async () => {
     try {
-      const [users, courses] = await Promise.all([
-        api.get(`/canvas/users?search=${encodeURIComponent(q)}&per_page=5`).catch(() => []),
-        api.get(`/canvas/courses?search=${encodeURIComponent(q)}&per_page=5`).catch(() => []),
-      ]);
+      const courses = await api.get(`/canvas/courses?search=${encodeURIComponent(q)}&per_page=5`).catch(() => []);
 
       const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
       const html = [
-        ...users.map(u => `
-          <a href="/ui/unified-users?q=${encodeURIComponent(u.login_id || u.email || '')}" class="gs-item">
-            <i class="bi bi-person text-muted"></i>
-            <div>
-              <div class="gs-label">${esc(u.name)}</div>
-              <div class="gs-sub">${esc(u.login_id || u.email || '—')}</div>
-            </div>
-            <span class="gs-type bg-primary">Usuario</span>
-          </a>`),
         ...courses.map(c => `
           <a href="/ui/canvas/courses" class="gs-item">
             <i class="bi bi-book text-muted"></i>
@@ -1123,19 +1111,10 @@ document.getElementById('cmdPaletteInput')?.addEventListener('input', function(e
   
   _cmdPaletteTimeout = setTimeout(async () => {
     try {
-      const [users, courses] = await Promise.all([
-        api.get(`/canvas/users?search=${encodeURIComponent(q)}&per_page=5`).catch(() => []),
-        api.get(`/canvas/courses?search=${encodeURIComponent(q)}&per_page=5`).catch(() => [])
-      ]);
+      const courses = await api.get(`/canvas/courses?search=${encodeURIComponent(q)}&per_page=5`).catch(() => []);
       const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      
+
       const html = [
-        ...users.map(u => `
-          <a href="/ui/unified-users?q=${encodeURIComponent(u.login_id || u.email)}" class="list-group-item list-group-item-action border-0 py-3 d-flex align-items-center gap-3">
-            <div class="bg-primary bg-opacity-10 text-primary rounded p-2"><i class="bi bi-person-fill fs-5"></i></div>
-            <div><div class="fw-bold">${esc(u.name)}</div><div class="small text-muted">${esc(u.login_id || u.email || '')}</div></div>
-            <span class="badge bg-primary bg-opacity-10 text-primary ms-auto rounded-pill px-3 py-2">Usuario</span>
-          </a>`),
         ...courses.map(c => `
           <a href="/ui/canvas/courses?q=${encodeURIComponent(c.course_code)}" class="list-group-item list-group-item-action border-0 py-3 d-flex align-items-center gap-3">
             <div class="bg-success bg-opacity-10 text-success rounded p-2"><i class="bi bi-book-fill fs-5"></i></div>

@@ -5,8 +5,15 @@
 {% block nav_ca %}active{% endblock %}
 
 {% block content %}
-  <h1 class="page-title"><i class="bi bi-bar-chart-fill me-2"></i>Reportes de Asistencia</h1>
-  <p class="page-subtitle">Descarga matrices de asistencia de tus cursos en Excel - Datos actualizados en tiempo real</p>
+  <div class="d-flex align-items-center mb-2 gap-3 flex-wrap">
+    <div>
+      <h1 class="page-title mb-0"><i class="bi bi-bar-chart-fill me-2"></i>Reportes de Asistencia</h1>
+      <p class="page-subtitle mb-0">Descarga matrices de asistencia de tus cursos en Excel - Datos actualizados en tiempo real</p>
+    </div>
+    <button class="btn btn-outline-primary ms-auto" onclick="openBulkAttendanceDownload()" title="Descargar reportes de asistencia de varios cursos a la vez">
+      <i class="bi bi-download me-1"></i>Reportes Masivos
+    </button>
+  </div>
 
   <!-- Info banner -->
   <div class="alert alert-info d-flex align-items-start gap-2 mb-4">
@@ -15,7 +22,7 @@
   </div>
 
   <!-- Search and filters -->
-  <div class="table-card" style="margin-bottom: 24px; padding: 16px;">
+  <div class="canvas-panel" style="margin-bottom: 24px; padding: 16px;">
     <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
       <input type="search" id="courseSearch" placeholder="Buscar curso..." class="form-control" style="max-width: 300px;">
       <button class="btn btn-primary" onclick="refreshData()" title="Cargar datos más recientes">
@@ -302,6 +309,114 @@ document.getElementById('courseSearch').addEventListener('input', renderCourseCa
 
 // Cargar reportes al iniciar
 loadAttendanceReports();
+
+// ── Descarga masiva de asistencias (movido acá desde Cursos (Canvas),
+// vive con el resto de Asistencias en vez de en el header de Cursos) ──
+async function openBulkAttendanceDownload() {
+  let courses = [];
+  try {
+    courses = await api.get('/canvas/courses');
+  } catch (e) {
+    toast('Error cargando cursos: ' + e.message, 'danger');
+    return;
+  }
+  const courseOptions = courses.map(c =>
+    `<label class="form-check mb-2">
+      <input class="form-check-input course-checkbox" type="checkbox" value="${c.id}" data-name="${c.name}">
+      <span class="form-check-label">[${c.id}] ${c.name}</span>
+    </label>`
+  ).join('');
+
+  showModal('Descargar reportes de asistencias conjuntos', `
+    <p class="text-muted small mb-3">Selecciona los cursos de los cuales deseas obtener el reporte de asistencias. Se descargará un archivo Excel por cada curso.</p>
+    <div style="max-height:400px;overflow-y:auto;border:1px solid var(--card-border);padding:12px;border-radius:6px">
+      ${courseOptions || '<div class="text-muted text-center py-3">Cargando cursos...</div>'}
+    </div>
+    <div class="mt-3">
+      <button type="button" class="btn btn-sm btn-outline-primary me-1" onclick="selectAllCourses(true)"><i class="bi bi-check-all me-1"></i>Seleccionar todos</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllCourses(false)"><i class="bi bi-x me-1"></i>Deseleccionar todos</button>
+    </div>
+    <div id="bulkProgress" class="mt-3" style="display:none">
+      <div class="progress mb-2" style="height:24px">
+        <div id="progressBar" class="progress-bar bg-success" style="width:0%;line-height:24px;font-size:0.85rem">0%</div>
+      </div>
+      <div id="progressText" class="text-muted small"></div>
+    </div>`,
+    `<button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+     <button class="btn btn-primary" id="bulkDownloadBtn" onclick="doBulkAttendanceDownload()"><i class="bi bi-download me-1"></i>Descargar seleccionados</button>`);
+}
+
+function selectAllCourses(select) {
+  document.querySelectorAll('.course-checkbox').forEach(cb => { cb.checked = select; });
+}
+
+async function doBulkAttendanceDownload() {
+  const selected = Array.from(document.querySelectorAll('.course-checkbox:checked'))
+    .map(cb => ({id: cb.value, name: cb.dataset.name}));
+
+  if (!selected.length) {
+    toast('Selecciona al menos un curso', 'warning');
+    return;
+  }
+
+  const btn = document.getElementById('bulkDownloadBtn');
+  const progress = document.getElementById('bulkProgress');
+  const progressBar = document.getElementById('progressBar');
+  const progressText = document.getElementById('progressText');
+
+  btn.disabled = true;
+  progress.style.display = 'block';
+
+  let completed = 0;
+  for (const course of selected) {
+    try {
+      const resp = await fetch(`/canvas/courses/${course.id}/attendance`);
+      if (!resp.ok) throw new Error(`Error ${resp.status}`);
+      const data = await resp.json();
+
+      const dates = Object.keys(data.dates || {}).sort();
+      const rows = [
+        ['Reporte de Asistencias', course.name],
+        ['Generado:', new Date().toLocaleString()],
+        [],
+        ['Estudiante', 'ID', 'Total', ...dates.map(() => '')],
+      ];
+
+      data.students.forEach(student => {
+        const attendance = (data.attendance || {})[String(student.id)] || {};
+        const total = Object.values(attendance).filter(v => v === 'P').length;
+        rows.push([
+          student.name,
+          student.id,
+          total,
+          ...dates.map(date => {
+            const status = attendance[date];
+            return status === 'P' ? 'Presente' : status === 'A' ? 'Ausente' : '';
+          })
+        ]);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Asistencias');
+      XLSX.writeFile(wb, `asistencias_${course.id}_${course.name}.xlsx`);
+
+      completed++;
+      const percent = Math.round((completed / selected.length) * 100);
+      progressBar.style.width = percent + '%';
+      progressBar.textContent = percent + '%';
+      progressText.textContent = `Descargados ${completed} de ${selected.length} reportes...`;
+
+      await new Promise(r => setTimeout(r, 300));
+    } catch(e) {
+      toast(`Error en curso ${course.id}: ${e.message}`, 'danger');
+      console.error(e);
+    }
+  }
+
+  progressText.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i><strong>${completed} reportes descargados exitosamente</strong>`;
+  btn.disabled = false;
+}
 </script>
 
 <style>

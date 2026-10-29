@@ -5,16 +5,24 @@
 {% block content %}
 <div class="d-flex align-items-center mb-4 gap-3 flex-wrap">
   <div><div class="page-title">Microsoft Teams</div><div class="page-subtitle">Gestión de equipos y miembros del tenant</div></div>
-  <div class="ms-auto d-flex gap-2 flex-wrap">
+  <div class="ms-auto d-flex align-items-center gap-2 flex-wrap">
     <button class="btn btn-primary" onclick="openExcelMembers()"><i class="bi bi-file-earmark-excel-fill me-1"></i>Añadir miembros Excel</button>
     <a href="/excel/template/teams-members" class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
-    <button class="btn btn-outline-danger" onclick="openTeamsIdDeleteModal()"><i class="bi bi-list-ol me-1"></i>Eliminación Masiva</button>
-    <button class="btn btn-outline-warning" onclick="openDeletedGroupsModal()"><i class="bi bi-recycle me-1"></i>Grupos Eliminados (Papelera)</button>
-    <button class="btn btn-outline-info" onclick="openGroupMembersModal()"><i class="bi bi-person-plus-fill me-1"></i>Agregar a Grupo por ID</button>
+    <div class="vr mx-1 d-none d-md-block"></div>
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="bi bi-tools me-1"></i>Más acciones
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><button class="dropdown-item text-danger" onclick="openTeamsIdDeleteModal()"><i class="bi bi-list-ol me-2"></i>Eliminación Masiva</button></li>
+        <li><button class="dropdown-item" onclick="openDeletedGroupsModal()"><i class="bi bi-recycle me-2"></i>Grupos Eliminados (Papelera)</button></li>
+        <li><button class="dropdown-item" onclick="openGroupMembersModal()"><i class="bi bi-person-plus-fill me-2"></i>Agregar a Grupo por ID</button></li>
+      </ul>
+    </div>
   </div>
 </div>
 
-<div class="table-card">
+<div class="canvas-panel">
   <div class="card-header flex-wrap gap-2">
     <input type="text" id="searchTeam" class="form-control search-box" placeholder="🔍 Buscar Team por nombre..." oninput="debouncedLoadTeams(this.value)">
     <span class="ms-auto text-muted small" id="teamCount"></span>

@@ -802,3 +802,33 @@ async def search_sent_email(to_email: str, since_iso: str) -> bool:
         )
         _raise(r)
         return len(r.json().get("value", [])) > 0
+
+
+# ── Archivos de OneDrive por path (sin depender de un link ya compartido) ──
+# Usa 'Files.ReadWrite.All' (permiso de aplicación, ya concedido) contra el
+# OneDrive del buzón SMTP_FROM. PUT a /root:/{path}:/content crea el archivo
+# (y las carpetas intermedias que falten) si no existe, o lo sobreescribe si
+# ya existe — no hace falta un paso previo de "crear carpeta".
+
+async def create_or_update_drive_file(path: str, content: bytes) -> dict:
+    """Crea o sobreescribe un archivo en el OneDrive de SMTP_FROM, en `path`
+    (ej. "Planillas en vivo/Diplomados/5 - MBA 2026.xlsx"). Devuelve el
+    driveItem resultante (incluye su `id`)."""
+    mailbox = settings.smtp_from
+    if not mailbox:
+        raise ValueError("SMTP_FROM no está configurado.")
+    return await put_raw(f"/users/{mailbox}/drive/root:/{path}:/content", content)
+
+
+async def create_sharing_link(path: str) -> str:
+    """Crea (o reutiliza, Graph es idempotente para el mismo tipo/alcance)
+    un link de edición para el archivo en `path`, con alcance 'organization'
+    (cualquiera del tenant con el link puede editar, nadie fuera de la
+    organización). Devuelve la URL — se guarda para no tener que recrearla
+    en cada corrida."""
+    mailbox = settings.smtp_from
+    res = await post(
+        f"/users/{mailbox}/drive/root:/{path}:/createLink",
+        {"type": "edit", "scope": "organization"},
+    )
+    return res.get("link", {}).get("webUrl", "")

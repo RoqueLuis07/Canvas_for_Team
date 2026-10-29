@@ -38,14 +38,46 @@ async def canvas_courses(request: Request):
     return _r(request, "canvas/courses.html")
 
 
+@router.get("/ui/canvas/courses/manage", response_class=HTMLResponse)
+async def canvas_courses_manage(request: Request):
+    return _r(request, "canvas/courses_manage.html")
+
+
 @router.get("/ui/canvas/attendance", response_class=HTMLResponse)
 async def canvas_attendance(request: Request):
     return _r(request, "attendance_reports.html")
 
 
+@router.get("/ui/preview/workbook", response_class=HTMLResponse)
+async def workbook_preview(request: Request):
+    """Maqueta visual de la 'Planilla Viva' (libro único con pestañas de
+    hoja). Datos ficticios, sin guardado real — solo para validar la forma
+    antes de conectarla a las tablas de producción."""
+    return _r(request, "canvas/workbook_preview.html")
+
+
+@router.get("/ui/preview/diplomado", response_class=HTMLResponse)
+async def diplomado_sheet_preview(request: Request):
+    """Maqueta visual de la planilla de un diplomado puntual: encabezado
+    (diplomado/equipo/propietarios) + candidatos de solo lectura desde PL
+    Comercial + planilla de trabajo editable. Datos ficticios, sin guardado
+    real todavía."""
+    return _r(request, "canvas/diplomados_sheet_preview.html")
 
 
 
+
+
+
+
+@router.get("/ui/diplomados", response_class=HTMLResponse)
+async def diplomados_list(request: Request):
+    return _r(request, "canvas/diplomados_list.html")
+
+
+@router.get("/ui/diplomados/{sheet_id}", response_class=HTMLResponse)
+async def diplomados_sheet(request: Request, sheet_id: int):
+    return _r(request, "canvas/diplomados_sheet.html", sheet={"id": sheet_id, "diplomado_name": "", "team_id": None, "owners": []})
 
 
 @router.get("/ui/teams", response_class=HTMLResponse)
@@ -106,11 +138,6 @@ async def profile_page(request: Request):
     return _r(request, "profile.html")
 
 
-@router.get("/ui/sync", response_class=HTMLResponse)
-async def sync_page(request: Request):
-    return _r(request, "sync.html")
-
-
 @router.get("/ui/home", response_class=HTMLResponse)
 async def home_page(request: Request):
     return _r(request, "dashboard.html")
@@ -126,37 +153,10 @@ async def jobs_page(request: Request):
     return _r(request, "job_history.html")
 
 
-@router.get("/ui/reports", response_class=HTMLResponse)
-async def reports_page(request: Request):
-    return _r(request, "reports.html")
-
-
-@router.get("/ui/unified-users", response_class=HTMLResponse)
-async def unified_users_page(request: Request):
-    return _r(request, "unified_users.html")
-
-
-
-
 
 @router.get("/ui/unified-enrollments", response_class=HTMLResponse)
 async def unified_enrollments_page(request: Request):
     return _r(request, "unified_enrollments.html")
-
-
-@router.get("/ui/materias", response_class=HTMLResponse)
-async def materias_page(request: Request):
-    return _r(request, "materias.html")
-
-
-@router.get("/ui/cpel", response_class=HTMLResponse)
-async def cpel_page(request: Request):
-    return _r(request, "cpel.html")
-
-
-@router.get("/ui/actas", response_class=HTMLResponse)
-async def actas_page(request: Request):
-    return _r(request, "actas.html")
 
 
 @router.get("/diagnostics", tags=["Health"])

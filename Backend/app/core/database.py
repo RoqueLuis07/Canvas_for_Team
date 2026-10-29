@@ -14,11 +14,23 @@ logger = logging.getLogger(__name__)
 _conn = None
 _db_lock = asyncio.Lock()
 
+# Tiempo máximo para abrir la conexión y para que una query corra del lado
+# del servidor. Sin esto, una conexión/consulta colgada (red caída, DB sin
+# responder) bloquea `_db_lock` para siempre y TODA la app se cuelga, porque
+# cada llamada a `database.*` pasa por este mismo lock.
+_CONNECT_TIMEOUT = 5
+_STATEMENT_TIMEOUT_MS = 8000
+_RUN_TIMEOUT = 10  # > _STATEMENT_TIMEOUT_MS/1000, le da margen a Postgres a cortar primero
+
 from app.core.config import settings
 def _get_conn():
     global _conn
     if _conn is None or _conn.closed:
-        _conn = psycopg2.connect(settings.supabase_database_url)
+        _conn = psycopg2.connect(
+            settings.supabase_database_url,
+            connect_timeout=_CONNECT_TIMEOUT,
+            options=f"-c statement_timeout={_STATEMENT_TIMEOUT_MS}",
+        )
     return _conn
 
 async def close_db():
@@ -36,6 +48,15 @@ async def _run(fn):
     cualquier error, y como se reutiliza en todas las llamadas siguientes,
     UNA sola consulta fallida rompía todas las operaciones de base de datos
     del resto de la app hasta reiniciar el proceso.
+
+    Además, la ejecución entera tiene un timeout (`_RUN_TIMEOUT`): si el hilo
+    no vuelve a tiempo (conexión/consulta colgada), se libera `_db_lock` igual
+    (lo hace `async with` al cancelarse) y se descarta `_conn` para que la
+    próxima llamada abra una conexión nueva, en vez de dejar bloqueadas todas
+    las operaciones de base de datos del resto de la app indefinidamente. El
+    hilo colgado se abandona (Python no puede cancelar una llamada bloqueante
+    de psycopg2 a mitad de camino), pero como ya no comparte la conexión
+    global con nadie más, no corrompe las siguientes llamadas.
     """
     def _wrapped():
         conn = _get_conn()
@@ -53,7 +74,13 @@ async def _run(fn):
             raise
 
     async with _db_lock:
-        return await asyncio.to_thread(_wrapped)
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(_wrapped), timeout=_RUN_TIMEOUT)
+        except asyncio.TimeoutError:
+            global _conn
+            logger.error(f"DB operation timed out after {_RUN_TIMEOUT}s, discarding connection")
+            _conn = None
+            raise
 
 
 async def init_db():

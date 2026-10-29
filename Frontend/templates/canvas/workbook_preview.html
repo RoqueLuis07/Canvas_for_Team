@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Vista previa · Planilla Viva{% endblock %}
+{% block breadcrumb %}Maqueta › Planilla Viva{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-3 flex-wrap">
+  <div>
+    <div class="page-title">Planilla Viva — modelo de vista</div>
+    <div class="page-subtitle">Maqueta visual: así se vería editar Cursos / Equipos / Matriculaciones / Directorio como un único libro, directo en el sistema</div>
+  </div>
+</div>
+
+<div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+  <i class="bi bi-cone-striped"></i>
+  <div>
+    <strong>Esto es una maqueta, no una función real todavía.</strong>
+    Los datos de abajo son ficticios y los cambios que hagas acá <u>no se guardan</u> en ningún lado — es solo para validar cómo se sentiría trabajar la planilla directo en el sistema, antes de conectarla a las tablas reales.
+  </div>
+</div>
+
+<div class="canvas-panel">
+  <div class="card-header flex-wrap gap-2">
+    <i class="bi bi-grid-3x3-gap-fill text-muted"></i>
+    <span class="fw-semibold">Libro: Operación diaria</span>
+    <span class="ms-auto text-muted small">4 hojas · edición en vivo (maqueta)</span>
+  </div>
+  <div id="workbookPreview" style="min-height: 520px;"></div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<link rel="stylesheet" href="/static/vendor/jsuites/jsuites.css" type="text/css" />
+<script src="/static/vendor/jsuites/jsuites.js"></script>
+<link rel="stylesheet" href="/static/vendor/jspreadsheet/jspreadsheet.css" type="text/css" />
+<script src="/static/vendor/jspreadsheet/jspreadsheet.js"></script>
+
+<style>
+  /* La maqueta reusa la identidad azul/blanco en vez del esquema por defecto
+     de jspreadsheet-ce, para que se sienta parte del sistema y no una librería pegada. */
+  #workbookPreview .jss_worksheet thead td {
+    background: var(--brand-blue-soft, #E6F2F8);
+    color: var(--text-primary);
+    font-weight: 600;
+    border-color: var(--card-border);
+  }
+  #workbookPreview .jtabs-selected { color: var(--canvas-blue) !important; }
+  #workbookPreview .jtabs-selected::after { background: var(--canvas-blue) !important; }
+</style>
+
+<script>
+// Datos 100% ficticios, solo para mostrar la forma de la maqueta.
+const PREVIEW_DATA = {
+  cursos: {
+    headers: ['ID', 'Nombre del Curso', 'SIS ID', 'Período', 'Estado'],
+    rows: [
+      ['10234', 'Diplomado en Gerencia de Procesos (demo)', 'DIP-GP-2026-01', '2026-02', 'Publicado'],
+      ['10235', 'Diplomado en Marketing Digital (demo)', 'DIP-MKT-2026-01', '2026-02', 'Borrador'],
+      ['10236', 'Workshop Finanzas (demo)', 'WK-FIN-2026-01', '2026-02', 'Publicado'],
+    ],
+  },
+  equipos: {
+    headers: ['Nombre del Team', 'Dueño', 'Miembros', 'Estado'],
+    rows: [
+      ['DIP-GP-2026-01 (demo)', 'ana.demo@usil.edu.py', '24', 'Activo'],
+      ['DIP-MKT-2026-01 (demo)', 'carlos.demo@usil.edu.py', '0', 'Pendiente'],
+    ],
+  },
+  matriculaciones: {
+    headers: ['Alumno', 'Cédula', 'Curso', 'Estado'],
+    rows: [
+      ['Mario Benítez (demo)', '4.111.222', 'Diplomado en Gerencia de Procesos (demo)', 'Matriculado'],
+      ['Lucía Ortiz (demo)', '3.998.111', 'Workshop Finanzas (demo)', 'Pendiente'],
+    ],
+  },
+  directorio: {
+    headers: ['Nombre', 'Cédula', 'Correo', 'Rol'],
+    rows: [
+      ['Mario Benítez (demo)', '4.111.222', 'mario.demo@usil.edu.py', 'Alumno'],
+      ['Ana Demo', '2.555.333', 'ana.demo@usil.edu.py', 'Docente'],
+    ],
+  },
+};
+
+function buildWorksheet(key, title) {
+  const d = PREVIEW_DATA[key];
+  const columns = d.headers.map(h => ({ type: 'text', title: h, width: 190 }));
+  return {
+    worksheetName: title,
+    columns,
+    data: d.rows,
+    minDimensions: [d.headers.length, 10],
+    tableOverflow: true,
+    tableHeight: '460px',
+  };
+}
+
+jspreadsheet(document.getElementById('workbookPreview'), {
+  worksheets: [
+    buildWorksheet('cursos', 'Cursos'),
+    buildWorksheet('equipos', 'Equipos'),
+    buildWorksheet('matriculaciones', 'Matriculaciones'),
+    buildWorksheet('directorio', 'Directorio'),
+  ],
+  tabs: true,
+});
+</script>
+{% endblock %}
