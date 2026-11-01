@@ -146,7 +146,7 @@ class IngresoService
 
         $this->sincronizacion->ejecutar(
             'ingreso', 'ingreso_alta_cuentas', "Persona#{$persona->id}",
-            function () use ($persona, $creds, $sisUserId, $plataforma, $esDocente, &$resultadosPorPlataforma, &$plataformaActual) {
+            function () use ($persona, $creds, $sisUserId, $plataforma, &$resultadosPorPlataforma, &$plataformaActual) {
                 if (in_array($plataforma, ['canvas', 'both'], true) && ! $persona->canvas_user_id) {
                     try {
                         $existente = $this->canvas->findUserBySisId($sisUserId);
