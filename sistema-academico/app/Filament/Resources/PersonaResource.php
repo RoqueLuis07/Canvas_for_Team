@@ -4,8 +4,11 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\PersonaResource\Pages;
 use App\Models\Persona;
+use App\Services\EgresoService;
+use App\Services\IngresoService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Tables;
 use Filament\Tables\Table;
 
@@ -77,15 +80,37 @@ class PersonaResource extends AdminOnlyResource
                             ->preload(),
                     ])
                     ->columns(2),
+                Forms\Components\Section::make('Alta de cuentas institucionales')
+                    ->description('Crea automáticamente la cuenta en Canvas y/o Teams al guardar, con credenciales generadas a partir del nombre y la cédula (mismo esquema que el sistema FastAPI). Los docentes reciben la contraseña genérica institucional en vez del esquema cédula-Iniciales.')
+                    ->visibleOn('create')
+                    ->schema([
+                        Forms\Components\Toggle::make('crear_cuentas_automaticamente')
+                            ->label('Crear cuentas institucionales automáticamente')
+                            ->default(true)
+                            ->dehydrated(false),
+                        Forms\Components\Select::make('plataforma_alta')
+                            ->label('Plataforma')
+                            ->options([
+                                'both' => 'Canvas y Teams',
+                                'canvas' => 'Solo Canvas',
+                                'teams' => 'Solo Teams',
+                            ])
+                            ->default('both')
+                            ->visible(fn (Forms\Get $get) => $get('crear_cuentas_automaticamente'))
+                            ->dehydrated(false),
+                    ])
+                    ->columns(2),
                 Forms\Components\Section::make('Identificadores de plataforma')
                     ->description('Identificadores técnicos usados para la sincronización con Canvas y Azure.')
                     ->schema([
                         Forms\Components\TextInput::make('canvas_user_id')
                             ->label('ID de usuario en Canvas')
-                            ->helperText('Identificador técnico de la cuenta en Canvas.'),
+                            ->helperText('Identificador técnico de la cuenta en Canvas.')
+                            ->disabledOn('create'),
                         Forms\Components\TextInput::make('azure_user_id')
                             ->label('ID de usuario en Azure')
-                            ->helperText('Identificador técnico de la cuenta en Azure.'),
+                            ->helperText('Identificador técnico de la cuenta en Azure.')
+                            ->disabledOn('create'),
                     ])
                     ->columns(2)
                     ->collapsible()
@@ -172,6 +197,50 @@ class PersonaResource extends AdminOnlyResource
                 static::dateRangeFilter('created_at', 'Fecha de registro'),
             ])
             ->actions([
+                Tables\Actions\Action::make('darDeAlta')
+                    ->label('Dar de alta cuentas')
+                    ->icon('heroicon-o-user-plus')
+                    ->tooltip('Crear las cuentas institucionales pendientes en Canvas y/o Teams')
+                    ->color('success')
+                    ->visible(fn (Persona $record) => auth()->user()?->isAdminTI() && (! $record->canvas_user_id || ! $record->azure_user_id))
+                    ->form([
+                        Forms\Components\Select::make('plataforma')
+                            ->label('Plataforma')
+                            ->options([
+                                'both' => 'Canvas y Teams',
+                                'canvas' => 'Solo Canvas',
+                                'teams' => 'Solo Teams',
+                            ])
+                            ->default('both')
+                            ->required(),
+                    ])
+                    ->action(function (Persona $record, array $data) {
+                        abort_unless(auth()->user()?->isAdminTI(), 403);
+
+                        try {
+                            app(IngresoService::class)->darDeAlta($record, $data['plataforma']);
+                            Notification::make()->title('Cuentas institucionales creadas')->success()->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()->title('Error al dar de alta')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
+                Tables\Actions\Action::make('darDeBaja')
+                    ->label('Dar de baja')
+                    ->icon('heroicon-o-x-circle')
+                    ->tooltip('Dar de baja las cuentas institucionales de Canvas y/o Teams')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->visible(fn (Persona $record) => auth()->user()?->isAdminTI() && ($record->canvas_user_id || $record->azure_user_id))
+                    ->action(function (Persona $record) {
+                        abort_unless(auth()->user()?->isAdminTI(), 403);
+
+                        try {
+                            app(EgresoService::class)->darDeBaja($record);
+                            Notification::make()->title('Cuentas institucionales dadas de baja')->success()->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()->title('Error al dar de baja')->body($e->getMessage())->danger()->send();
+                        }
+                    }),
                 Tables\Actions\EditAction::make()
                     ->label('Editar')
                     ->icon('heroicon-o-pencil-square')

@@ -89,7 +89,10 @@ class InscripcionMateriaResource extends AdminOnlyResource
                                 'manual' => 'Manual',
                                 'predefinida' => 'Predefinida por el Departamento Académico',
                             ])
-                            ->required(),
+                            // Al crear, el origen lo fija inscribirManual() ('manual') —
+                            // ver CreateInscripcionMateria::handleRecordCreation().
+                            ->required(fn (string $operation) => $operation !== 'create')
+                            ->hiddenOn('create'),
                         Forms\Components\Select::make('estado')
                             ->label('Estado')
                             ->options([
@@ -98,10 +101,12 @@ class InscripcionMateriaResource extends AdminOnlyResource
                                 'aprobada' => 'Aprobada',
                                 'reprobada' => 'Reprobada',
                             ])
-                            ->required(),
+                            ->required(fn (string $operation) => $operation !== 'create')
+                            ->hiddenOn('create'),
                         Forms\Components\DatePicker::make('fecha_inscripcion')
                             ->label('Fecha de inscripción')
-                            ->required(),
+                            ->required(fn (string $operation) => $operation !== 'create')
+                            ->hiddenOn('create'),
                     ])
                     ->columns(2),
                 Forms\Components\Section::make('Sincronización con plataformas')
