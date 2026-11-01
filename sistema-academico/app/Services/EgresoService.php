@@ -36,8 +36,10 @@ class EgresoService
         $requiereCanvas = in_array($plataforma, ['canvas', 'both'], true);
         $requiereTeams = in_array($plataforma, ['teams', 'both'], true);
 
-        if ($requiereCanvas && ! $persona->canvas_user_id && $requiereTeams && ! $persona->azure_user_id) {
-            throw new EgresoException("{$persona->nombre_completo} no tiene cuentas institucionales creadas.");
+        $tieneAlgoQueDarDeBaja = ($requiereCanvas && $persona->canvas_user_id) || ($requiereTeams && $persona->azure_user_id);
+
+        if (! $tieneAlgoQueDarDeBaja) {
+            throw new EgresoException("{$persona->nombre_completo} no tiene cuentas institucionales creadas en la plataforma solicitada.");
         }
 
         $resultadosPorPlataforma = [];
