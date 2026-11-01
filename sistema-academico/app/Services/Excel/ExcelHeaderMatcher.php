@@ -71,6 +71,40 @@ class ExcelHeaderMatcher
     }
 
     /**
+     * Como matchColumn(), pero devuelve el nombre del encabezado normalizado
+     * que matcheó en vez de su índice — para cuando se va a usar ese nombre
+     * para buscar el valor en filas que ya vienen indexadas por encabezado
+     * (ver XlsxRowReader, que arma cada fila como [encabezado => valor]).
+     *
+     * Resolver el encabezado real UNA sola vez con este método (en vez de
+     * volver a probar los candidatos contra cada fila con firstNonEmpty) es
+     * lo que hace que el fallback por substring de matchColumn() realmente
+     * se aplique: si se vuelve a buscar "cedula"/"ci"/"documento" fila por
+     * fila como claves literales del diccionario, un encabezado real que
+     * sólo CONTIENE una de esas palabras (ej. "Nro. de Documento") nunca
+     * matchea, porque la búsqueda por clave de diccionario es siempre
+     * exacta, nunca por substring.
+     *
+     * @param  array<string, int>  $normalizedHeaders
+     */
+    public function matchHeaderName(array $normalizedHeaders, string ...$candidateKeys): ?string
+    {
+        $index = $this->matchColumn($normalizedHeaders, ...$candidateKeys);
+
+        if ($index === null) {
+            return null;
+        }
+
+        foreach ($normalizedHeaders as $header => $headerIndex) {
+            if ($headerIndex === $index) {
+                return $header;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Prueba varias variantes de una misma columna (español + inglés,
      * encabezado crudo o ya normalizado) contra una fila, y devuelve el
      * primer valor no vacío encontrado (recortado). Puerto de `_get()`.

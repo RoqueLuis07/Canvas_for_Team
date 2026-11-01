@@ -14,7 +14,8 @@ use Throwable;
  * /excel/canvas/users en producción, pero pasando por el modelo Persona en
  * vez de crear la cuenta de plataforma sin dejar rastro en el sistema.
  *
- * Columnas esperadas (encabezados flexibles, ver ExcelHeaderMatcher):
+ * Columnas esperadas (encabezados flexibles, ver ExcelHeaderMatcher — se
+ * resuelven UNA vez contra los encabezados reales del archivo, no por fila):
  * Nombre Completo, Cédula, Email Personal, Tipo (alumno/docente/
  * administrativo/aspirante — "alumno" si está vacío o no se reconoce),
  * Plataforma (canvas/teams/both — "both" si está vacío).
@@ -26,13 +27,13 @@ use Throwable;
  */
 class PersonaImporter
 {
+    protected const TIPOS_VALIDOS = ['alumno', 'docente', 'administrativo', 'aspirante'];
+
     public function __construct(
         protected XlsxRowReader $lector,
         protected ExcelHeaderMatcher $matcher,
         protected IngresoService $ingreso,
     ) {}
-
-    protected const TIPOS_VALIDOS = ['alumno', 'docente', 'administrativo', 'aspirante'];
 
     /**
      * @return array{succeeded: list<array<string, mixed>>, failed: list<array{input: array<string, mixed>, error: string}>}
@@ -40,12 +41,13 @@ class PersonaImporter
     public function importar(string $rutaArchivo): array
     {
         $leido = $this->lector->read($rutaArchivo, $this->matcher);
+        $campos = $this->resolverCampos($leido['headers']);
 
         $resultado = ['succeeded' => [], 'failed' => []];
 
         foreach ($leido['rows'] as $fila) {
             try {
-                $resultado['succeeded'][] = $this->procesarFila($fila);
+                $resultado['succeeded'][] = $this->procesarFila($fila, $campos);
             } catch (Throwable $e) {
                 $resultado['failed'][] = ['input' => $fila, 'error' => $e->getMessage()];
             }
@@ -55,16 +57,35 @@ class PersonaImporter
     }
 
     /**
+     * Resuelve, una sola vez por archivo, qué encabezado real corresponde a
+     * cada campo esperado — en vez de volver a adivinar por fila.
+     *
+     * @param  array<string, int>  $headers
+     * @return array<string, ?string>
+     */
+    protected function resolverCampos(array $headers): array
+    {
+        return [
+            'nombre_completo' => $this->matcher->matchHeaderName($headers, 'nombre_completo', 'nombre', 'full_name', 'name'),
+            'cedula' => $this->matcher->matchHeaderName($headers, 'cedula', 'ci', 'documento'),
+            'email_personal' => $this->matcher->matchHeaderName($headers, 'email_personal', 'correo', 'email'),
+            'tipo' => $this->matcher->matchHeaderName($headers, 'tipo', 'rol'),
+            'plataforma' => $this->matcher->matchHeaderName($headers, 'plataforma', 'platform'),
+        ];
+    }
+
+    /**
      * @param  array<string, mixed>  $fila
+     * @param  array<string, ?string>  $campos
      * @return array<string, mixed>
      */
-    protected function procesarFila(array $fila): array
+    protected function procesarFila(array $fila, array $campos): array
     {
-        $nombreCompleto = $this->matcher->firstNonEmpty($fila, 'nombre_completo', 'nombre', 'full_name', 'name');
-        $cedula = $this->matcher->firstNonEmpty($fila, 'cedula', 'ci', 'documento');
-        $emailPersonal = $this->matcher->firstNonEmpty($fila, 'email_personal', 'correo', 'email');
-        $tipoCrudo = $this->matcher->firstNonEmpty($fila, 'tipo', 'rol');
-        $plataformaCruda = $this->matcher->firstNonEmpty($fila, 'plataforma', 'platform');
+        $nombreCompleto = $this->valor($fila, $campos['nombre_completo']);
+        $cedula = $this->valor($fila, $campos['cedula']);
+        $emailPersonal = $this->valor($fila, $campos['email_personal']);
+        $tipoCrudo = $this->valor($fila, $campos['tipo']);
+        $plataformaCruda = $this->valor($fila, $campos['plataforma']);
 
         if ($nombreCompleto === null || $cedula === null) {
             throw new IngresoException('Nombre Completo y Cédula son obligatorios.');
@@ -99,6 +120,18 @@ class PersonaImporter
         $persona = $this->ingreso->darDeAlta($persona, $plataforma);
 
         return $this->resumenPersona($persona, 'alta_ok');
+    }
+
+    /**
+     * @param  array<string, mixed>  $fila
+     */
+    protected function valor(array $fila, ?string $campo): ?string
+    {
+        if ($campo === null) {
+            return null;
+        }
+
+        return $this->matcher->firstNonEmpty($fila, $campo);
     }
 
     /**
