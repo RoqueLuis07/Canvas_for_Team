@@ -126,6 +126,16 @@ class PersonaImporterTest extends TestCase
             {
                 return [];
             }
+
+            public function downloadSharedFile(string $shareUrl): string
+            {
+                return '';
+            }
+
+            public function findGroupByName(string $name): ?string
+            {
+                return null;
+            }
         };
     }
 

@@ -193,6 +193,16 @@ class InscripcionMateriaServiceTest extends TestCase
             {
                 return [];
             }
+
+            public function downloadSharedFile(string $shareUrl): string
+            {
+                return '';
+            }
+
+            public function findGroupByName(string $name): ?string
+            {
+                return null;
+            }
         };
 
         $servicioConFalla = new InscripcionMateriaService(
@@ -472,6 +482,16 @@ class InscripcionMateriaServiceTest extends TestCase
             {
                 return [];
             }
+
+            public function downloadSharedFile(string $shareUrl): string
+            {
+                return '';
+            }
+
+            public function findGroupByName(string $name): ?string
+            {
+                return null;
+            }
         };
         $servicioConFalla = new InscripcionMateriaService($canvas, $teamsCaido, app(SincronizacionService::class));
 
@@ -598,6 +618,16 @@ class InscripcionMateriaServiceTest extends TestCase
             public function removeAllLicenses(string $azureUserId): array
             {
                 return [];
+            }
+
+            public function downloadSharedFile(string $shareUrl): string
+            {
+                return '';
+            }
+
+            public function findGroupByName(string $name): ?string
+            {
+                return null;
             }
         };
         $servicio = new InscripcionMateriaService(app(CanvasClient::class), $teamsCaido, app(SincronizacionService::class));

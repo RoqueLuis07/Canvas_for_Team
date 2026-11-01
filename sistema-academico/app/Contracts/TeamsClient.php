@@ -53,4 +53,23 @@ interface TeamsClient
      * @return list<string> Los SKU IDs removidos.
      */
     public function removeAllLicenses(string $azureUserId): array;
+
+    /**
+     * Descarga el contenido de un archivo compartido por enlace de OneDrive
+     * (Diplomados lee la planilla directamente desde ahí, sin que nadie la
+     * suba al sistema).
+     *
+     * @return string Los bytes crudos del archivo.
+     */
+    public function downloadSharedFile(string $shareUrl): string;
+
+    /**
+     * Busca un grupo/equipo de Microsoft Teams por coincidencia EXACTA de
+     * su displayName (sin importar tildes/mayúsculas/espacios en las
+     * puntas) — evita crear un equipo duplicado para un Diplomado que ya
+     * tiene uno con el nombre tipeado de otra forma.
+     *
+     * @return string|null El groupId si existe, null si no se encontró.
+     */
+    public function findGroupByName(string $name): ?string;
 }

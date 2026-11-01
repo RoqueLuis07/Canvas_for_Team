@@ -119,6 +119,68 @@ class HttpTeamsClient implements TeamsClient
         return $skuIds;
     }
 
+    /**
+     * Codifica una URL de enlace compartido de OneDrive/SharePoint al
+     * formato que exige la API "shares" de Graph (`u!<base64url sin
+     * padding>`). Puerto de `_encode_share_url` de producción.
+     */
+    protected function encodeShareUrl(string $shareUrl): string
+    {
+        $base64 = base64_encode($shareUrl);
+        $base64Url = rtrim(strtr($base64, '+/', '-_'), '=');
+
+        return "u!{$base64Url}";
+    }
+
+    public function downloadSharedFile(string $shareUrl): string
+    {
+        $encoded = $this->encodeShareUrl($shareUrl);
+
+        return $this->client()
+            ->get(self::GRAPH_BASE_URL."/shares/{$encoded}/driveItem/content")
+            ->throw()
+            ->body();
+    }
+
+    /**
+     * Simplificación deliberada vs. producción: Graph no soporta un filtro
+     * de coincidencia EXACTA sobre `displayName` de forma confiable, así
+     * que producción ya hacía un `$filter=startswith(...)` + comparación
+     * exacta del lado del cliente. Acá se omite la optimización
+     * `startswith` (que solo acota la respuesta del servidor) y se trae la
+     * lista completa de grupos, filtrando exacto en PHP — mismo resultado,
+     * una llamada HTTP menos compleja.
+     */
+    public function findGroupByName(string $name): ?string
+    {
+        $objetivo = $this->normalizeGroupName($name);
+
+        $grupos = $this->client()
+            ->get(self::GRAPH_BASE_URL.'/groups', ['$select' => 'id,displayName'])
+            ->throw()
+            ->json('value', []);
+
+        foreach ($grupos as $grupo) {
+            if ($this->normalizeGroupName((string) ($grupo['displayName'] ?? '')) === $objetivo) {
+                return (string) $grupo['id'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Normaliza un nombre de equipo para comparar sin importar
+     * tildes/mayúsculas/espacios en las puntas. Puerto de
+     * `_norm_group_name` de producción.
+     */
+    protected function normalizeGroupName(string $name): string
+    {
+        $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name) ?: $name;
+
+        return strtolower(trim($transliterated));
+    }
+
     protected function nicknameFor(string $name): string
     {
         $ascii = preg_replace('/[^A-Za-z0-9]+/', '_', $name);

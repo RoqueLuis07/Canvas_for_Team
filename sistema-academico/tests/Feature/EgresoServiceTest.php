@@ -108,6 +108,16 @@ class EgresoServiceTest extends TestCase
 
                 return ['sku-1', 'sku-2'];
             }
+
+            public function downloadSharedFile(string $shareUrl): string
+            {
+                return '';
+            }
+
+            public function findGroupByName(string $name): ?string
+            {
+                return null;
+            }
         };
 
         $service = new EgresoService($canvas, $teams, app(SincronizacionService::class));
@@ -215,6 +225,16 @@ class EgresoServiceTest extends TestCase
             public function removeAllLicenses(string $azureUserId): array
             {
                 return [];
+            }
+
+            public function downloadSharedFile(string $shareUrl): string
+            {
+                return '';
+            }
+
+            public function findGroupByName(string $name): ?string
+            {
+                return null;
             }
         };
 

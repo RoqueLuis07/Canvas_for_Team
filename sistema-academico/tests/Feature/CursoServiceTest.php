@@ -169,6 +169,16 @@ class CursoServiceTest extends TestCase
             {
                 return [];
             }
+
+            public function downloadSharedFile(string $shareUrl): string
+            {
+                return '';
+            }
+
+            public function findGroupByName(string $name): ?string
+            {
+                return null;
+            }
         };
 
         $service = new CursoService($canvas, $teams, app(SincronizacionService::class));
