@@ -28,4 +28,32 @@ interface CanvasClient
      * @return string El identificador del ítem de contenido creado en Canvas.
      */
     public function createPage(string $canvasCourseId, string $title, string $body): string;
+
+    /**
+     * Busca un usuario en Canvas por su SIS user ID (cédula).
+     *
+     * @return array{id: string, name: string, login_id: string, email: ?string}|null
+     */
+    public function findUserBySisId(string $sisUserId): ?array;
+
+    /**
+     * Busca un usuario en Canvas por su login_id (correo institucional).
+     *
+     * @return array{id: string, name: string, login_id: string, email: ?string}|null
+     */
+    public function findUserByLoginId(string $loginId): ?array;
+
+    /**
+     * Crea un usuario en Canvas dentro de la cuenta configurada, con su
+     * pseudónimo (login) y canal de comunicación (correo) iniciales.
+     *
+     * @param  array{full_name: string, login_id: string, sis_user_id: string, password: string, email: string}  $datos
+     * @return string El canvas_user_id creado.
+     */
+    public function createUser(array $datos): string;
+
+    /**
+     * Elimina (de baja definitiva) un usuario de la cuenta de Canvas.
+     */
+    public function deleteUser(string $canvasUserId): void;
 }

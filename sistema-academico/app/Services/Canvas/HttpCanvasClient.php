@@ -81,4 +81,74 @@ class HttpCanvasClient implements CanvasClient
 
         return (string) $response->json('page_id');
     }
+
+    public function findUserBySisId(string $sisUserId): ?array
+    {
+        $response = $this->client()->get("/accounts/{$this->accountId}/users/sis_user_id:{$sisUserId}");
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        $user = $response->throw()->json();
+
+        return $this->mapUser($user);
+    }
+
+    public function findUserByLoginId(string $loginId): ?array
+    {
+        $response = $this->client()
+            ->get("/accounts/{$this->accountId}/users", ['search_term' => $loginId])
+            ->throw();
+
+        foreach ((array) $response->json() as $user) {
+            if (strcasecmp($user['login_id'] ?? '', $loginId) === 0) {
+                return $this->mapUser($user);
+            }
+        }
+
+        return null;
+    }
+
+    public function createUser(array $datos): string
+    {
+        $response = $this->client()->post("/accounts/{$this->accountId}/users", [
+            'user' => [
+                'name' => $datos['full_name'],
+                'short_name' => $datos['full_name'],
+            ],
+            'pseudonym' => [
+                'unique_id' => $datos['login_id'],
+                'sis_user_id' => $datos['sis_user_id'],
+                'password' => $datos['password'],
+                'send_confirmation' => false,
+            ],
+            'communication_channel' => [
+                'type' => 'email',
+                'address' => $datos['email'],
+                'skip_confirmation' => true,
+            ],
+        ])->throw();
+
+        return (string) $response->json('id');
+    }
+
+    public function deleteUser(string $canvasUserId): void
+    {
+        $this->client()->delete("/accounts/{$this->accountId}/users/{$canvasUserId}")->throw();
+    }
+
+    /**
+     * @param  array<string, mixed>  $user
+     * @return array{id: string, name: string, login_id: string, email: ?string}
+     */
+    protected function mapUser(array $user): array
+    {
+        return [
+            'id' => (string) ($user['id'] ?? ''),
+            'name' => (string) ($user['name'] ?? ''),
+            'login_id' => (string) ($user['login_id'] ?? ''),
+            'email' => $user['email'] ?? null,
+        ];
+    }
 }

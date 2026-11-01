@@ -113,6 +113,23 @@ class CursoServiceTest extends TestCase
             {
                 return 'page-1';
             }
+
+            public function findUserBySisId(string $sisUserId): ?array
+            {
+                return null;
+            }
+
+            public function findUserByLoginId(string $loginId): ?array
+            {
+                return null;
+            }
+
+            public function createUser(array $datos): string
+            {
+                return 'canvas-user-1';
+            }
+
+            public function deleteUser(string $canvasUserId): void {}
         };
         $teams = new class implements TeamsClient
         {
@@ -135,6 +152,23 @@ class CursoServiceTest extends TestCase
             }
 
             public function removeMember(string $teamsGroupId, string $azureUserId): void {}
+
+            public function findUserByUpn(string $upn): ?array
+            {
+                return null;
+            }
+
+            public function createUser(array $datos): string
+            {
+                return 'azure-user-1';
+            }
+
+            public function disableUser(string $azureUserId): void {}
+
+            public function removeAllLicenses(string $azureUserId): array
+            {
+                return [];
+            }
         };
 
         $service = new CursoService($canvas, $teams, app(SincronizacionService::class));

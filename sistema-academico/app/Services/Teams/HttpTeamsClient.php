@@ -49,6 +49,76 @@ class HttpTeamsClient implements TeamsClient
         $this->client()->delete(self::GRAPH_BASE_URL."/groups/{$teamsGroupId}/members/{$azureUserId}/\$ref")->throw();
     }
 
+    public function findUserByUpn(string $upn): ?array
+    {
+        $response = $this->client()->get(self::GRAPH_BASE_URL."/users/{$upn}", [
+            '$select' => 'id,displayName,userPrincipalName,accountEnabled',
+        ]);
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        $user = $response->throw()->json();
+
+        return [
+            'id' => (string) $user['id'],
+            'displayName' => (string) ($user['displayName'] ?? ''),
+            'userPrincipalName' => (string) ($user['userPrincipalName'] ?? ''),
+            'accountEnabled' => (bool) ($user['accountEnabled'] ?? false),
+        ];
+    }
+
+    public function createUser(array $datos): string
+    {
+        $payload = [
+            'accountEnabled' => true,
+            'displayName' => $datos['display_name'],
+            'mailNickname' => $datos['mail_nickname'],
+            'userPrincipalName' => $datos['upn'],
+            'passwordProfile' => [
+                'forceChangePasswordNextSignIn' => false,
+                'password' => $datos['password'],
+            ],
+        ];
+
+        if (! empty($datos['cedula'])) {
+            $payload['postalCode'] = $datos['cedula'];
+        }
+
+        $response = $this->client()->post(self::GRAPH_BASE_URL.'/users', $payload)->throw()->json();
+
+        return (string) $response['id'];
+    }
+
+    public function disableUser(string $azureUserId): void
+    {
+        $this->client()->patch(self::GRAPH_BASE_URL."/users/{$azureUserId}", [
+            'accountEnabled' => false,
+        ])->throw();
+    }
+
+    public function removeAllLicenses(string $azureUserId): array
+    {
+        $licencias = $this->client()
+            ->get(self::GRAPH_BASE_URL."/users/{$azureUserId}/licenseDetails")
+            ->throw()
+            ->json('value', []);
+
+        $skuIds = array_values(array_map(fn (array $licencia) => (string) $licencia['skuId'], $licencias));
+
+        if ($skuIds === []) {
+            return [];
+        }
+
+        $this->client()->post(self::GRAPH_BASE_URL."/users/{$azureUserId}/assignLicense", [
+            'addLicenses' => [],
+            'removeLicenses' => $skuIds,
+        ])->throw();
+
+        return $skuIds;
+    }
+
     protected function nicknameFor(string $name): string
     {
         $ascii = preg_replace('/[^A-Za-z0-9]+/', '_', $name);

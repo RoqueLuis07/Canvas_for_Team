@@ -176,6 +176,23 @@ class InscripcionMateriaServiceTest extends TestCase
             }
 
             public function removeMember(string $teamsGroupId, string $azureUserId): void {}
+
+            public function findUserByUpn(string $upn): ?array
+            {
+                return null;
+            }
+
+            public function createUser(array $datos): string
+            {
+                return 'azure-user-1';
+            }
+
+            public function disableUser(string $azureUserId): void {}
+
+            public function removeAllLicenses(string $azureUserId): array
+            {
+                return [];
+            }
         };
 
         $servicioConFalla = new InscripcionMateriaService(
@@ -407,6 +424,23 @@ class InscripcionMateriaServiceTest extends TestCase
             {
                 return 'x';
             }
+
+            public function findUserBySisId(string $sisUserId): ?array
+            {
+                return null;
+            }
+
+            public function findUserByLoginId(string $loginId): ?array
+            {
+                return null;
+            }
+
+            public function createUser(array $datos): string
+            {
+                return 'x';
+            }
+
+            public function deleteUser(string $canvasUserId): void {}
         };
         $teamsCaido = new class implements TeamsClient
         {
@@ -420,6 +454,23 @@ class InscripcionMateriaServiceTest extends TestCase
             public function removeMember(string $teamsGroupId, string $azureUserId): void
             {
                 throw new \RuntimeException('Graph caído al dar de baja');
+            }
+
+            public function findUserByUpn(string $upn): ?array
+            {
+                return null;
+            }
+
+            public function createUser(array $datos): string
+            {
+                return 'x';
+            }
+
+            public function disableUser(string $azureUserId): void {}
+
+            public function removeAllLicenses(string $azureUserId): array
+            {
+                return [];
             }
         };
         $servicioConFalla = new InscripcionMateriaService($canvas, $teamsCaido, app(SincronizacionService::class));
@@ -531,6 +582,23 @@ class InscripcionMateriaServiceTest extends TestCase
             }
 
             public function removeMember(string $teamsGroupId, string $azureUserId): void {}
+
+            public function findUserByUpn(string $upn): ?array
+            {
+                return null;
+            }
+
+            public function createUser(array $datos): string
+            {
+                return 'x';
+            }
+
+            public function disableUser(string $azureUserId): void {}
+
+            public function removeAllLicenses(string $azureUserId): array
+            {
+                return [];
+            }
         };
         $servicio = new InscripcionMateriaService(app(CanvasClient::class), $teamsCaido, app(SincronizacionService::class));
 
