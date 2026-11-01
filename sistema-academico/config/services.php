@@ -39,6 +39,9 @@ return [
         'base_url' => env('CANVAS_BASE_URL', 'https://canvas.instructure.com'),
         'access_token' => env('CANVAS_ACCESS_TOKEN'),
         'account_id' => env('CANVAS_ACCOUNT_ID', '1'),
+        // Dominio usado para generar el correo institucional al dar de alta
+        // una cuenta (Ingreso) — mismo valor que usa el sistema FastAPI.
+        'institutional_domain' => env('CANVAS_INSTITUTIONAL_DOMAIN', 'usil.edu.py'),
     ],
 
     'azure' => [
