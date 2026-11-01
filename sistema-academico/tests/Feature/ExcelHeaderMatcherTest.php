@@ -61,6 +61,36 @@ class ExcelHeaderMatcherTest extends TestCase
         $this->assertNull($this->matcher->matchColumn($headers, 'cedula', 'ci'));
     }
 
+    public function test_match_header_name_devuelve_el_nombre_del_encabezado_no_el_indice(): void
+    {
+        $headers = [
+            $this->matcher->normalize('Servicio') => 0,
+            $this->matcher->normalize('Nombre Completo') => 1,
+            $this->matcher->normalize('CI') => 2,
+        ];
+
+        $this->assertSame('ci', $this->matcher->matchHeaderName($headers, 'cedula', 'ci', 'documento'));
+        $this->assertSame('nombre_completo', $this->matcher->matchHeaderName($headers, 'nombre_completo', 'nombre'));
+    }
+
+    public function test_match_header_name_resuelve_por_substring_un_encabezado_que_ninguna_key_matchea_exacto(): void
+    {
+        // Antes de resolver el encabezado una sola vez (en vez de buscar las
+        // keys candidatas como claves literales de cada fila), este caso era
+        // inalcanzable: "Nro. de Documento" no coincide exacto con ninguna
+        // de las keys, solo las contiene como substring.
+        $headers = ['nro_de_documento' => 0];
+
+        $this->assertSame('nro_de_documento', $this->matcher->matchHeaderName($headers, 'cedula', 'ci', 'documento'));
+    }
+
+    public function test_match_header_name_devuelve_null_si_no_hay_coincidencia(): void
+    {
+        $headers = [$this->matcher->normalize('Teléfono') => 0];
+
+        $this->assertNull($this->matcher->matchHeaderName($headers, 'cedula', 'ci'));
+    }
+
     public function test_primer_no_vacio_prueba_variantes_espanol_e_ingles(): void
     {
         $row = ['nombre_completo' => '  Karen Gonzalez  ', 'other' => ''];
