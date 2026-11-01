@@ -61,6 +61,9 @@ class AdminPanelProvider extends PanelProvider
                 NavigationGroup::make('Auditoría')
                     ->icon('heroicon-o-clipboard-document-list')
                     ->collapsible(),
+                NavigationGroup::make('Importación')
+                    ->icon('heroicon-o-arrow-up-tray')
+                    ->collapsible(),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
