@@ -304,4 +304,95 @@ class DiplomadoImporterTest extends TestCase
         $this->assertCount(1, $resultado['succeeded'], 'solo debe procesar la fila pendiente, no la ya marcada "enviado"');
         $this->assertSame('Juan Perez', $resultado['succeeded'][0]['nombre_completo']);
     }
+
+    // ── previsualizarCompleto()/importarSeleccionados() — soporte de la
+    // tabla editable con pestañas del panel Filament ─────────────────────
+
+    public function test_previsualizar_completo_devuelve_todas_las_filas_con_fila_id_y_estado(): void
+    {
+        $bytes = $this->bytesXlsx('Diplomado en SQL Avanzado', [
+            ['Juan Perez', '1111111', '', ''],
+            ['Maria Gonzalez', '2222222', '✅ Creado', 'maria.gonzalez@usil.edu.py'],
+            ['Ana Lopez', '3333333', '', ''],
+        ], encabezados: ['Nombre', 'Cédula', 'Estado', 'Usuario']);
+
+        $teams = $this->teamsDePrueba($bytes);
+        $importer = new DiplomadoImporter($teams, $this->nuevoIngreso($this->canvasVacio(), $teams), new ExcelHeaderMatcher());
+
+        $resultado = $importer->previsualizarCompleto('https://onedrive.example/x', 'Hoja1');
+
+        $this->assertSame('Diplomado en SQL Avanzado', $resultado['titulo']);
+        $this->assertCount(3, $resultado['filas']);
+        $this->assertSame(0, $resultado['filas'][0]['fila_id']);
+        $this->assertSame('Juan Perez', $resultado['filas'][0]['nombre']);
+        $this->assertFalse($resultado['filas'][0]['ya_procesado']);
+        $this->assertTrue($resultado['filas'][1]['ya_procesado'], 'Maria ya tiene Usuario con @, debe marcarse procesada');
+        $this->assertFalse($resultado['filas'][2]['ya_procesado']);
+        $this->assertEmpty($teams->equiposCreados, 'previsualizarCompleto no debe crear ningún equipo');
+    }
+
+    public function test_importar_seleccionados_solo_procesa_las_filas_indicadas(): void
+    {
+        $bytes = $this->bytesXlsx('Diplomado Selectivo', [
+            ['Juan Perez', '1111111', '', ''],
+            ['Maria Gonzalez', '2222222', '', ''],
+            ['Ana Lopez', '3333333', '', ''],
+        ], encabezados: ['Nombre', 'Cédula', 'Estado', 'Usuario']);
+
+        $teams = $this->teamsDePrueba($bytes, grupoExistente: 'team-x');
+        $importer = new DiplomadoImporter($teams, $this->nuevoIngreso($this->canvasVacio(), $teams), new ExcelHeaderMatcher());
+
+        // Solo se seleccionan las filas 0 y 2 (Juan y Ana) — Maria (fila 1)
+        // queda afuera aunque también esté pendiente en la planilla.
+        $resultado = $importer->importarSeleccionados('https://onedrive.example/x', 'Hoja1', [
+            ['fila_id' => 0],
+            ['fila_id' => 2],
+        ]);
+
+        $this->assertCount(2, $resultado['succeeded']);
+        $nombres = array_column($resultado['succeeded'], 'nombre_completo');
+        $this->assertContains('Juan Perez', $nombres);
+        $this->assertContains('Ana Lopez', $nombres);
+        $this->assertNotContains('Maria Gonzalez', $nombres, 'Maria no fue seleccionada, no debe procesarse');
+        $this->assertNull(\App\Models\Persona::where('cedula', '2222222')->first(), 'no debe crearse ninguna Persona para la fila no seleccionada');
+    }
+
+    public function test_importar_seleccionados_usa_las_correcciones_en_vez_del_valor_de_la_planilla(): void
+    {
+        $bytes = $this->bytesXlsx('Diplomado con Errores', [
+            ['Juan Perez', '1111111', '', ''], // cédula mal tipeada en la planilla original
+        ], encabezados: ['Nombre', 'Cédula', 'Estado', 'Usuario']);
+
+        $teams = $this->teamsDePrueba($bytes, grupoExistente: 'team-x');
+        $importer = new DiplomadoImporter($teams, $this->nuevoIngreso($this->canvasVacio(), $teams), new ExcelHeaderMatcher());
+
+        $resultado = $importer->importarSeleccionados('https://onedrive.example/x', 'Hoja1', [
+            ['fila_id' => 0, 'cedula' => '9999999'], // corregida desde la tabla editable
+        ]);
+
+        $this->assertCount(1, $resultado['succeeded']);
+        $this->assertSame('9999999', $resultado['succeeded'][0]['cedula'], 'debe usar la cédula corregida, no la de la planilla');
+        $this->assertNull(\App\Models\Persona::where('cedula', '1111111')->first(), 'no debe quedar ninguna Persona con la cédula vieja');
+        $this->assertNotNull(\App\Models\Persona::where('cedula', '9999999')->first());
+    }
+
+    public function test_importar_seleccionados_marca_error_por_fila_sin_abortar_las_demas(): void
+    {
+        $bytes = $this->bytesXlsx('Diplomado Parcial', [
+            ['Juan Perez', '1111111', '', ''],
+        ], encabezados: ['Nombre', 'Cédula', 'Estado', 'Usuario']);
+
+        $teams = $this->teamsDePrueba($bytes, grupoExistente: 'team-x');
+        $importer = new DiplomadoImporter($teams, $this->nuevoIngreso($this->canvasVacio(), $teams), new ExcelHeaderMatcher());
+
+        // fila_id=5 no existe en esta planilla de una sola fila (índice 0).
+        $resultado = $importer->importarSeleccionados('https://onedrive.example/x', 'Hoja1', [
+            ['fila_id' => 0],
+            ['fila_id' => 5],
+        ]);
+
+        $this->assertCount(1, $resultado['succeeded']);
+        $this->assertCount(1, $resultado['failed']);
+        $this->assertSame(5, $resultado['failed'][0]['input']['fila_id']);
+    }
 }
