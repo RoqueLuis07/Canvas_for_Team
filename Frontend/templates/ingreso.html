@@ -92,6 +92,7 @@
              (columna "ID Equipo") en vez de un único Team por pestaña, y
              resolverlo de forma segura por fila queda fuera de este
              alcance — Editar (nombre) y Eliminar cuenta sí están. -->
+        <div class="toolbar-pill" id="docTabBar" style="display:none;"></div>
         <div id="docPreviewWrap" style="display:none;" class="mb-4">
           <div class="toolbar-pill">
             <span class="text-muted small">Pendientes: <strong id="docPendingCount">0</strong> · Ya procesados: <strong id="docDoneCount">0</strong></span>
@@ -206,6 +207,11 @@
                   <p class="small text-muted mb-0 mt-1" id="diplomadoSendPreviewNote"></p>
                 </div>
                 <div id="diplomadoSendResult" class="mb-4"></div>
+
+                <!-- Barra de pestañas tipo Excel: cada planilla/diplomado
+                     cargado queda como su propia pestaña, sin perder lo
+                     editado al cambiar entre ellas — ver switchDiplomadoTab. -->
+                <div class="toolbar-pill" id="diplomadoTabBar" style="display:none;"></div>
 
                 <!-- Tabla editable única: reemplaza las dos tablas de solo
                      lectura (Pendientes/Ya Procesados) + el botón
@@ -323,6 +329,7 @@
                      equipo/Team por fila (es alta "Sin Matriculación"), así
                      que no hay acción "Quitar del grupo" acá, solo Editar
                      (nombre) y Eliminar cuenta. -->
+                <div class="toolbar-pill" id="masivoTabBar" style="display:none;"></div>
                 <div id="masivoPreviewWrap" style="display:none;" class="mb-4">
                   <div class="toolbar-pill">
                     <span class="text-muted small">Pendientes: <strong id="masivoPendingCount">0</strong> · Ya procesados: <strong id="masivoDoneCount">0</strong></span>
@@ -680,38 +687,122 @@ async function fetchDocSheets() {
 
 let _docOriginalValues = {};
 
+// ── Pestañas tipo Excel (mismo patrón que Diplomados, ver comentario
+// extenso en switchDiplomadoTab) ──
+let _docTabs = {};
+let _docActiveTabId = null;
+let _docTabSeq = 0;
+const DOC_MAX_TABS = 8;
+
+function _docTabKey(url, sheetName) { return url + '||' + sheetName; }
+function _docFindTabByKey(key) {
+    return Object.keys(_docTabs).find(id => _docTabKey(_docTabs[id].url, _docTabs[id].sheetName) === key) || null;
+}
+
+function _docSyncActiveTabFromDom() {
+    const tab = _docTabs[_docActiveTabId];
+    if (!tab) return;
+    document.querySelectorAll('#docRowsTbody tr[data-row-idx]').forEach(tr => {
+        const rowIdx = parseInt(tr.dataset.rowIdx, 10);
+        const row = tab.pending.find(r => r.row_idx === rowIdx);
+        if (!row) return;
+        tr.querySelectorAll('.doc-field').forEach(input => { row[input.dataset.field] = input.value; });
+        const check = tr.querySelector('.doc-row-check');
+        if (check) row._checked = check.checked;
+    });
+}
+
+function renderDocTabBar() {
+    const bar = document.getElementById('docTabBar');
+    const ids = Object.keys(_docTabs);
+    if (ids.length === 0) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+    bar.style.display = 'flex';
+    bar.innerHTML = ids.map(id => {
+        const t = _docTabs[id];
+        const active = id === _docActiveTabId;
+        return `<span class="${active ? 'btn-pill' : 'btn-pill-outline'}" style="cursor:pointer;" onclick="switchDocTab('${id}')" title="${_diplEsc(t.url)}">
+            ${_diplEsc(t.sheetName)}
+            <i class="bi bi-x ms-2" onclick="event.stopPropagation(); closeDocTab('${id}')" title="Cerrar pestaña"></i>
+        </span>`;
+    }).join('');
+}
+
+function switchDocTab(tabId) {
+    const tab = _docTabs[tabId];
+    if (!tab) return;
+    if (_docActiveTabId && _docActiveTabId !== tabId) _docSyncActiveTabFromDom();
+    _docActiveTabId = tabId;
+
+    document.getElementById('doc_url').value = tab.url;
+    const sheetSelect = document.getElementById('doc_sheet');
+    if (![...sheetSelect.options].some(o => o.value === tab.sheetName)) {
+        const opt = document.createElement('option');
+        opt.value = tab.sheetName; opt.textContent = tab.sheetName;
+        sheetSelect.appendChild(opt);
+    }
+    sheetSelect.value = tab.sheetName;
+
+    renderDocTable(tab.pending, tab.done, tab.originalValues);
+    collapseOtherAccordions('collapseDocentes');
+    document.getElementById('docPendingCount').innerText = tab.pending.length;
+    document.getElementById('docDoneCount').innerText = tab.done.length;
+    document.getElementById('docPreviewWrap').style.display = 'block';
+    document.getElementById('btnSendDocentesCredentials').disabled = false;
+    document.getElementById('btnPreviewSendDocentes').disabled = false;
+    renderDocTabBar();
+}
+
+function closeDocTab(tabId) {
+    delete _docTabs[tabId];
+    const remaining = Object.keys(_docTabs);
+    if (_docActiveTabId !== tabId) { renderDocTabBar(); return; }
+    _docActiveTabId = null;
+    if (remaining.length > 0) {
+        switchDocTab(remaining[0]);
+    } else {
+        document.getElementById('docPreviewWrap').style.display = 'none';
+        renderDocTabBar();
+    }
+}
+
 async function previewDocentes() {
     const url = document.getElementById('doc_url').value;
     const sheet = document.getElementById('doc_sheet').value;
     if (!url || !sheet) return toast('Completa la URL y la pestaña', 'warning');
 
+    const existingId = _docFindTabByKey(_docTabKey(url, sheet));
+    if (!existingId && Object.keys(_docTabs).length >= DOC_MAX_TABS) {
+        return toast(`Máximo ${DOC_MAX_TABS} pestañas abiertas a la vez — cerrá alguna antes de cargar otra.`, 'warning');
+    }
+
     try {
         const res = await api.post('/excel/docentes-onedrive/preview', { url: url, sheet_name: sheet });
-        renderDocTable(res.sample_rows || [], res.already_processed_details || []);
+        const pending = res.sample_rows || [];
+        const originalValues = {};
+        pending.forEach(r => {
+            originalValues[r.row_idx] = {
+                nombre: r.nombre || '', cedula: r.cedula || '',
+                correo: r.correo || '', plataforma: r.plataforma || 'both',
+            };
+        });
 
-        document.getElementById('docPendingCount').innerText = res.valid_rows;
-        document.getElementById('docDoneCount').innerText = res.already_processed_details.length;
-        document.getElementById('docPreviewWrap').style.display = 'block';
-        collapseOtherAccordions('collapseDocentes');
-        document.getElementById('btnSendDocentesCredentials').disabled = false;
-        document.getElementById('btnPreviewSendDocentes').disabled = false;
+        const tabId = existingId || ('doc' + (++_docTabSeq));
+        _docTabs[tabId] = { url, sheetName: sheet, pending, done: res.already_processed_details || [], originalValues };
+
+        switchDocTab(tabId);
         toast(`Pendientes: ${res.valid_rows} · Ya procesados: ${res.already_processed_details.length}`, 'success');
     } catch (e) {
         toast(e.message, 'danger');
     }
 }
 
-function renderDocTable(pending, done) {
+function renderDocTable(pending, done, originalValues) {
     const esc = _diplEsc;
-    _docOriginalValues = {};
+    _docOriginalValues = originalValues || {};
 
     const pendingRows = pending.map(r => {
-        _docOriginalValues[r.row_idx] = {
-            nombre: r.nombre || '', cedula: r.cedula || '',
-            correo: r.correo || '', plataforma: r.plataforma || 'both',
-        };
         return `<tr data-row-idx="${r.row_idx}">
-            <td><input type="checkbox" class="doc-row-check" onchange="updateDocSelectedCount()"></td>
+            <td><input type="checkbox" class="doc-row-check" onchange="updateDocSelectedCount()" ${r._checked ? 'checked' : ''}></td>
             <td><input type="text" class="form-control form-control-sm doc-field" data-field="nombre" value="${esc(r.nombre)}"></td>
             <td><input type="text" class="form-control form-control-sm doc-field" data-field="cedula" value="${esc(r.cedula)}"></td>
             <td><input type="text" class="form-control form-control-sm doc-field" data-field="correo" value="${esc(r.correo)}"></td>
@@ -775,11 +866,18 @@ function removeDocPendingRow(rowIdx) {
     const tr = document.querySelector(`#docRowsTbody tr[data-row-idx="${rowIdx}"]`);
     if (tr) tr.remove();
     delete _docOriginalValues[rowIdx];
+    const tab = _docTabs[_docActiveTabId];
+    if (tab) tab.pending = tab.pending.filter(r => r.row_idx !== rowIdx);
     updateDocSelectedCount();
 }
 
 function _docDoneRowEl(rowIdx) {
     return document.querySelector(`#docRowsTbody tr[data-row-idx="${rowIdx}"][data-upn]`);
+}
+
+function _docRemoveFromActiveTabDone(rowIdx) {
+    const tab = _docTabs[_docActiveTabId];
+    if (tab) tab.done = tab.done.filter(r => r.row_idx !== rowIdx);
 }
 
 async function editDocRowName(rowIdx) {
@@ -809,6 +907,7 @@ async function deleteDocRow(rowIdx) {
         await api.post('/egreso/delete-account', { identifier: upn, platform: 'both' });
         toast('Cuenta eliminada', 'success');
         tr.remove();
+        _docRemoveFromActiveTabDone(rowIdx);
         document.getElementById('docDoneCount').innerText =
             Math.max(0, parseInt(document.getElementById('docDoneCount').innerText, 10) - 1);
         updateDocDoneSelectedCount();
@@ -829,6 +928,7 @@ async function deleteSelectedDocentes() {
         try {
             await api.post('/egreso/delete-account', { identifier: tr.dataset.upn, platform: 'both' });
             tr.remove();
+            _docRemoveFromActiveTabDone(parseInt(tr.dataset.rowIdx, 10));
             ok++;
         } catch (e) { fail++; }
     }
@@ -990,50 +1090,165 @@ async function fetchDiplomadoSheets() {
 
 // Valores originales por fila (row_idx -> {nombre, cedula, correo,
 // telefono}), para poder mandar al backend SOLO lo que el usuario
-// realmente editó en la tabla, no toda la fila de nuevo.
+// realmente editó en la tabla, no toda la fila de nuevo. Es el caché de
+// la pestaña ACTIVA (ver _diplomadosTabs) — se reemplaza al cambiar de
+// pestaña, nunca se edita después de cargar esa pestaña (eso rompería el
+// diff contra el valor realmente original).
 let _diplomadosOriginalValues = {};
 
 // Team/grupo M365 ya existente para el diplomado de la pestaña cargada
 // (resuelto en /excel/diplomados/preview, solo lectura) — null si todavía
 // no existe ningún Team con ese nombre. Habilita/deshabilita "Quitar del
-// grupo" en las filas ya procesadas.
+// grupo" en las filas ya procesadas. También es el valor de la pestaña
+// ACTIVA.
 let _diplomadosTeamId = null;
 
 const _diplEsc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ── Pestañas tipo Excel ──────────────────────────────────────────────
+// Cada planilla/diplomado cargado queda como su propia pestaña en
+// _diplomadosTabs (clave = id interno), sin perder lo editado al cambiar
+// entre ellas. Los inputs de URL/Pestaña arriba de la tabla funcionan
+// como "cargar una pestaña nueva" — al cambiar de pestaña activa se
+// sincronizan para reflejar la pestaña mostrada, así el resto de las
+// funciones (procesar, enviar credenciales...) que ya leían esos inputs
+// directamente siguen funcionando sin tocarlas.
+let _diplomadosTabs = {};
+let _diplomadosActiveTabId = null;
+let _diplomadosTabSeq = 0;
+const DIPLOMADOS_MAX_TABS = 8;
+
+function _diplTabKey(url, sheetName) { return url + '||' + sheetName; }
+
+function _diplFindTabByKey(key) {
+    return Object.keys(_diplomadosTabs).find(id => _diplTabKey(_diplomadosTabs[id].url, _diplomadosTabs[id].sheetName) === key) || null;
+}
+
+// Vuelca los valores actuales de los inputs (editados o no) y el estado
+// de los checkboxes de la pestaña activa a su caché ANTES de cambiar de
+// pestaña — si no, los cambios sin procesar se perderían al volver.
+// No toca tab.originalValues (eso sí debe quedar intacto, es el valor
+// real con el que se compara al armar el diff para procesar).
+function _diplSyncActiveTabFromDom() {
+    const tab = _diplomadosTabs[_diplomadosActiveTabId];
+    if (!tab) return;
+
+    document.querySelectorAll('#diplomadoRowsTbody tr[data-row-idx]').forEach(tr => {
+        const rowIdx = parseInt(tr.dataset.rowIdx, 10);
+        const row = tab.pending.find(r => r.row_idx === rowIdx);
+        if (!row) return;
+        tr.querySelectorAll('.dipl-field').forEach(input => { row[input.dataset.field] = input.value; });
+        const check = tr.querySelector('.dipl-row-check');
+        if (check) row._checked = check.checked;
+    });
+}
+
+function renderDiplomadoTabBar() {
+    const bar = document.getElementById('diplomadoTabBar');
+    const ids = Object.keys(_diplomadosTabs);
+    if (ids.length === 0) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+
+    bar.style.display = 'flex';
+    bar.innerHTML = ids.map(id => {
+        const t = _diplomadosTabs[id];
+        const active = id === _diplomadosActiveTabId;
+        return `<span class="${active ? 'btn-pill' : 'btn-pill-outline'}" style="cursor:pointer;" onclick="switchDiplomadoTab('${id}')" title="${_diplEsc(t.url)}">
+            ${_diplEsc(t.sheetName)}
+            <i class="bi bi-x ms-2" onclick="event.stopPropagation(); closeDiplomadoTab('${id}')" title="Cerrar pestaña"></i>
+        </span>`;
+    }).join('');
+}
+
+function switchDiplomadoTab(tabId) {
+    const tab = _diplomadosTabs[tabId];
+    if (!tab) return;
+
+    if (_diplomadosActiveTabId && _diplomadosActiveTabId !== tabId) {
+        _diplSyncActiveTabFromDom();
+    }
+    _diplomadosActiveTabId = tabId;
+
+    document.getElementById('diplomadoUrl').value = tab.url;
+    const sheetSelect = document.getElementById('diplomadoSheet');
+    if (![...sheetSelect.options].some(o => o.value === tab.sheetName)) {
+        const opt = document.createElement('option');
+        opt.value = tab.sheetName; opt.textContent = tab.sheetName;
+        sheetSelect.appendChild(opt);
+    }
+    sheetSelect.value = tab.sheetName;
+
+    _diplomadosTeamId = tab.teamId;
+    renderDiplomadosTable(tab.pending, tab.done, tab.originalValues);
+    collapseOtherAccordions('collapseDiplomados');
+    document.getElementById('diplomadoPendingCount').innerText = tab.pending.length;
+    document.getElementById('diplomadoDoneCount').innerText = tab.done.length;
+    document.getElementById('diplomadoPreviewWrap').style.display = 'block';
+    document.getElementById('btnSendDiplomadosCredentials').disabled = false;
+    document.getElementById('btnPreviewSendDiplomados').disabled = false;
+    renderDiplomadoTabBar();
+}
+
+function closeDiplomadoTab(tabId) {
+    delete _diplomadosTabs[tabId];
+    const remaining = Object.keys(_diplomadosTabs);
+
+    if (_diplomadosActiveTabId !== tabId) {
+        renderDiplomadoTabBar();
+        return;
+    }
+
+    _diplomadosActiveTabId = null;
+    if (remaining.length > 0) {
+        switchDiplomadoTab(remaining[0]);
+    } else {
+        document.getElementById('diplomadoPreviewWrap').style.display = 'none';
+        renderDiplomadoTabBar();
+    }
+}
 
 async function previewDiplomados() {
     const url = document.getElementById('diplomadoUrl').value;
     const sheet = document.getElementById('diplomadoSheet').value;
     if (!url || !sheet) return toast('Completa la URL y la pestaña', 'warning');
 
+    const existingId = _diplFindTabByKey(_diplTabKey(url, sheet));
+    if (!existingId && Object.keys(_diplomadosTabs).length >= DIPLOMADOS_MAX_TABS) {
+        return toast(`Máximo ${DIPLOMADOS_MAX_TABS} pestañas abiertas a la vez — cerrá alguna antes de cargar otra.`, 'warning');
+    }
+
     try {
         const res = await api.post('/excel/diplomados/preview', { url: url, sheet_name: sheet });
-        _diplomadosTeamId = res.team_id || null;
-        renderDiplomadosTable(res.student_details || [], res.already_processed_details || []);
+        const pending = res.student_details || [];
+        const originalValues = {};
+        pending.forEach(r => {
+            originalValues[r.row_idx] = {
+                nombre: r.nombre || '', cedula: r.cedula || '',
+                correo: r.correo || '', telefono: r.telefono || '',
+            };
+        });
 
-        document.getElementById('diplomadoPendingCount').innerText = res.students_to_process;
-        document.getElementById('diplomadoDoneCount').innerText = res.students_already_processed;
-        document.getElementById('diplomadoPreviewWrap').style.display = 'block';
-        collapseOtherAccordions('collapseDiplomados');
-        document.getElementById('btnSendDiplomadosCredentials').disabled = false;
-        document.getElementById('btnPreviewSendDiplomados').disabled = false;
+        const tabId = existingId || ('dipl' + (++_diplomadosTabSeq));
+        _diplomadosTabs[tabId] = {
+            url, sheetName: sheet,
+            teamId: res.team_id || null,
+            pending, done: res.already_processed_details || [],
+            originalValues,
+        };
+
+        switchDiplomadoTab(tabId);
         toast(`Pendientes: ${res.students_to_process} · Ya procesados: ${res.students_already_processed}`, 'success');
     } catch (e) {
         toast(e.message, 'danger');
     }
 }
 
-function renderDiplomadosTable(pending, done) {
+function renderDiplomadosTable(pending, done, originalValues) {
     const esc = _diplEsc;
-    _diplomadosOriginalValues = {};
+    _diplomadosOriginalValues = originalValues || {};
 
     const pendingRows = pending.map(r => {
-        _diplomadosOriginalValues[r.row_idx] = {
-            nombre: r.nombre || '', cedula: r.cedula || '',
-            correo: r.correo || '', telefono: r.telefono || '',
-        };
         return `<tr data-row-idx="${r.row_idx}">
-            <td><input type="checkbox" class="dipl-row-check" onchange="updateDiplomadoSelectedCount()"></td>
+            <td><input type="checkbox" class="dipl-row-check" onchange="updateDiplomadoSelectedCount()" ${r._checked ? 'checked' : ''}></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="nombre" value="${esc(r.nombre)}"></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="cedula" value="${esc(r.cedula)}"></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="correo" value="${esc(r.correo)}"></td>
@@ -1106,11 +1321,21 @@ function removeDiplomadoPendingRow(rowIdx) {
     const tr = document.querySelector(`#diplomadoRowsTbody tr[data-row-idx="${rowIdx}"]`);
     if (tr) tr.remove();
     delete _diplomadosOriginalValues[rowIdx];
+    const tab = _diplomadosTabs[_diplomadosActiveTabId];
+    if (tab) tab.pending = tab.pending.filter(r => r.row_idx !== rowIdx);
     updateDiplomadoSelectedCount();
 }
 
 function _diplDoneRowEl(rowIdx) {
     return document.querySelector(`#diplomadoRowsTbody tr[data-row-idx="${rowIdx}"][data-upn]`);
+}
+
+// Saca la fila del caché de la pestaña activa (tab.done) además del DOM —
+// si no, al volver a esta pestaña después de cambiar a otra, la fila
+// "resucitaría" porque el render parte del caché, no del DOM actual.
+function _diplRemoveFromActiveTabDone(rowIdx) {
+    const tab = _diplomadosTabs[_diplomadosActiveTabId];
+    if (tab) tab.done = tab.done.filter(r => r.row_idx !== rowIdx);
 }
 
 async function editDiplomadoRowName(rowIdx) {
@@ -1140,6 +1365,7 @@ async function removeFromGroupDiplomadoRow(rowIdx) {
         await api.post('/teams/teams/remove-member-by-upn', { group_id: _diplomadosTeamId, upn: upn });
         toast('Quitado del grupo', 'success');
         tr.remove();
+        _diplRemoveFromActiveTabDone(rowIdx);
         document.getElementById('diplomadoDoneCount').innerText =
             Math.max(0, parseInt(document.getElementById('diplomadoDoneCount').innerText, 10) - 1);
         updateDiplomadoDoneSelectedCount();
@@ -1158,6 +1384,7 @@ async function deleteDiplomadoRow(rowIdx) {
         await api.post('/egreso/delete-account', { identifier: upn, platform: 'both' });
         toast('Cuenta eliminada', 'success');
         tr.remove();
+        _diplRemoveFromActiveTabDone(rowIdx);
         document.getElementById('diplomadoDoneCount').innerText =
             Math.max(0, parseInt(document.getElementById('diplomadoDoneCount').innerText, 10) - 1);
         updateDiplomadoDoneSelectedCount();
@@ -1179,6 +1406,7 @@ async function removeFromGroupSelectedDiplomados() {
         try {
             await api.post('/teams/teams/remove-member-by-upn', { group_id: _diplomadosTeamId, upn: tr.dataset.upn });
             tr.remove();
+            _diplRemoveFromActiveTabDone(parseInt(tr.dataset.rowIdx, 10));
             ok++;
         } catch (e) { fail++; }
     }
@@ -1200,6 +1428,7 @@ async function deleteSelectedDiplomados() {
         try {
             await api.post('/egreso/delete-account', { identifier: tr.dataset.upn, platform: 'both' });
             tr.remove();
+            _diplRemoveFromActiveTabDone(parseInt(tr.dataset.rowIdx, 10));
             ok++;
         } catch (e) { fail++; }
     }
@@ -1397,33 +1626,114 @@ async function fetchMasivoSheets() {
 
 let _masivoOriginalValues = {};
 
+// ── Pestañas tipo Excel (mismo patrón que Diplomados) ──
+let _masivoTabs = {};
+let _masivoActiveTabId = null;
+let _masivoTabSeq = 0;
+const MASIVO_MAX_TABS = 8;
+
+function _masivoTabKey(url, sheetName) { return url + '||' + sheetName; }
+function _masivoFindTabByKey(key) {
+    return Object.keys(_masivoTabs).find(id => _masivoTabKey(_masivoTabs[id].url, _masivoTabs[id].sheetName) === key) || null;
+}
+
+function _masivoSyncActiveTabFromDom() {
+    const tab = _masivoTabs[_masivoActiveTabId];
+    if (!tab) return;
+    document.querySelectorAll('#masivoRowsTbody tr[data-row-idx]').forEach(tr => {
+        const rowIdx = parseInt(tr.dataset.rowIdx, 10);
+        const row = tab.pending.find(r => r.row_idx === rowIdx);
+        if (!row) return;
+        tr.querySelectorAll('.masivo-field').forEach(input => { row[input.dataset.field] = input.value; });
+        const check = tr.querySelector('.masivo-row-check');
+        if (check) row._checked = check.checked;
+    });
+}
+
+function renderMasivoTabBar() {
+    const bar = document.getElementById('masivoTabBar');
+    const ids = Object.keys(_masivoTabs);
+    if (ids.length === 0) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+    bar.style.display = 'flex';
+    bar.innerHTML = ids.map(id => {
+        const t = _masivoTabs[id];
+        const active = id === _masivoActiveTabId;
+        return `<span class="${active ? 'btn-pill' : 'btn-pill-outline'}" style="cursor:pointer;" onclick="switchMasivoTab('${id}')" title="${_diplEsc(t.url)}">
+            ${_diplEsc(t.sheetName)}
+            <i class="bi bi-x ms-2" onclick="event.stopPropagation(); closeMasivoTab('${id}')" title="Cerrar pestaña"></i>
+        </span>`;
+    }).join('');
+}
+
+function switchMasivoTab(tabId) {
+    const tab = _masivoTabs[tabId];
+    if (!tab) return;
+    if (_masivoActiveTabId && _masivoActiveTabId !== tabId) _masivoSyncActiveTabFromDom();
+    _masivoActiveTabId = tabId;
+
+    document.getElementById('masivoUrl').value = tab.url;
+    const sheetSelect = document.getElementById('masivoSheet');
+    if (![...sheetSelect.options].some(o => o.value === tab.sheetName)) {
+        const opt = document.createElement('option');
+        opt.value = tab.sheetName; opt.textContent = tab.sheetName;
+        sheetSelect.appendChild(opt);
+    }
+    sheetSelect.value = tab.sheetName;
+
+    renderMasivoTable(tab.pending, tab.done, tab.originalValues);
+    collapseOtherAccordions('collapseMasivo');
+    document.getElementById('masivoPendingCount').innerText = tab.pending.length;
+    document.getElementById('masivoDoneCount').innerText = tab.done.length;
+    document.getElementById('masivoPreviewWrap').style.display = 'block';
+    renderMasivoTabBar();
+}
+
+function closeMasivoTab(tabId) {
+    delete _masivoTabs[tabId];
+    const remaining = Object.keys(_masivoTabs);
+    if (_masivoActiveTabId !== tabId) { renderMasivoTabBar(); return; }
+    _masivoActiveTabId = null;
+    if (remaining.length > 0) {
+        switchMasivoTab(remaining[0]);
+    } else {
+        document.getElementById('masivoPreviewWrap').style.display = 'none';
+        renderMasivoTabBar();
+    }
+}
+
 async function previewMasivo() {
     const url = document.getElementById('masivoUrl').value;
     const sheet = document.getElementById('masivoSheet').value;
     if (!url || !sheet) return toast('Completa la URL y la pestaña', 'warning');
 
+    const existingId = _masivoFindTabByKey(_masivoTabKey(url, sheet));
+    if (!existingId && Object.keys(_masivoTabs).length >= MASIVO_MAX_TABS) {
+        return toast(`Máximo ${MASIVO_MAX_TABS} pestañas abiertas a la vez — cerrá alguna antes de cargar otra.`, 'warning');
+    }
+
     try {
         const res = await api.post('/excel/masivo/preview', { url: url, sheet_name: sheet });
-        renderMasivoTable(res.student_details || [], res.already_processed_details || []);
+        const pending = res.student_details || [];
+        const originalValues = {};
+        pending.forEach(r => { originalValues[r.row_idx] = { nombre: r.nombre || '', cedula: r.cedula || '' }; });
 
-        document.getElementById('masivoPendingCount').innerText = res.students_to_process;
-        document.getElementById('masivoDoneCount').innerText = res.students_already_processed;
-        document.getElementById('masivoPreviewWrap').style.display = 'block';
-        collapseOtherAccordions('collapseMasivo');
+        const tabId = existingId || ('masivo' + (++_masivoTabSeq));
+        _masivoTabs[tabId] = { url, sheetName: sheet, pending, done: res.already_processed_details || [], originalValues };
+
+        switchMasivoTab(tabId);
         toast(`Pendientes: ${res.students_to_process} · Ya procesados: ${res.students_already_processed}`, 'success');
     } catch (e) {
         toast(e.message, 'danger');
     }
 }
 
-function renderMasivoTable(pending, done) {
+function renderMasivoTable(pending, done, originalValues) {
     const esc = _diplEsc;
-    _masivoOriginalValues = {};
+    _masivoOriginalValues = originalValues || {};
 
     const pendingRows = pending.map(r => {
-        _masivoOriginalValues[r.row_idx] = { nombre: r.nombre || '', cedula: r.cedula || '' };
         return `<tr data-row-idx="${r.row_idx}">
-            <td><input type="checkbox" class="masivo-row-check" onchange="updateMasivoSelectedCount()"></td>
+            <td><input type="checkbox" class="masivo-row-check" onchange="updateMasivoSelectedCount()" ${r._checked ? 'checked' : ''}></td>
             <td><input type="text" class="form-control form-control-sm masivo-field" data-field="nombre" value="${esc(r.nombre)}"></td>
             <td><input type="text" class="form-control form-control-sm masivo-field" data-field="cedula" value="${esc(r.cedula)}"></td>
             <td><span class="badge bg-warning-subtle text-warning-emphasis">Pendiente</span></td>
@@ -1484,11 +1794,18 @@ function removeMasivoPendingRow(rowIdx) {
     const tr = document.querySelector(`#masivoRowsTbody tr[data-row-idx="${rowIdx}"]`);
     if (tr) tr.remove();
     delete _masivoOriginalValues[rowIdx];
+    const tab = _masivoTabs[_masivoActiveTabId];
+    if (tab) tab.pending = tab.pending.filter(r => r.row_idx !== rowIdx);
     updateMasivoSelectedCount();
 }
 
 function _masivoDoneRowEl(rowIdx) {
     return document.querySelector(`#masivoRowsTbody tr[data-row-idx="${rowIdx}"][data-upn]`);
+}
+
+function _masivoRemoveFromActiveTabDone(rowIdx) {
+    const tab = _masivoTabs[_masivoActiveTabId];
+    if (tab) tab.done = tab.done.filter(r => r.row_idx !== rowIdx);
 }
 
 async function editMasivoRowName(rowIdx) {
@@ -1518,6 +1835,7 @@ async function deleteMasivoRow(rowIdx) {
         await api.post('/egreso/delete-account', { identifier: upn, platform: 'both' });
         toast('Cuenta eliminada', 'success');
         tr.remove();
+        _masivoRemoveFromActiveTabDone(rowIdx);
         document.getElementById('masivoDoneCount').innerText =
             Math.max(0, parseInt(document.getElementById('masivoDoneCount').innerText, 10) - 1);
         updateMasivoDoneSelectedCount();
@@ -1538,6 +1856,7 @@ async function deleteSelectedMasivo() {
         try {
             await api.post('/egreso/delete-account', { identifier: tr.dataset.upn, platform: 'both' });
             tr.remove();
+            _masivoRemoveFromActiveTabDone(parseInt(tr.dataset.rowIdx, 10));
             ok++;
         } catch (e) { fail++; }
     }
