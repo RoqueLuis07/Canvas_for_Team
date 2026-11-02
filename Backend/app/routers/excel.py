@@ -977,6 +977,21 @@ class DiplomadosUrlRequest(BaseModel):
     de confirmar el envío masivo a todos."""
 
 
+class DiplomadosProcessEditedRequest(DiplomadosUrlRequest):
+    """Como DiplomadosUrlRequest, pero para procesar desde la tabla editable
+    del frontend: solo las filas tildadas, con los valores que el usuario
+    haya corregido ahí mismo (ver /excel/diplomados/process-edited)."""
+    overrides: list[dict] = []
+    """Cada dict: {"row_idx": int, y opcionalmente "nombre"/"cedula"/
+    "correo"/"telefono" — solo las claves que el usuario efectivamente
+    editó, comparadas contra lo que vino en /excel/diplomados/preview}."""
+    selected_rows: list[int] | None = None
+    """Índices de fila (row_idx, tal cual los devuelve /preview) tildados
+    para procesar. None = comportamiento viejo (procesa todas las
+    pendientes) — en la práctica este endpoint siempre debería recibir una
+    lista explícita desde la tabla editable."""
+
+
 
 class MatriculacionesPreviewResponse(BaseModel):
     headers: list[str]
@@ -1268,7 +1283,55 @@ async def import_diplomados_onedrive(req: DiplomadosUrlRequest, bg_tasks: Backgr
     return {"status": "success", "job_id": job_id, "message": "Alta de Diplomados iniciada en segundo plano."}
 
 
-async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, contents: bytes, encoded_url: str):
+@router.post("/excel/diplomados/process-edited", summary="Procesar filas seleccionadas de Diplomados, con correcciones hechas en la tabla editable")
+async def process_diplomados_edited(req: DiplomadosProcessEditedRequest, bg_tasks: BackgroundTasks) -> dict:
+    """Igual que /excel/diplomados, pero en vez de procesar todas las filas
+    pendientes de la planilla tal cual está en OneDrive, procesa solo las
+    filas que el usuario tildó en la tabla editable del frontend, con los
+    valores que haya corregido ahí (ej. una cédula mal tipeada) — esos
+    valores se escriben en el archivo real de OneDrive como parte del
+    procesamiento normal (ver _process_diplomados_bg), no quedan solo en
+    esta request."""
+    if not req.url or "http" not in req.url:
+        raise HTTPException(status_code=400, detail="URL inválida.")
+
+    encoded_url = _encode_share_url(req.url)
+
+    try:
+        contents = await graph.get_raw(f"/shares/{encoded_url}/driveItem/content")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo descargar el archivo de OneDrive. Verifica la URL y los permisos. Detalle: {e}")
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents), read_only=True)
+        if req.sheet_name not in wb.sheetnames:
+            raise HTTPException(status_code=400, detail=f"La pestaña '{req.sheet_name}' no existe en el archivo. Las disponibles son: {', '.join(wb.sheetnames)}")
+        wb.close()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="El archivo descargado no es un Excel válido.")
+
+    overrides = {
+        o["row_idx"]: {k: v for k, v in o.items() if k != "row_idx"}
+        for o in req.overrides
+        if "row_idx" in o
+    }
+    selected_row_indices = set(req.selected_rows) if req.selected_rows is not None else None
+
+    job_id = await jobs.create_job(job_type="diplomados_onedrive", operation="Alta de Diplomados", username="admin")
+    bg_tasks.add_task(_process_diplomados_bg, job_id, req, contents, encoded_url, overrides, selected_row_indices)
+    return {"status": "success", "job_id": job_id, "message": "Alta de Diplomados iniciada en segundo plano."}
+
+
+async def _process_diplomados_bg(
+    job_id: int,
+    req: DiplomadosUrlRequest,
+    contents: bytes,
+    encoded_url: str,
+    overrides: dict[int, dict] | None = None,
+    selected_row_indices: set[int] | None = None,
+):
     import json
     await jobs.start_job(job_id)
 
@@ -1328,6 +1391,23 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
             detected = list(headers.keys()) if headers else ['Ninguna']
             await jobs.fail_job(job_id, f"No se encontraron las columnas requeridas ('Nombre' y 'Cédula') en la pestaña seleccionada. Columnas detectadas: {detected}")
             return
+
+        # Correcciones hechas desde la tabla editable del frontend (ver
+        # /excel/diplomados/process-edited): se aplican directo sobre las
+        # celdas ANTES de que arranque cualquier lógica de negocio, que
+        # siempre lee de ws.cell(...) — así el resto de esta función (alta
+        # de cuentas, auto-reparo, guardado en OneDrive al final) no
+        # necesita saber que hubo una edición, simplemente ve el valor ya
+        # corregido como si viniera de la planilla original.
+        for r_idx, vals in (overrides or {}).items():
+            if "nombre" in vals and col_nombre:
+                _safe_set_cell(ws, r_idx, col_nombre, vals["nombre"])
+            if "cedula" in vals and col_cedula:
+                _safe_set_cell(ws, r_idx, col_cedula, vals["cedula"])
+            if "correo" in vals and col_correo:
+                _safe_set_cell(ws, r_idx, col_correo, vals["correo"])
+            if "telefono" in vals and col_telefono:
+                _safe_set_cell(ws, r_idx, col_telefono, vals["telefono"])
 
         next_col = ws.max_column + 1
 
@@ -1717,6 +1797,26 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                 pending_count += 1
 
             row_indices.append(r_idx)
+
+        # Procesamiento selectivo desde la tabla editable: si el frontend
+        # mandó qué filas tildó, solo se procesan esas — se recalcula
+        # pending_count sobre el subconjunto filtrado para que el límite de
+        # seguridad de abajo siga siendo significativo (si no, quedaría
+        # contando filas que ni se van a tocar).
+        if selected_row_indices is not None:
+            row_indices = [r for r in row_indices if r in selected_row_indices]
+            pending_count = 0
+            for r_idx in row_indices:
+                enviado_check = str(ws.cell(row=r_idx, column=col_enviado).value or "").strip()
+                enviado_check_lower = enviado_check.lower()
+                usuario_check = str(ws.cell(row=r_idx, column=col_usuario).value or "").strip() if col_usuario else ""
+                already_done = (
+                    "✅" in enviado_check or enviado_check_lower in ["si", "yes", "true", "enviado", "ok"]
+                    or "creado ok" in enviado_check_lower or "ya exist" in enviado_check_lower
+                    or (usuario_check and "@" in usuario_check)
+                )
+                if not already_done:
+                    pending_count += 1
 
         if pending_count > 300:
             await jobs.fail_job(job_id, f"Límite de seguridad excedido: intentás crear {pending_count} cuentas nuevas a la vez (máximo 300 permitidas). Revisa el archivo para evitar accidentes.")
