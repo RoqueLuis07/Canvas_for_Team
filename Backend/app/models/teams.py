@@ -26,6 +26,7 @@ class TeamsUserUpdate(BaseModel):
     department: Optional[str] = None
     job_title: Optional[str] = None
     account_enabled: Optional[bool] = None
+    mobile_phone: Optional[str] = None
 
 
 # ── Teams / Groups ────────────────────────────────────────────────────────────

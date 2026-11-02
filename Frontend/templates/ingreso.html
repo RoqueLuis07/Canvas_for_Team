@@ -106,6 +106,9 @@
           <div class="toolbar-pill">
             <span class="text-muted small">Pendientes: <strong id="docPendingCount">0</strong> · Ya procesados: <strong id="docDoneCount">0</strong></span>
             <div class="btn-group-end">
+              <button type="button" class="btn-pill-outline" onclick="addNewRowDoc()" title="Agregar una fila nueva a esta planilla">
+                <i class="bi bi-plus-lg me-1"></i>Agregar fila
+              </button>
               <button type="button" class="btn-pill" id="btnProcessSelectedDocentes" onclick="processSelectedDocentes()" disabled>
                 <i class="bi bi-check-circle me-1"></i>Procesar seleccionadas (<span id="docSelectedCount">0</span>)
               </button>
@@ -127,9 +130,10 @@
                   <th>Nombre</th>
                   <th>Cédula</th>
                   <th>Correo</th>
+                  <th>Teléfono</th>
                   <th>Plataforma</th>
                   <th>Estado</th>
-                  <th style="width:90px;">Acciones</th>
+                  <th style="width:110px;">Acciones</th>
                 </tr>
               </thead>
               <tbody id="docRowsTbody"></tbody>
@@ -227,6 +231,9 @@
                   <div class="toolbar-pill">
                     <span class="text-muted small">Pendientes: <strong id="diplomadoPendingCount">0</strong> · Ya procesados: <strong id="diplomadoDoneCount">0</strong></span>
                     <div class="btn-group-end">
+                      <button type="button" class="btn-pill-outline" onclick="addNewRowDiplomado()" title="Agregar una fila nueva a esta planilla">
+                        <i class="bi bi-plus-lg me-1"></i>Agregar fila
+                      </button>
                       <button type="button" class="btn-pill" id="btnProcessSelectedDiplomados" onclick="processSelectedDiplomados()" disabled>
                         <i class="bi bi-check-circle me-1"></i>Procesar seleccionadas (<span id="diplomadoSelectedCount">0</span>)
                       </button>
@@ -326,6 +333,9 @@
                   <div class="toolbar-pill">
                     <span class="text-muted small">Pendientes: <strong id="masivoPendingCount">0</strong> · Ya procesados: <strong id="masivoDoneCount">0</strong></span>
                     <div class="btn-group-end">
+                      <button type="button" class="btn-pill-outline" onclick="addNewRowMasivo()" title="Agregar una fila nueva a esta planilla">
+                        <i class="bi bi-plus-lg me-1"></i>Agregar fila
+                      </button>
                       <button type="button" class="btn-pill" id="btnProcessSelectedMasivo" onclick="processSelectedMasivo()" disabled>
                         <i class="bi bi-check-circle me-1"></i>Procesar seleccionadas (<span id="masivoSelectedCount">0</span>)
                       </button>
@@ -346,6 +356,8 @@
                           <th style="width:36px;"><input type="checkbox" id="masivoSelectAll" onchange="toggleAllMasivoRows(this)" title="Seleccionar todas las pendientes"></th>
                           <th>Nombre</th>
                           <th>Cédula</th>
+                          <th>Correo</th>
+                          <th>Teléfono</th>
                           <th>Estado</th>
                           <th style="width:90px;">Acciones</th>
                         </tr>
@@ -498,6 +510,56 @@
     <div id="erpDocenteResult" class="mt-3" style="display:none;"></div>
   </div>
 </div>
+
+<!-- Modal genérico de edición de fila — compartido por Diplomados/Docentes/
+     Masivo (ver openRowEditModal/_rowEditSave). Correo y Cédula solo
+     corrigen el registro del Excel (nunca el login real); Nombre y
+     Teléfono además sincronizan la cuenta viva en Teams si la fila tiene
+     una cuenta asociada (upn). Estado es un <select> controlado, nunca
+     texto libre, para no romper la detección de "ya procesado" que usan
+     varios endpoints del backend. -->
+<div class="modal fade" id="rowEditModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Editar fila</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label small fw-bold">Nombre <span class="text-muted">(sincroniza la cuenta en Teams)</span></label>
+          <input type="text" id="rowEditNombre" class="form-control form-control-sm">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-bold">Cédula <span class="text-muted">(solo registro del Excel)</span></label>
+          <input type="text" id="rowEditCedula" class="form-control form-control-sm">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-bold">Correo <span class="text-muted">(solo registro del Excel)</span></label>
+          <input type="text" id="rowEditCorreo" class="form-control form-control-sm">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-bold">Teléfono <span class="text-muted">(sincroniza la cuenta en Teams)</span></label>
+          <input type="text" id="rowEditTelefono" class="form-control form-control-sm">
+        </div>
+        <div class="mb-3">
+          <label class="form-label small fw-bold">Estado</label>
+          <select id="rowEditEstado" class="form-select form-select-sm">
+            <option value="procesado">✅ Procesado</option>
+            <option value="pendiente">Pendiente (borra el Usuario registrado para que vuelva a la lista — la cuenta real no se borra)</option>
+          </select>
+        </div>
+        <div class="alert alert-info small py-2 mb-0">
+          <i class="bi bi-info-circle me-1"></i>Correo y Cédula solo corrigen el dato guardado en el Excel — nunca cambian el usuario/login real de la cuenta ya creada.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" id="rowEditSaveBtn" onclick="_rowEditSave()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -511,6 +573,153 @@
 function collapseOtherAccordions(activeId) {}
 
 function restoreAccordions() {}
+
+// ── Edición de fila completa + "Agregar fila nueva" ───────────────────────
+// Compartido por los 3 paneles (Diplomados/Docentes/Masivo): todo cambio
+// hecho acá viaja al backend (/excel/row/edit, /excel/row/add) y se
+// escribe en el Excel real de OneDrive, nunca solo en memoria — ver nota
+// del usuario: "cualquier cambio... debe reflejarlo y guardarlo en el
+// Excel". Tras cada guardado se vuelve a pedir el preview completo de la
+// pestaña activa, así la fila queda consistente con lo que el backend
+// realmente escribió (incluyendo un row_idx real para una fila nueva, que
+// hasta guardarse solo tiene un id sintético negativo).
+
+function _rowUrlSheet(prefix) {
+    if (prefix === 'dipl') return [document.getElementById('diplomadoUrl').value, document.getElementById('diplomadoSheet').value];
+    if (prefix === 'doc') return [document.getElementById('doc_url').value, document.getElementById('doc_sheet').value];
+    return [document.getElementById('masivoUrl').value, document.getElementById('masivoSheet').value];
+}
+
+function _refreshPanel(prefix) {
+    if (prefix === 'dipl') previewDiplomados();
+    else if (prefix === 'doc') previewDocentes();
+    else previewMasivo();
+}
+
+let _rowNewSeq = -1;
+
+const _rowEditRerender = {
+    dipl: () => { const t = _diplomadosTabs[_diplomadosActiveTabId]; if (t) renderDiplomadosTable(t.pending, t.done, t.originalValues); },
+    doc: () => { const t = _docTabs[_docActiveTabId]; if (t) renderDocTable(t.pending, t.done, t.originalValues); },
+    masivo: () => { const t = _masivoTabs[_masivoActiveTabId]; if (t) renderMasivoTable(t.pending, t.done, t.originalValues); },
+};
+
+function _addNewRowGeneric(cfg) {
+    const tab = cfg.tab();
+    if (!tab) return toast('Cargá una pestaña (URL + hoja) antes de agregar una fila.', 'warning');
+
+    const syntheticId = _rowNewSeq--;
+    const row = { row_idx: syntheticId };
+    cfg.fields.forEach(f => { row[f] = f === 'plataforma' ? 'both' : ''; });
+
+    tab.pending.unshift(row);
+    cfg.originalValues[syntheticId] = Object.fromEntries(cfg.fields.map(f => [f, row[f]]));
+
+    // Re-renderizar desde el array tab.pending (no armar el <tr> a mano
+    // acá aparte) para que esta fila sin guardar se dibuje con el mismo
+    // camino que usa switchXxxTab al volver a esta pestaña — así no hay
+    // dos formas distintas de mostrarla que puedan desincronizarse (ver
+    // _unsavedRowHtml, que es el único lugar que la dibuja).
+    _rowEditRerender[cfg.prefix]();
+    const tr = document.querySelector(`[data-row-idx="${syntheticId}"][data-new="1"]`);
+    if (tr) tr.querySelector('[data-field="nombre"]').focus();
+}
+
+// Fila nueva sin guardar todavía (row_idx sintético negativo) — usado tanto
+// al crearla (_addNewRowGeneric) como al volver a renderizarla después de
+// cambiar de pestaña y volver (switchXxxTab llama a renderXxxTable con el
+// mismo array tab.pending, que todavía tiene la fila sin guardar adentro).
+// Sin este chequeo, al volver de otra pestaña la fila "sin guardar" se
+// dibujaba como una fila pendiente normal — con el checkbox habilitado — y
+// quedaba seleccionable para "Procesar seleccionadas" con un row_idx
+// negativo que no existe en la planilla real.
+function _unsavedRowHtml(prefix, fieldClass, checkClass, fields, row, esc) {
+    const inputsHtml = fields.map(f =>
+        `<td><input type="text" class="form-control form-control-sm ${fieldClass}" data-field="${f}" value="${esc(row[f] || '')}" placeholder="${(f === 'nombre' || f === 'cedula') ? 'Requerido' : ''}"></td>`
+    ).join('');
+    return `<tr data-row-idx="${row.row_idx}" data-new="1">
+        <td><input type="checkbox" class="${checkClass}" disabled title="Guardá la fila primero"></td>
+        ${inputsHtml}
+        <td><span class="status-icon status-pending"><i class="bi bi-circle"></i>Sin guardar</span></td>
+        <td class="text-nowrap">
+            <button type="button" class="btn btn-sm btn-link text-success p-0 me-2" onclick="_saveNewRow('${prefix}', ${row.row_idx})" title="Guardar fila en el Excel">
+                <i class="bi bi-cloud-check"></i>
+            </button>
+            <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="_discardNewRow('${prefix}', ${row.row_idx}, this)" title="Descartar">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </td>
+    </tr>`;
+}
+
+async function _saveNewRow(prefix, syntheticId) {
+    const tr = document.querySelector(`tr[data-row-idx="${syntheticId}"][data-new="1"]`);
+    if (!tr) return;
+    const get = f => { const el = tr.querySelector(`[data-field="${f}"]`); return el ? el.value.trim() : ''; };
+    const nombre = get('nombre'), cedula = get('cedula');
+    if (!nombre || !cedula) return toast('Nombre y Cédula son obligatorios para guardar la fila.', 'warning');
+
+    const [url, sheetName] = _rowUrlSheet(prefix);
+    try {
+        await api.post('/excel/row/add', {
+            url: url, sheet_name: sheetName, nombre: nombre, cedula: cedula,
+            correo: get('correo') || null, telefono: get('telefono') || null,
+        });
+        toast('Fila agregada a la planilla de OneDrive', 'success');
+        _refreshPanel(prefix);
+    } catch (e) {
+        toast(e.message, 'danger');
+    }
+}
+
+function _discardNewRow(prefix, syntheticId, btn) {
+    const tr = btn.closest('tr');
+    if (tr) tr.remove();
+    const tabByPrefix = { dipl: () => _diplomadosTabs[_diplomadosActiveTabId], doc: () => _docTabs[_docActiveTabId], masivo: () => _masivoTabs[_masivoActiveTabId] };
+    const tab = tabByPrefix[prefix]();
+    if (tab) tab.pending = tab.pending.filter(r => r.row_idx !== syntheticId);
+}
+
+const _rowEditTbody = { dipl: 'diplomadoRowsTbody', doc: 'docRowsTbody', masivo: 'masivoRowsTbody' };
+let _rowEditCtx = null;
+
+function openRowEditModal(prefix, rowIdx) {
+    const tr = document.querySelector(`#${_rowEditTbody[prefix]} tr[data-row-idx="${rowIdx}"][data-upn]`);
+    if (!tr) return;
+    document.getElementById('rowEditNombre').value = tr.dataset.nombre || '';
+    document.getElementById('rowEditCedula').value = tr.dataset.cedula || '';
+    document.getElementById('rowEditCorreo').value = tr.dataset.correo || '';
+    document.getElementById('rowEditTelefono').value = tr.dataset.telefono || '';
+    document.getElementById('rowEditEstado').value = 'procesado';
+
+    const [url, sheetName] = _rowUrlSheet(prefix);
+    _rowEditCtx = { prefix, rowIdx, upn: tr.dataset.upn || null, url, sheetName };
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('rowEditModal')).show();
+}
+
+async function _rowEditSave() {
+    if (!_rowEditCtx) return;
+    const { prefix, rowIdx, upn, url, sheetName } = _rowEditCtx;
+    const btn = document.getElementById('rowEditSaveBtn');
+    setLoading(btn, true);
+    try {
+        const res = await api.post('/excel/row/edit', {
+            url: url, sheet_name: sheetName, row_idx: rowIdx, upn: upn,
+            nombre: document.getElementById('rowEditNombre').value.trim(),
+            cedula: document.getElementById('rowEditCedula').value.trim(),
+            correo: document.getElementById('rowEditCorreo').value.trim(),
+            telefono: document.getElementById('rowEditTelefono').value.trim(),
+            estado: document.getElementById('rowEditEstado').value,
+        });
+        bootstrap.Modal.getInstance(document.getElementById('rowEditModal')).hide();
+        toast((upn && !res.synced_live_account) ? 'Fila actualizada (no se pudo sincronizar la cuenta en Teams)' : 'Fila actualizada', res.synced_live_account === false && upn ? 'warning' : 'success');
+        _refreshPanel(prefix);
+    } catch (e) {
+        toast(e.message, 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
 
 function toggleProg(pfx) {
     const t = document.getElementById(pfx + '_tipo').value;
@@ -748,7 +957,8 @@ async function previewDocentes() {
         pending.forEach(r => {
             originalValues[r.row_idx] = {
                 nombre: r.nombre || '', cedula: r.cedula || '',
-                correo: r.correo || '', plataforma: r.plataforma || 'both',
+                correo: r.correo || '', telefono: r.telefono || '',
+                plataforma: r.plataforma || 'both',
             };
         });
 
@@ -767,13 +977,15 @@ function renderDocTable(pending, done, originalValues) {
     _docOriginalValues = originalValues || {};
 
     const pendingRows = pending.map(r => {
+        if (r.row_idx < 0) return _unsavedRowHtml('doc', 'doc-field', 'doc-row-check', ['nombre', 'cedula', 'correo', 'telefono', 'plataforma'], r, esc);
         return `<tr data-row-idx="${r.row_idx}">
             <td><input type="checkbox" class="doc-row-check" onchange="updateDocSelectedCount()" ${r._checked ? 'checked' : ''}></td>
             <td><input type="text" class="form-control form-control-sm doc-field" data-field="nombre" value="${esc(r.nombre)}"></td>
             <td><input type="text" class="form-control form-control-sm doc-field" data-field="cedula" value="${esc(r.cedula)}"></td>
             <td><input type="text" class="form-control form-control-sm doc-field" data-field="correo" value="${esc(r.correo)}"></td>
+            <td><input type="text" class="form-control form-control-sm doc-field" data-field="telefono" value="${esc(r.telefono)}"></td>
             <td><input type="text" class="form-control form-control-sm doc-field" data-field="plataforma" value="${esc(r.plataforma || 'both')}"></td>
-            <td><span class="badge bg-warning-subtle text-warning-emphasis">Pendiente</span></td>
+            <td><span class="status-icon status-pending"><i class="bi bi-circle"></i>Pendiente</span></td>
             <td>
                 <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="removeDocPendingRow(${r.row_idx})" title="Quitar de esta lista">
                     <i class="bi bi-x-lg"></i>
@@ -784,14 +996,14 @@ function renderDocTable(pending, done, originalValues) {
 
     const doneRows = done.map(r => {
         const upn = esc(r.usuario || '');
-        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" class="text-muted">
+        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" data-nombre="${esc(r.nombre)}" data-cedula="${esc(r.cedula)}" data-correo="${esc(r.correo || '')}" data-telefono="${esc(r.telefono || '')}" class="text-muted">
             <td><input type="checkbox" class="doc-done-check" onchange="updateDocDoneSelectedCount()" ${r.usuario ? '' : 'disabled'}></td>
             <td class="small doc-done-nombre">${esc(r.nombre)}</td>
             <td class="small">${esc(r.cedula)}</td>
-            <td colspan="2" class="small">${upn || '-'}</td>
-            <td><span class="badge bg-success-subtle text-success-emphasis">✅ Procesado</span></td>
+            <td colspan="3" class="small">${upn || '-'}</td>
+            <td><span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>Procesado</span></td>
             <td class="text-nowrap">
-                <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="editDocRowName(${r.row_idx})" title="Editar nombre" ${r.usuario ? '' : 'disabled'}>
+                <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="openRowEditModal('doc', ${r.row_idx})" title="Editar fila" ${r.usuario ? '' : 'disabled'}>
                     <i class="bi bi-pencil"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="deleteDocRow(${r.row_idx})" title="Eliminar la cuenta (Canvas y Teams)" ${r.usuario ? '' : 'disabled'}>
@@ -802,7 +1014,7 @@ function renderDocTable(pending, done, originalValues) {
     }).join('');
 
     document.getElementById('docRowsTbody').innerHTML = pendingRows + doneRows
-        || '<tr><td colspan="7" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
+        || '<tr><td colspan="8" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
 
     document.getElementById('docSelectAll').checked = false;
     updateDocSelectedCount();
@@ -846,21 +1058,15 @@ function _docRemoveFromActiveTabDone(rowIdx) {
     if (tab) tab.done = tab.done.filter(r => r.row_idx !== rowIdx);
 }
 
-async function editDocRowName(rowIdx) {
-    const tr = _docDoneRowEl(rowIdx);
-    if (!tr) return;
-    const upn = tr.dataset.upn;
-    const nombreActual = tr.querySelector('.doc-done-nombre').textContent.trim();
-    const nuevoNombre = prompt('Nuevo nombre completo:', nombreActual);
-    if (!nuevoNombre || nuevoNombre.trim() === '' || nuevoNombre.trim() === nombreActual) return;
-
-    try {
-        await api.patch(`/teams/users/${encodeURIComponent(upn)}`, { display_name: nuevoNombre.trim() });
-        tr.querySelector('.doc-done-nombre').textContent = nuevoNombre.trim();
-        toast('Nombre actualizado', 'success');
-    } catch (e) {
-        toast(e.message, 'danger');
-    }
+function addNewRowDoc() {
+    _addNewRowGeneric({
+        tbody: 'docRowsTbody', prefix: 'doc', fieldClass: 'doc-field',
+        checkClass: 'doc-row-check', onChange: 'updateDocSelectedCount()',
+        fields: ['nombre', 'cedula', 'correo', 'telefono', 'plataforma'],
+        colCount: 8,
+        tab: () => _docTabs[_docActiveTabId],
+        originalValues: _docOriginalValues,
+    });
 }
 
 async function deleteDocRow(rowIdx) {
@@ -1213,13 +1419,14 @@ function renderDiplomadosTable(pending, done, originalValues) {
     _diplomadosOriginalValues = originalValues || {};
 
     const pendingRows = pending.map(r => {
+        if (r.row_idx < 0) return _unsavedRowHtml('dipl', 'dipl-field', 'dipl-row-check', ['nombre', 'cedula', 'correo', 'telefono'], r, esc);
         return `<tr data-row-idx="${r.row_idx}">
             <td><input type="checkbox" class="dipl-row-check" onchange="updateDiplomadoSelectedCount()" ${r._checked ? 'checked' : ''}></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="nombre" value="${esc(r.nombre)}"></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="cedula" value="${esc(r.cedula)}"></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="correo" value="${esc(r.correo)}"></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="telefono" value="${esc(r.telefono)}"></td>
-            <td><span class="badge bg-warning-subtle text-warning-emphasis">Pendiente</span></td>
+            <td><span class="status-icon status-pending"><i class="bi bi-circle"></i>Pendiente</span></td>
             <td>
                 <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="removeDiplomadoPendingRow(${r.row_idx})" title="Quitar de esta lista (no borra nada, solo no se procesa ahora)">
                     <i class="bi bi-x-lg"></i>
@@ -1230,14 +1437,14 @@ function renderDiplomadosTable(pending, done, originalValues) {
 
     const doneRows = done.map(r => {
         const upn = esc(r.usuario || '');
-        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" class="text-muted">
+        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" data-nombre="${esc(r.nombre)}" data-cedula="${esc(r.cedula)}" data-correo="${esc(r.correo || '')}" data-telefono="${esc(r.telefono || '')}" class="text-muted">
             <td><input type="checkbox" class="dipl-done-check" onchange="updateDiplomadoDoneSelectedCount()" ${r.usuario ? '' : 'disabled'}></td>
             <td class="small dipl-done-nombre">${esc(r.nombre)}</td>
             <td class="small">${esc(r.cedula)}</td>
             <td colspan="2" class="small">${upn || '-'}</td>
-            <td><span class="badge bg-success-subtle text-success-emphasis">✅ Procesado</span></td>
+            <td><span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>Procesado</span></td>
             <td class="text-nowrap">
-                <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="editDiplomadoRowName(${r.row_idx})" title="Editar nombre" ${r.usuario ? '' : 'disabled'}>
+                <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="openRowEditModal('dipl', ${r.row_idx})" title="Editar fila" ${r.usuario ? '' : 'disabled'}>
                     <i class="bi bi-pencil"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="removeFromGroupDiplomadoRow(${r.row_idx})" title="Quitar del grupo de Teams (no borra la cuenta)" ${(r.usuario && _diplomadosTeamId) ? '' : 'disabled'}>
@@ -1304,21 +1511,14 @@ function _diplRemoveFromActiveTabDone(rowIdx) {
     if (tab) tab.done = tab.done.filter(r => r.row_idx !== rowIdx);
 }
 
-async function editDiplomadoRowName(rowIdx) {
-    const tr = _diplDoneRowEl(rowIdx);
-    if (!tr) return;
-    const upn = tr.dataset.upn;
-    const nombreActual = tr.querySelector('.dipl-done-nombre').textContent.trim();
-    const nuevoNombre = prompt('Nuevo nombre completo:', nombreActual);
-    if (!nuevoNombre || nuevoNombre.trim() === '' || nuevoNombre.trim() === nombreActual) return;
-
-    try {
-        await api.patch(`/teams/users/${encodeURIComponent(upn)}`, { display_name: nuevoNombre.trim() });
-        tr.querySelector('.dipl-done-nombre').textContent = nuevoNombre.trim();
-        toast('Nombre actualizado', 'success');
-    } catch (e) {
-        toast(e.message, 'danger');
-    }
+function addNewRowDiplomado() {
+    _addNewRowGeneric({
+        tbody: 'diplomadoRowsTbody', prefix: 'dipl', fieldClass: 'dipl-field',
+        checkClass: 'dipl-row-check', onChange: 'updateDiplomadoSelectedCount()',
+        fields: ['nombre', 'cedula', 'correo', 'telefono'],
+        tab: () => _diplomadosTabs[_diplomadosActiveTabId],
+        originalValues: _diplomadosOriginalValues,
+    });
 }
 
 async function removeFromGroupDiplomadoRow(rowIdx) {
@@ -1681,7 +1881,7 @@ async function previewMasivo() {
         const res = await api.post('/excel/masivo/preview', { url: url, sheet_name: sheet });
         const pending = res.student_details || [];
         const originalValues = {};
-        pending.forEach(r => { originalValues[r.row_idx] = { nombre: r.nombre || '', cedula: r.cedula || '' }; });
+        pending.forEach(r => { originalValues[r.row_idx] = { nombre: r.nombre || '', cedula: r.cedula || '', correo: r.correo || '', telefono: r.telefono || '' }; });
 
         const tabId = existingId || ('masivo' + (++_masivoTabSeq));
         _masivoTabs[tabId] = { url, sheetName: sheet, pending, done: res.already_processed_details || [], originalValues };
@@ -1698,11 +1898,14 @@ function renderMasivoTable(pending, done, originalValues) {
     _masivoOriginalValues = originalValues || {};
 
     const pendingRows = pending.map(r => {
+        if (r.row_idx < 0) return _unsavedRowHtml('masivo', 'masivo-field', 'masivo-row-check', ['nombre', 'cedula', 'correo', 'telefono'], r, esc);
         return `<tr data-row-idx="${r.row_idx}">
             <td><input type="checkbox" class="masivo-row-check" onchange="updateMasivoSelectedCount()" ${r._checked ? 'checked' : ''}></td>
             <td><input type="text" class="form-control form-control-sm masivo-field" data-field="nombre" value="${esc(r.nombre)}"></td>
             <td><input type="text" class="form-control form-control-sm masivo-field" data-field="cedula" value="${esc(r.cedula)}"></td>
-            <td><span class="badge bg-warning-subtle text-warning-emphasis">Pendiente</span></td>
+            <td><input type="text" class="form-control form-control-sm masivo-field" data-field="correo" value="${esc(r.correo)}"></td>
+            <td><input type="text" class="form-control form-control-sm masivo-field" data-field="telefono" value="${esc(r.telefono)}"></td>
+            <td><span class="status-icon status-pending"><i class="bi bi-circle"></i>Pendiente</span></td>
             <td>
                 <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="removeMasivoPendingRow(${r.row_idx})" title="Quitar de esta lista">
                     <i class="bi bi-x-lg"></i>
@@ -1713,13 +1916,14 @@ function renderMasivoTable(pending, done, originalValues) {
 
     const doneRows = done.map(r => {
         const upn = esc(r.usuario || '');
-        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" class="text-muted">
+        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" data-nombre="${esc(r.nombre)}" data-cedula="${esc(r.cedula)}" data-correo="${esc(r.correo || '')}" data-telefono="${esc(r.telefono || '')}" class="text-muted">
             <td><input type="checkbox" class="masivo-done-check" onchange="updateMasivoDoneSelectedCount()" ${r.usuario ? '' : 'disabled'}></td>
             <td class="small masivo-done-nombre">${esc(r.nombre)}</td>
             <td class="small">${esc(r.cedula)}</td>
-            <td><span class="badge bg-success-subtle text-success-emphasis">✅ Procesado</span></td>
+            <td colspan="2" class="small">${upn || '-'}</td>
+            <td><span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>Procesado</span></td>
             <td class="text-nowrap">
-                <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="editMasivoRowName(${r.row_idx})" title="Editar nombre" ${r.usuario ? '' : 'disabled'}>
+                <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="openRowEditModal('masivo', ${r.row_idx})" title="Editar fila" ${r.usuario ? '' : 'disabled'}>
                     <i class="bi bi-pencil"></i>
                 </button>
                 <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="deleteMasivoRow(${r.row_idx})" title="Eliminar la cuenta (Canvas y Teams)" ${r.usuario ? '' : 'disabled'}>
@@ -1730,7 +1934,7 @@ function renderMasivoTable(pending, done, originalValues) {
     }).join('');
 
     document.getElementById('masivoRowsTbody').innerHTML = pendingRows + doneRows
-        || '<tr><td colspan="5" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
+        || '<tr><td colspan="7" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
 
     document.getElementById('masivoSelectAll').checked = false;
     updateMasivoSelectedCount();
@@ -1774,21 +1978,14 @@ function _masivoRemoveFromActiveTabDone(rowIdx) {
     if (tab) tab.done = tab.done.filter(r => r.row_idx !== rowIdx);
 }
 
-async function editMasivoRowName(rowIdx) {
-    const tr = _masivoDoneRowEl(rowIdx);
-    if (!tr) return;
-    const upn = tr.dataset.upn;
-    const nombreActual = tr.querySelector('.masivo-done-nombre').textContent.trim();
-    const nuevoNombre = prompt('Nuevo nombre completo:', nombreActual);
-    if (!nuevoNombre || nuevoNombre.trim() === '' || nuevoNombre.trim() === nombreActual) return;
-
-    try {
-        await api.patch(`/teams/users/${encodeURIComponent(upn)}`, { display_name: nuevoNombre.trim() });
-        tr.querySelector('.masivo-done-nombre').textContent = nuevoNombre.trim();
-        toast('Nombre actualizado', 'success');
-    } catch (e) {
-        toast(e.message, 'danger');
-    }
+function addNewRowMasivo() {
+    _addNewRowGeneric({
+        tbody: 'masivoRowsTbody', prefix: 'masivo', fieldClass: 'masivo-field',
+        checkClass: 'masivo-row-check', onChange: 'updateMasivoSelectedCount()',
+        fields: ['nombre', 'cedula', 'correo', 'telefono'],
+        tab: () => _masivoTabs[_masivoActiveTabId],
+        originalValues: _masivoOriginalValues,
+    });
 }
 
 async function deleteMasivoRow(rowIdx) {

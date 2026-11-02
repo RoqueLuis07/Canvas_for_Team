@@ -147,6 +147,7 @@ async def update_user(user_id: str, body: TeamsUserUpdate):
         "department": "department",
         "job_title": "jobTitle",
         "account_enabled": "accountEnabled",
+        "mobile_phone": "mobilePhone",
     }
     payload = {mapping[k]: v for k, v in fields.items() if k in mapping}
     try:

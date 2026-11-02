@@ -8,7 +8,7 @@ import io
 import logging
 import re
 import unicodedata
-from typing import Any
+from typing import Any, Literal
 
 import openpyxl
 from openpyxl.cell.cell import MergedCell
@@ -1016,6 +1016,202 @@ class EgresoOneDriveProcessRequest(DiplomadosUrlRequest):
     pendientes)."""
     selected_rows: list[int] | None = None
 
+
+class RowEditRequest(BaseModel):
+    """Edición de fila completa (ya procesada) desde la tabla editable de
+    Diplomados/Docentes/Masivo. A diferencia de los `overrides` de arriba
+    (que se aplican como parte de dar de alta una fila pendiente), esta
+    edita una fila que YA es una cuenta real — algunos campos sincronizan
+    con la cuenta viva (Nombre/Teléfono vía Graph), otros son SOLO del
+    registro en el Excel y nunca tocan el login real (Correo/Cédula), y
+    "estado" es un valor controlado (nunca texto libre) para no romper la
+    detección de "ya procesado" que usan varios endpoints."""
+    url: str
+    sheet_name: str
+    row_idx: int
+    nombre: str | None = None
+    cedula: str | None = None
+    correo: str | None = None
+    telefono: str | None = None
+    estado: Literal["procesado", "pendiente"] | None = None
+    upn: str | None = None
+    """UPN/usuario de la cuenta real en Teams, si la fila tiene una — se usa
+    para sincronizar Nombre/Teléfono en la cuenta viva vía Graph."""
+
+
+class AddRowRequest(BaseModel):
+    """Alta de una fila nueva, agregada a mano desde la tabla editable
+    (botón "Agregar fila nueva"), directo al final de la planilla real de
+    OneDrive. Nombre y Cédula son obligatorios porque son las dos columnas
+    mínimas que el resto del sistema exige para considerar una fila
+    válida (ver preview/proceso de Diplomados/Docentes/Masivo)."""
+    url: str
+    sheet_name: str
+    nombre: str
+    cedula: str
+    correo: str | None = None
+    telefono: str | None = None
+
+
+def _row_edit_find_columns(headers: dict) -> dict:
+    return {
+        "nombre": _match_col_idx(headers, "nombre", "alumno", "estudiante"),
+        "cedula": _match_col_idx(headers, "cedula", "cédula", "ci"),
+        "correo": _match_col_idx(headers, "correo"),
+        "telefono": _match_col_idx(headers, "telefono", "teléfono", "celular"),
+        "usuario": _match_col_idx(headers, "usuario"),
+    }
+
+
+def _row_edit_find_estado_col(headers_raw: list) -> int | None:
+    col_estado = None
+    for i, h in enumerate(headers_raw):
+        if not h:
+            continue
+        h_lower = h.lower()
+        if "estado" in h_lower or ("canvas" in h_lower and "id" in h_lower):
+            col_estado = i + 1
+            break
+    if col_estado is None:
+        for i, h in enumerate(headers_raw):
+            if h and "enviado" in h.lower():
+                col_estado = i + 1
+                break
+    return col_estado
+
+
+@router.post("/excel/row/edit", summary="Editar una fila (pendiente o ya procesada) directo en la planilla de OneDrive")
+async def edit_excel_row(req: RowEditRequest) -> dict:
+    if not req.url or "http" not in req.url:
+        raise HTTPException(status_code=400, detail="URL inválida.")
+
+    encoded_url = _encode_share_url(req.url)
+    try:
+        contents = await graph.get_raw(f"/shares/{encoded_url}/driveItem/content")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo descargar el archivo. {e}")
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents))
+    except Exception:
+        raise HTTPException(status_code=400, detail="El archivo no es un Excel válido.")
+
+    if req.sheet_name not in wb.sheetnames:
+        raise HTTPException(status_code=400, detail=f"La pestaña '{req.sheet_name}' no existe.")
+
+    ws = wb[req.sheet_name]
+    header_row_idx, headers_dict, headers_raw = _find_header_row_and_headers(ws)
+    if not header_row_idx:
+        raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
+
+    cols = _row_edit_find_columns(headers_dict)
+    col_estado = _row_edit_find_estado_col(headers_raw)
+
+    if req.nombre is not None and cols["nombre"]:
+        _safe_set_cell(ws, req.row_idx, cols["nombre"], req.nombre)
+    if req.cedula is not None and cols["cedula"]:
+        _safe_set_cell(ws, req.row_idx, cols["cedula"], req.cedula)
+    if req.correo is not None and cols["correo"]:
+        _safe_set_cell(ws, req.row_idx, cols["correo"], req.correo)
+    if req.telefono is not None and cols["telefono"]:
+        _safe_set_cell(ws, req.row_idx, cols["telefono"], req.telefono)
+
+    if req.estado is not None and col_estado:
+        if req.estado == "pendiente":
+            # Vaciar SOLO el Estado no alcanza para volver a aparecer como
+            # pendiente: la condición real de "ya procesado" que usan todos
+            # los endpoints de lectura (ver preview_diplomados_onedrive,
+            # preview_docentes_onedrive, preview_masivo_onedrive) también se
+            # cumple si la columna "Usuario" tiene un correo con "@", sin
+            # importar lo que diga Estado. Por eso también se vacía esa
+            # columna acá — es lo único que realmente la vuelve reprocesable
+            # con la condición real, no una suposición. La cuenta REAL en
+            # Azure/Teams/Canvas no se toca: solo se borra la referencia en
+            # la planilla, y un reproceso posterior la vuelve a encontrar
+            # por cédula (generate_unique_credentials) en vez de duplicarla.
+            _safe_set_cell(ws, req.row_idx, col_estado, "")
+            if cols["usuario"]:
+                _safe_set_cell(ws, req.row_idx, cols["usuario"], "")
+        else:
+            cell = _safe_set_cell(ws, req.row_idx, col_estado, "✅ Procesado")
+            cell.font = Font(color="00B050", bold=True)
+
+    # Sincronizar con la cuenta real en Teams (Graph) — solo Nombre y
+    # Teléfono, nunca Correo/Cédula: esos dos son el login real y cambiarlos
+    # ahí podría dejar a la persona sin poder entrar a su propia cuenta, así
+    # que esos campos solo se corrigen en el registro del Excel.
+    synced_live_account = False
+    if req.upn and (req.nombre is not None or req.telefono is not None):
+        patch_payload = {}
+        if req.nombre is not None:
+            patch_payload["displayName"] = req.nombre
+        if req.telefono is not None:
+            patch_payload["mobilePhone"] = req.telefono
+        if patch_payload:
+            try:
+                await graph.patch(f"/users/{req.upn}", patch_payload)
+                synced_live_account = True
+            except Exception as e:
+                logger.warning(f"No se pudo sincronizar la cuenta viva de {req.upn}: {e}")
+
+    out_io = io.BytesIO()
+    wb.save(out_io)
+    out_io.seek(0)
+    try:
+        await graph.put_raw(f"/shares/{encoded_url}/driveItem/content", out_io.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar el archivo actualizado en OneDrive. {e}")
+
+    return {"status": "success", "synced_live_account": synced_live_account}
+
+
+@router.post("/excel/row/add", summary="Agregar una fila nueva al final de la planilla de OneDrive")
+async def add_excel_row(req: AddRowRequest) -> dict:
+    if not req.url or "http" not in req.url:
+        raise HTTPException(status_code=400, detail="URL inválida.")
+    if not req.nombre or not req.nombre.strip() or not req.cedula or not req.cedula.strip():
+        raise HTTPException(status_code=400, detail="Nombre y Cédula son obligatorios para agregar una fila nueva.")
+
+    encoded_url = _encode_share_url(req.url)
+    try:
+        contents = await graph.get_raw(f"/shares/{encoded_url}/driveItem/content")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo descargar el archivo. {e}")
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents))
+    except Exception:
+        raise HTTPException(status_code=400, detail="El archivo no es un Excel válido.")
+
+    if req.sheet_name not in wb.sheetnames:
+        raise HTTPException(status_code=400, detail=f"La pestaña '{req.sheet_name}' no existe.")
+
+    ws = wb[req.sheet_name]
+    header_row_idx, headers_dict, headers_raw = _find_header_row_and_headers(ws)
+    if not header_row_idx:
+        raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
+
+    cols = _row_edit_find_columns(headers_dict)
+    if not cols["nombre"] or not cols["cedula"]:
+        raise HTTPException(status_code=400, detail="La pestaña no tiene columnas de Nombre/Cédula detectables.")
+
+    new_row_idx = ws.max_row + 1
+    _safe_set_cell(ws, new_row_idx, cols["nombre"], req.nombre.strip())
+    _safe_set_cell(ws, new_row_idx, cols["cedula"], req.cedula.strip())
+    if req.correo and cols["correo"]:
+        _safe_set_cell(ws, new_row_idx, cols["correo"], req.correo.strip())
+    if req.telefono and cols["telefono"]:
+        _safe_set_cell(ws, new_row_idx, cols["telefono"], req.telefono.strip())
+
+    out_io = io.BytesIO()
+    wb.save(out_io)
+    out_io.seek(0)
+    try:
+        await graph.put_raw(f"/shares/{encoded_url}/driveItem/content", out_io.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar el archivo actualizado en OneDrive. {e}")
+
+    return {"status": "success", "row_idx": new_row_idx}
 
 
 class MatriculacionesPreviewResponse(BaseModel):
