@@ -210,6 +210,22 @@
                       </button>
                     </div>
                   </div>
+                  <!-- Acciones en lote SOLO para filas ya procesadas (cuentas
+                       reales) — a propósito separadas de "Procesar
+                       seleccionadas" de arriba, que es para filas pendientes:
+                       son operaciones distintas (dar de alta vs. dar de baja
+                       / desvincular) y no deben mezclarse en un solo botón. -->
+                  <div class="toolbar-pill" id="diplomadoDoneBulkBar" style="display:none;">
+                    <span class="text-muted small"><i class="bi bi-check2-circle me-1"></i>Procesadas seleccionadas: <strong id="diplomadoDoneSelectedCount">0</strong></span>
+                    <div class="btn-group-end">
+                      <button type="button" class="btn-pill-outline" id="btnRemoveFromGroupSelectedDiplomados" onclick="removeFromGroupSelectedDiplomados()" disabled title="Quitar del equipo de Teams, sin borrar la cuenta">
+                        <i class="bi bi-person-dash me-1"></i>Quitar del grupo
+                      </button>
+                      <button type="button" class="btn-pill-outline text-danger" id="btnDeleteSelectedDiplomados" onclick="deleteSelectedDiplomados()" disabled title="Eliminar la cuenta por completo (Canvas y Teams)">
+                        <i class="bi bi-trash3 me-1"></i>Eliminar cuentas
+                      </button>
+                    </div>
+                  </div>
                   <div class="table-responsive bg-white rounded border" style="max-height:420px; overflow-y:auto;">
                     <table class="table table-sm table-hover mb-0 align-middle">
                       <thead class="table-light">
@@ -220,6 +236,7 @@
                           <th>Correo</th>
                           <th>Teléfono</th>
                           <th>Estado</th>
+                          <th style="width:110px;">Acciones</th>
                         </tr>
                       </thead>
                       <tbody id="diplomadoRowsTbody"></tbody>
@@ -809,6 +826,14 @@ async function fetchDiplomadoSheets() {
 // realmente editó en la tabla, no toda la fila de nuevo.
 let _diplomadosOriginalValues = {};
 
+// Team/grupo M365 ya existente para el diplomado de la pestaña cargada
+// (resuelto en /excel/diplomados/preview, solo lectura) — null si todavía
+// no existe ningún Team con ese nombre. Habilita/deshabilita "Quitar del
+// grupo" en las filas ya procesadas.
+let _diplomadosTeamId = null;
+
+const _diplEsc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 async function previewDiplomados() {
     const url = document.getElementById('diplomadoUrl').value;
     const sheet = document.getElementById('diplomadoSheet').value;
@@ -816,6 +841,7 @@ async function previewDiplomados() {
 
     try {
         const res = await api.post('/excel/diplomados/preview', { url: url, sheet_name: sheet });
+        _diplomadosTeamId = res.team_id || null;
         renderDiplomadosTable(res.student_details || [], res.already_processed_details || []);
 
         document.getElementById('diplomadoPendingCount').innerText = res.students_to_process;
@@ -831,7 +857,7 @@ async function previewDiplomados() {
 }
 
 function renderDiplomadosTable(pending, done) {
-    const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const esc = _diplEsc;
     _diplomadosOriginalValues = {};
 
     const pendingRows = pending.map(r => {
@@ -846,22 +872,42 @@ function renderDiplomadosTable(pending, done) {
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="correo" value="${esc(r.correo)}"></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="telefono" value="${esc(r.telefono)}"></td>
             <td><span class="badge bg-warning-subtle text-warning-emphasis">Pendiente</span></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="removeDiplomadoPendingRow(${r.row_idx})" title="Quitar de esta lista (no borra nada, solo no se procesa ahora)">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </td>
         </tr>`;
     }).join('');
 
-    const doneRows = done.map(r => `<tr data-row-idx="${r.row_idx}" class="text-muted">
-            <td></td>
-            <td class="small">${esc(r.nombre)}</td>
+    const doneRows = done.map(r => {
+        const upn = esc(r.usuario || '');
+        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" class="text-muted">
+            <td><input type="checkbox" class="dipl-done-check" onchange="updateDiplomadoDoneSelectedCount()" ${r.usuario ? '' : 'disabled'}></td>
+            <td class="small dipl-done-nombre">${esc(r.nombre)}</td>
             <td class="small">${esc(r.cedula)}</td>
-            <td colspan="2" class="small">${esc(r.usuario || '')}</td>
+            <td colspan="2" class="small">${upn || '-'}</td>
             <td><span class="badge bg-success-subtle text-success-emphasis">✅ Procesado</span></td>
-        </tr>`).join('');
+            <td class="text-nowrap">
+                <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="editDiplomadoRowName(${r.row_idx})" title="Editar nombre" ${r.usuario ? '' : 'disabled'}>
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="removeFromGroupDiplomadoRow(${r.row_idx})" title="Quitar del grupo de Teams (no borra la cuenta)" ${(r.usuario && _diplomadosTeamId) ? '' : 'disabled'}>
+                    <i class="bi bi-person-dash"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="deleteDiplomadoRow(${r.row_idx})" title="Eliminar la cuenta (Canvas y Teams)" ${r.usuario ? '' : 'disabled'}>
+                    <i class="bi bi-trash3"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
 
     document.getElementById('diplomadoRowsTbody').innerHTML = pendingRows + doneRows
-        || '<tr><td colspan="6" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
+        || '<tr><td colspan="7" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
 
     document.getElementById('diplomadoSelectAll').checked = false;
     updateDiplomadoSelectedCount();
+    updateDiplomadoDoneSelectedCount();
 }
 
 function toggleAllDiplomadoRows(checkbox) {
@@ -873,6 +919,127 @@ function updateDiplomadoSelectedCount() {
     const count = document.querySelectorAll('#diplomadoRowsTbody .dipl-row-check:checked').length;
     document.getElementById('diplomadoSelectedCount').innerText = count;
     document.getElementById('btnProcessSelectedDiplomados').disabled = count === 0;
+}
+
+// ── Filas ya procesadas: selección en lote + acciones individuales ──
+// Operan sobre cuentas REALES (Canvas/Teams) — separadas a propósito del
+// flujo de "Procesar seleccionadas" de arriba, que es solo para filas
+// pendientes (todavía sin cuenta).
+
+function updateDiplomadoDoneSelectedCount() {
+    const checks = document.querySelectorAll('#diplomadoRowsTbody .dipl-done-check');
+    const count = document.querySelectorAll('#diplomadoRowsTbody .dipl-done-check:checked').length;
+    document.getElementById('diplomadoDoneBulkBar').style.display = checks.length ? 'flex' : 'none';
+    document.getElementById('diplomadoDoneSelectedCount').innerText = count;
+    document.getElementById('btnDeleteSelectedDiplomados').disabled = count === 0;
+    document.getElementById('btnRemoveFromGroupSelectedDiplomados').disabled = count === 0 || !_diplomadosTeamId;
+}
+
+function removeDiplomadoPendingRow(rowIdx) {
+    const tr = document.querySelector(`#diplomadoRowsTbody tr[data-row-idx="${rowIdx}"]`);
+    if (tr) tr.remove();
+    delete _diplomadosOriginalValues[rowIdx];
+    updateDiplomadoSelectedCount();
+}
+
+function _diplDoneRowEl(rowIdx) {
+    return document.querySelector(`#diplomadoRowsTbody tr[data-row-idx="${rowIdx}"][data-upn]`);
+}
+
+async function editDiplomadoRowName(rowIdx) {
+    const tr = _diplDoneRowEl(rowIdx);
+    if (!tr) return;
+    const upn = tr.dataset.upn;
+    const nombreActual = tr.querySelector('.dipl-done-nombre').textContent.trim();
+    const nuevoNombre = prompt('Nuevo nombre completo:', nombreActual);
+    if (!nuevoNombre || nuevoNombre.trim() === '' || nuevoNombre.trim() === nombreActual) return;
+
+    try {
+        await api.patch(`/teams/users/${encodeURIComponent(upn)}`, { display_name: nuevoNombre.trim() });
+        tr.querySelector('.dipl-done-nombre').textContent = nuevoNombre.trim();
+        toast('Nombre actualizado', 'success');
+    } catch (e) {
+        toast(e.message, 'danger');
+    }
+}
+
+async function removeFromGroupDiplomadoRow(rowIdx) {
+    const tr = _diplDoneRowEl(rowIdx);
+    if (!tr || !_diplomadosTeamId) return;
+    const upn = tr.dataset.upn;
+    if (!confirm(`¿Quitar a ${upn} del equipo de Teams? La cuenta no se borra.`)) return;
+
+    try {
+        await api.post('/teams/teams/remove-member-by-upn', { group_id: _diplomadosTeamId, upn: upn });
+        toast('Quitado del grupo', 'success');
+        tr.remove();
+        document.getElementById('diplomadoDoneCount').innerText =
+            Math.max(0, parseInt(document.getElementById('diplomadoDoneCount').innerText, 10) - 1);
+        updateDiplomadoDoneSelectedCount();
+    } catch (e) {
+        toast(e.message, 'danger');
+    }
+}
+
+async function deleteDiplomadoRow(rowIdx) {
+    const tr = _diplDoneRowEl(rowIdx);
+    if (!tr) return;
+    const upn = tr.dataset.upn;
+    if (!confirm(`¿Eliminar la cuenta de ${upn} (Canvas y Teams)? Esta acción no se puede deshacer.`)) return;
+
+    try {
+        await api.post('/egreso/delete-account', { identifier: upn, platform: 'both' });
+        toast('Cuenta eliminada', 'success');
+        tr.remove();
+        document.getElementById('diplomadoDoneCount').innerText =
+            Math.max(0, parseInt(document.getElementById('diplomadoDoneCount').innerText, 10) - 1);
+        updateDiplomadoDoneSelectedCount();
+    } catch (e) {
+        toast(e.message, 'danger');
+    }
+}
+
+async function removeFromGroupSelectedDiplomados() {
+    if (!_diplomadosTeamId) return;
+    const rows = Array.from(document.querySelectorAll('#diplomadoRowsTbody .dipl-done-check:checked')).map(cb => cb.closest('tr'));
+    if (rows.length === 0) return;
+    if (!confirm(`¿Quitar ${rows.length} persona(s) del equipo de Teams? Las cuentas no se borran.`)) return;
+
+    const btn = document.getElementById('btnRemoveFromGroupSelectedDiplomados');
+    setLoading(btn, true);
+    let ok = 0, fail = 0;
+    for (const tr of rows) {
+        try {
+            await api.post('/teams/teams/remove-member-by-upn', { group_id: _diplomadosTeamId, upn: tr.dataset.upn });
+            tr.remove();
+            ok++;
+        } catch (e) { fail++; }
+    }
+    setLoading(btn, false);
+    toast(`Quitados del grupo: ${ok}${fail ? ` · con error: ${fail}` : ''}`, fail ? 'warning' : 'success');
+    document.getElementById('diplomadoDoneCount').innerText = Math.max(0, parseInt(document.getElementById('diplomadoDoneCount').innerText, 10) - ok);
+    updateDiplomadoDoneSelectedCount();
+}
+
+async function deleteSelectedDiplomados() {
+    const rows = Array.from(document.querySelectorAll('#diplomadoRowsTbody .dipl-done-check:checked')).map(cb => cb.closest('tr'));
+    if (rows.length === 0) return;
+    if (!confirm(`¿Eliminar ${rows.length} cuenta(s) por completo (Canvas y Teams)? Esta acción no se puede deshacer.`)) return;
+
+    const btn = document.getElementById('btnDeleteSelectedDiplomados');
+    setLoading(btn, true);
+    let ok = 0, fail = 0;
+    for (const tr of rows) {
+        try {
+            await api.post('/egreso/delete-account', { identifier: tr.dataset.upn, platform: 'both' });
+            tr.remove();
+            ok++;
+        } catch (e) { fail++; }
+    }
+    setLoading(btn, false);
+    toast(`Cuentas eliminadas: ${ok}${fail ? ` · con error: ${fail}` : ''}`, fail ? 'warning' : 'success');
+    document.getElementById('diplomadoDoneCount').innerText = Math.max(0, parseInt(document.getElementById('diplomadoDoneCount').innerText, 10) - ok);
+    updateDiplomadoDoneSelectedCount();
 }
 
 let _diplomadosJobPollInterval = null;
