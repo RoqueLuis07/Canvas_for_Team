@@ -73,7 +73,6 @@
         <div class="d-flex justify-content-end gap-2 mb-4">
           <button type="button" class="btn btn-outline-secondary" onclick="previewSendDocentesCredentials()" id="btnPreviewSendDocentes" disabled><i class="bi bi-eye me-2"></i>Vista Previa de Envío</button>
           <button type="button" class="btn btn-outline-warning" onclick="sendDocentesCredentials()" id="btnSendDocentesCredentials" disabled><i class="bi bi-envelope-check me-2"></i>Enviar Credenciales</button>
-          <button type="button" class="btn btn-warning text-dark" onclick="importDocentes()" id="btnImportDocentes" disabled><i class="bi bi-check-circle me-2"></i>Confirmar y Procesar</button>
         </div>
         <div id="docSendPreviewWrap" style="display:none;" class="mb-4">
           <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-envelope-paper me-2"></i>Pendientes de Recibir Credenciales (<span id="docSendPendingCount">0</span>)</h6>
@@ -87,32 +86,47 @@
         </div>
         <div id="docSendResult" class="mb-4"></div>
 
+        <!-- Tabla editable única — mismo patrón que Diplomados (ver
+             collapseDiplomados): "Quitar del grupo" no aplica acá porque
+             cada docente puede estar atado a un Equipo distinto por fila
+             (columna "ID Equipo") en vez de un único Team por pestaña, y
+             resolverlo de forma segura por fila queda fuera de este
+             alcance — Editar (nombre) y Eliminar cuenta sí están. -->
         <div id="docPreviewWrap" style="display:none;" class="mb-4">
-          <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-hourglass-split me-2"></i>Pendientes de Procesar (<span id="docPendingCount">0</span>)</h6>
-          <div class="table-responsive bg-white rounded border mb-3" style="max-height:320px; overflow-y:auto;">
-            <table class="table table-sm table-hover mb-0">
+          <div class="toolbar-pill">
+            <span class="text-muted small">Pendientes: <strong id="docPendingCount">0</strong> · Ya procesados: <strong id="docDoneCount">0</strong></span>
+            <div class="btn-group-end">
+              <button type="button" class="btn-pill" id="btnProcessSelectedDocentes" onclick="processSelectedDocentes()" disabled>
+                <i class="bi bi-check-circle me-1"></i>Procesar seleccionadas (<span id="docSelectedCount">0</span>)
+              </button>
+            </div>
+          </div>
+          <div class="toolbar-pill" id="docDoneBulkBar" style="display:none;">
+            <span class="text-muted small"><i class="bi bi-check2-circle me-1"></i>Procesadas seleccionadas: <strong id="docDoneSelectedCount">0</strong></span>
+            <div class="btn-group-end">
+              <button type="button" class="btn-pill-outline text-danger" id="btnDeleteSelectedDocentes" onclick="deleteSelectedDocentes()" disabled title="Eliminar la cuenta por completo (Canvas y Teams)">
+                <i class="bi bi-trash3 me-1"></i>Eliminar cuentas
+              </button>
+            </div>
+          </div>
+          <div class="table-responsive bg-white rounded border" style="max-height:420px; overflow-y:auto;">
+            <table class="table table-sm table-hover mb-0 align-middle">
               <thead class="table-light">
                 <tr>
+                  <th style="width:36px;"><input type="checkbox" id="docSelectAll" onchange="toggleAllDocRows(this)" title="Seleccionar todas las pendientes"></th>
                   <th>Nombre</th>
                   <th>Cédula</th>
                   <th>Correo</th>
                   <th>Plataforma</th>
-                  <th>ID Curso</th>
-                  <th>ID Equipo</th>
+                  <th>Estado</th>
+                  <th style="width:90px;">Acciones</th>
                 </tr>
               </thead>
-              <tbody id="docPreviewTbody"></tbody>
-            </table>
-          </div>
-          <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-check-circle me-2"></i>Ya Procesados (<span id="docDoneCount">0</span>)</h6>
-          <div class="table-responsive bg-white rounded border" style="max-height:320px; overflow-y:auto;">
-            <table class="table table-sm table-hover mb-0">
-              <thead class="table-light"><tr><th>Nombre</th><th>Cédula</th><th>Estado</th></tr></thead>
-              <tbody id="docDoneTbody"></tbody>
+              <tbody id="docRowsTbody"></tbody>
             </table>
           </div>
         </div>
-        
+
         <div id="docResultWrap" class="side-panel" style="display:none;">
           <div class="side-panel-header"><i class="bi bi-check-circle me-1"></i>Resultados</div>
           <div class="side-panel-body">
@@ -305,33 +319,43 @@
                   </div>
                 </div>
                 
-                <div class="d-flex justify-content-end gap-2 mb-4">
-                  <button type="button" class="btn btn-primary" onclick="importMasivo()" id="btnImportMasivo" disabled><i class="bi bi-check-circle me-2"></i>Confirmar y Procesar</button>
-                </div>
-
+                <!-- Tabla editable única — Masivo no tiene concepto de
+                     equipo/Team por fila (es alta "Sin Matriculación"), así
+                     que no hay acción "Quitar del grupo" acá, solo Editar
+                     (nombre) y Eliminar cuenta. -->
                 <div id="masivoPreviewWrap" style="display:none;" class="mb-4">
-                  <div class="row g-3">
-                    <div class="col-md-6">
-                      <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-hourglass-split me-2"></i>Pendientes de Procesar (<span id="masivoPendingCount">0</span>)</h6>
-                      <div class="table-responsive bg-white rounded border" style="max-height:320px; overflow-y:auto;">
-                        <table class="table table-sm table-hover mb-0">
-                          <thead class="table-light"><tr><th>Nombre</th><th>Cédula</th></tr></thead>
-                          <tbody id="masivoPendingTbody"></tbody>
-                        </table>
-                      </div>
-                    </div>
-                    <div class="col-md-6">
-                      <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-check-circle me-2"></i>Ya Procesados (<span id="masivoDoneCount">0</span>)</h6>
-                      <div class="table-responsive bg-white rounded border" style="max-height:320px; overflow-y:auto;">
-                        <table class="table table-sm table-hover mb-0">
-                          <thead class="table-light"><tr><th>Nombre</th><th>Cédula</th><th>Estado</th></tr></thead>
-                          <tbody id="masivoDoneTbody"></tbody>
-                        </table>
-                      </div>
+                  <div class="toolbar-pill">
+                    <span class="text-muted small">Pendientes: <strong id="masivoPendingCount">0</strong> · Ya procesados: <strong id="masivoDoneCount">0</strong></span>
+                    <div class="btn-group-end">
+                      <button type="button" class="btn-pill" id="btnProcessSelectedMasivo" onclick="processSelectedMasivo()" disabled>
+                        <i class="bi bi-check-circle me-1"></i>Procesar seleccionadas (<span id="masivoSelectedCount">0</span>)
+                      </button>
                     </div>
                   </div>
+                  <div class="toolbar-pill" id="masivoDoneBulkBar" style="display:none;">
+                    <span class="text-muted small"><i class="bi bi-check2-circle me-1"></i>Procesadas seleccionadas: <strong id="masivoDoneSelectedCount">0</strong></span>
+                    <div class="btn-group-end">
+                      <button type="button" class="btn-pill-outline text-danger" id="btnDeleteSelectedMasivo" onclick="deleteSelectedMasivo()" disabled title="Eliminar la cuenta por completo (Canvas y Teams)">
+                        <i class="bi bi-trash3 me-1"></i>Eliminar cuentas
+                      </button>
+                    </div>
+                  </div>
+                  <div class="table-responsive bg-white rounded border" style="max-height:420px; overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0 align-middle">
+                      <thead class="table-light">
+                        <tr>
+                          <th style="width:36px;"><input type="checkbox" id="masivoSelectAll" onchange="toggleAllMasivoRows(this)" title="Seleccionar todas las pendientes"></th>
+                          <th>Nombre</th>
+                          <th>Cédula</th>
+                          <th>Estado</th>
+                          <th style="width:90px;">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody id="masivoRowsTbody"></tbody>
+                    </table>
+                  </div>
                 </div>
-                
+
                 <div id="masivoResultWrap" class="side-panel" style="display:none;">
                   <div class="side-panel-header"><i class="bi bi-check-circle me-1"></i>Resultados del Proceso</div>
                   <div class="side-panel-body">
@@ -654,47 +678,164 @@ async function fetchDocSheets() {
     }
 }
 
+let _docOriginalValues = {};
+
 async function previewDocentes() {
     const url = document.getElementById('doc_url').value;
     const sheet = document.getElementById('doc_sheet').value;
     if (!url || !sheet) return toast('Completa la URL y la pestaña', 'warning');
-    
-    const btn = document.getElementById('btnImportDocentes');
-    setLoading(btn, true);
-    
+
     try {
         const res = await api.post('/excel/docentes-onedrive/preview', { url: url, sheet_name: sheet });
+        renderDocTable(res.sample_rows || [], res.already_processed_details || []);
 
-        document.getElementById('docPendingCount').innerText = res.sample_rows.length;
-        document.getElementById('docPreviewTbody').innerHTML = res.sample_rows.length
-            ? res.sample_rows.map(r => `
-                <tr>
-                    <td>${r.nombre}</td>
-                    <td>${r.cedula}</td>
-                    <td>${r.correo}</td>
-                    <td><span class="badge bg-secondary">${r.plataforma}</span></td>
-                    <td>${r.curso || '-'}</td>
-                    <td>${r.equipo || '-'}</td>
-                </tr>
-            `).join('')
-            : '<tr><td colspan="6" class="text-muted small">Nadie pendiente — todos ya fueron procesados.</td></tr>';
-
+        document.getElementById('docPendingCount').innerText = res.valid_rows;
         document.getElementById('docDoneCount').innerText = res.already_processed_details.length;
-        document.getElementById('docDoneTbody').innerHTML = res.already_processed_details.length
-            ? res.already_processed_details.map(r => `<tr><td>${r.nombre || '-'}</td><td>${r.cedula || '-'}</td><td class="small">${r.estado || (r.usuario ? '✅ (usuario ya creado)' : '-')}</td></tr>`).join('')
-            : '<tr><td colspan="3" class="text-muted small">Ninguno procesado todavía.</td></tr>';
-
         document.getElementById('docPreviewWrap').style.display = 'block';
         collapseOtherAccordions('collapseDocentes');
-        document.getElementById('btnImportDocentes').disabled = false;
         document.getElementById('btnSendDocentesCredentials').disabled = false;
         document.getElementById('btnPreviewSendDocentes').disabled = false;
         toast(`Pendientes: ${res.valid_rows} · Ya procesados: ${res.already_processed_details.length}`, 'success');
     } catch (e) {
         toast(e.message, 'danger');
-    } finally {
-        setLoading(btn, false);
     }
+}
+
+function renderDocTable(pending, done) {
+    const esc = _diplEsc;
+    _docOriginalValues = {};
+
+    const pendingRows = pending.map(r => {
+        _docOriginalValues[r.row_idx] = {
+            nombre: r.nombre || '', cedula: r.cedula || '',
+            correo: r.correo || '', plataforma: r.plataforma || 'both',
+        };
+        return `<tr data-row-idx="${r.row_idx}">
+            <td><input type="checkbox" class="doc-row-check" onchange="updateDocSelectedCount()"></td>
+            <td><input type="text" class="form-control form-control-sm doc-field" data-field="nombre" value="${esc(r.nombre)}"></td>
+            <td><input type="text" class="form-control form-control-sm doc-field" data-field="cedula" value="${esc(r.cedula)}"></td>
+            <td><input type="text" class="form-control form-control-sm doc-field" data-field="correo" value="${esc(r.correo)}"></td>
+            <td><input type="text" class="form-control form-control-sm doc-field" data-field="plataforma" value="${esc(r.plataforma || 'both')}"></td>
+            <td><span class="badge bg-warning-subtle text-warning-emphasis">Pendiente</span></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="removeDocPendingRow(${r.row_idx})" title="Quitar de esta lista">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    const doneRows = done.map(r => {
+        const upn = esc(r.usuario || '');
+        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" class="text-muted">
+            <td><input type="checkbox" class="doc-done-check" onchange="updateDocDoneSelectedCount()" ${r.usuario ? '' : 'disabled'}></td>
+            <td class="small doc-done-nombre">${esc(r.nombre)}</td>
+            <td class="small">${esc(r.cedula)}</td>
+            <td colspan="2" class="small">${upn || '-'}</td>
+            <td><span class="badge bg-success-subtle text-success-emphasis">✅ Procesado</span></td>
+            <td class="text-nowrap">
+                <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="editDocRowName(${r.row_idx})" title="Editar nombre" ${r.usuario ? '' : 'disabled'}>
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="deleteDocRow(${r.row_idx})" title="Eliminar la cuenta (Canvas y Teams)" ${r.usuario ? '' : 'disabled'}>
+                    <i class="bi bi-trash3"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('docRowsTbody').innerHTML = pendingRows + doneRows
+        || '<tr><td colspan="7" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
+
+    document.getElementById('docSelectAll').checked = false;
+    updateDocSelectedCount();
+    updateDocDoneSelectedCount();
+}
+
+function toggleAllDocRows(checkbox) {
+    document.querySelectorAll('#docRowsTbody .doc-row-check').forEach(cb => { cb.checked = checkbox.checked; });
+    updateDocSelectedCount();
+}
+
+function updateDocSelectedCount() {
+    const count = document.querySelectorAll('#docRowsTbody .doc-row-check:checked').length;
+    document.getElementById('docSelectedCount').innerText = count;
+    document.getElementById('btnProcessSelectedDocentes').disabled = count === 0;
+}
+
+function updateDocDoneSelectedCount() {
+    const checks = document.querySelectorAll('#docRowsTbody .doc-done-check');
+    const count = document.querySelectorAll('#docRowsTbody .doc-done-check:checked').length;
+    document.getElementById('docDoneBulkBar').style.display = checks.length ? 'flex' : 'none';
+    document.getElementById('docDoneSelectedCount').innerText = count;
+    document.getElementById('btnDeleteSelectedDocentes').disabled = count === 0;
+}
+
+function removeDocPendingRow(rowIdx) {
+    const tr = document.querySelector(`#docRowsTbody tr[data-row-idx="${rowIdx}"]`);
+    if (tr) tr.remove();
+    delete _docOriginalValues[rowIdx];
+    updateDocSelectedCount();
+}
+
+function _docDoneRowEl(rowIdx) {
+    return document.querySelector(`#docRowsTbody tr[data-row-idx="${rowIdx}"][data-upn]`);
+}
+
+async function editDocRowName(rowIdx) {
+    const tr = _docDoneRowEl(rowIdx);
+    if (!tr) return;
+    const upn = tr.dataset.upn;
+    const nombreActual = tr.querySelector('.doc-done-nombre').textContent.trim();
+    const nuevoNombre = prompt('Nuevo nombre completo:', nombreActual);
+    if (!nuevoNombre || nuevoNombre.trim() === '' || nuevoNombre.trim() === nombreActual) return;
+
+    try {
+        await api.patch(`/teams/users/${encodeURIComponent(upn)}`, { display_name: nuevoNombre.trim() });
+        tr.querySelector('.doc-done-nombre').textContent = nuevoNombre.trim();
+        toast('Nombre actualizado', 'success');
+    } catch (e) {
+        toast(e.message, 'danger');
+    }
+}
+
+async function deleteDocRow(rowIdx) {
+    const tr = _docDoneRowEl(rowIdx);
+    if (!tr) return;
+    const upn = tr.dataset.upn;
+    if (!confirm(`¿Eliminar la cuenta de ${upn} (Canvas y Teams)? Esta acción no se puede deshacer.`)) return;
+
+    try {
+        await api.post('/egreso/delete-account', { identifier: upn, platform: 'both' });
+        toast('Cuenta eliminada', 'success');
+        tr.remove();
+        document.getElementById('docDoneCount').innerText =
+            Math.max(0, parseInt(document.getElementById('docDoneCount').innerText, 10) - 1);
+        updateDocDoneSelectedCount();
+    } catch (e) {
+        toast(e.message, 'danger');
+    }
+}
+
+async function deleteSelectedDocentes() {
+    const rows = Array.from(document.querySelectorAll('#docRowsTbody .doc-done-check:checked')).map(cb => cb.closest('tr'));
+    if (rows.length === 0) return;
+    if (!confirm(`¿Eliminar ${rows.length} cuenta(s) por completo (Canvas y Teams)? Esta acción no se puede deshacer.`)) return;
+
+    const btn = document.getElementById('btnDeleteSelectedDocentes');
+    setLoading(btn, true);
+    let ok = 0, fail = 0;
+    for (const tr of rows) {
+        try {
+            await api.post('/egreso/delete-account', { identifier: tr.dataset.upn, platform: 'both' });
+            tr.remove();
+            ok++;
+        } catch (e) { fail++; }
+    }
+    setLoading(btn, false);
+    toast(`Cuentas eliminadas: ${ok}${fail ? ` · con error: ${fail}` : ''}`, fail ? 'warning' : 'success');
+    document.getElementById('docDoneCount').innerText = Math.max(0, parseInt(document.getElementById('docDoneCount').innerText, 10) - ok);
+    updateDocDoneSelectedCount();
 }
 
 async function previewSendDocentesCredentials() {
@@ -747,18 +888,43 @@ async function sendDocentesCredentials() {
     }
 }
 
-async function importDocentes() {
+async function processSelectedDocentes() {
     const url = document.getElementById('doc_url').value;
     const sheet = document.getElementById('doc_sheet').value;
     if (!url || !sheet) return;
-    
-    if (!confirm('¿Iniciar la creación y matriculación de estos docentes?')) return;
-    
-    const btn = document.getElementById('btnImportDocentes');
+
+    const checkedRows = Array.from(document.querySelectorAll('#docRowsTbody .doc-row-check:checked'))
+        .map(cb => cb.closest('tr'));
+    if (checkedRows.length === 0) return;
+
+    if (!confirm(`¿Iniciar la creación y matriculación de ${checkedRows.length} docente(s) seleccionado(s)?`)) return;
+
+    const selected_rows = [];
+    const overrides = [];
+    checkedRows.forEach(tr => {
+        const rowIdx = parseInt(tr.dataset.rowIdx, 10);
+        selected_rows.push(rowIdx);
+        const original = _docOriginalValues[rowIdx] || {};
+        const override = { row_idx: rowIdx };
+        let hasChange = false;
+        tr.querySelectorAll('.doc-field').forEach(input => {
+            const field = input.dataset.field;
+            const current = input.value.trim();
+            if (current !== (original[field] || '')) {
+                override[field] = current;
+                hasChange = true;
+            }
+        });
+        if (hasChange) overrides.push(override);
+    });
+
+    const btn = document.getElementById('btnProcessSelectedDocentes');
     setLoading(btn, true);
-    
+
     try {
-        const res = await api.post('/excel/docentes-onedrive', { url: url, sheet_name: sheet });
+        const res = await api.post('/excel/docentes-onedrive', {
+            url: url, sheet_name: sheet, selected_rows: selected_rows, overrides: overrides,
+        });
         document.getElementById('docSuccessCount').innerText = res.succeeded.length;
         document.getElementById('docErrorCount').innerText = res.failed.length;
         
@@ -780,6 +946,7 @@ async function importDocentes() {
         
         document.getElementById('docResultWrap').style.display = 'block';
         toast('Proceso completado', 'success');
+        previewDocentes();
     } catch (e) {
         toast(e.message, 'danger');
     } finally {
@@ -1228,50 +1395,195 @@ async function fetchMasivoSheets() {
     }
 }
 
+let _masivoOriginalValues = {};
+
 async function previewMasivo() {
     const url = document.getElementById('masivoUrl').value;
     const sheet = document.getElementById('masivoSheet').value;
     if (!url || !sheet) return toast('Completa la URL y la pestaña', 'warning');
-    
-    const btn = document.getElementById('btnImportMasivo');
-    setLoading(btn, true);
-    
+
     try {
         const res = await api.post('/excel/masivo/preview', { url: url, sheet_name: sheet });
+        renderMasivoTable(res.student_details || [], res.already_processed_details || []);
 
-        document.getElementById('masivoPendingCount').innerText = res.student_details.length;
-        document.getElementById('masivoPendingTbody').innerHTML = res.student_details.length
-            ? res.student_details.map(r => `<tr><td>${r.nombre || '-'}</td><td>${r.cedula || '-'}</td></tr>`).join('')
-            : '<tr><td colspan="2" class="text-muted small">Nadie pendiente — todos ya fueron procesados.</td></tr>';
-
-        document.getElementById('masivoDoneCount').innerText = res.already_processed_details.length;
-        document.getElementById('masivoDoneTbody').innerHTML = res.already_processed_details.length
-            ? res.already_processed_details.map(r => `<tr><td>${r.nombre || '-'}</td><td>${r.cedula || '-'}</td><td class="small">${r.estado || (r.usuario ? '✅ (usuario ya creado)' : '-')}</td></tr>`).join('')
-            : '<tr><td colspan="3" class="text-muted small">Ninguno procesado todavía.</td></tr>';
-
+        document.getElementById('masivoPendingCount').innerText = res.students_to_process;
+        document.getElementById('masivoDoneCount').innerText = res.students_already_processed;
         document.getElementById('masivoPreviewWrap').style.display = 'block';
         collapseOtherAccordions('collapseMasivo');
-        document.getElementById('btnImportMasivo').disabled = false;
         toast(`Pendientes: ${res.students_to_process} · Ya procesados: ${res.students_already_processed}`, 'success');
     } catch (e) {
         toast(e.message, 'danger');
-    } finally {
-        setLoading(btn, false);
     }
 }
 
-async function importMasivo() {
+function renderMasivoTable(pending, done) {
+    const esc = _diplEsc;
+    _masivoOriginalValues = {};
+
+    const pendingRows = pending.map(r => {
+        _masivoOriginalValues[r.row_idx] = { nombre: r.nombre || '', cedula: r.cedula || '' };
+        return `<tr data-row-idx="${r.row_idx}">
+            <td><input type="checkbox" class="masivo-row-check" onchange="updateMasivoSelectedCount()"></td>
+            <td><input type="text" class="form-control form-control-sm masivo-field" data-field="nombre" value="${esc(r.nombre)}"></td>
+            <td><input type="text" class="form-control form-control-sm masivo-field" data-field="cedula" value="${esc(r.cedula)}"></td>
+            <td><span class="badge bg-warning-subtle text-warning-emphasis">Pendiente</span></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="removeMasivoPendingRow(${r.row_idx})" title="Quitar de esta lista">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    const doneRows = done.map(r => {
+        const upn = esc(r.usuario || '');
+        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" class="text-muted">
+            <td><input type="checkbox" class="masivo-done-check" onchange="updateMasivoDoneSelectedCount()" ${r.usuario ? '' : 'disabled'}></td>
+            <td class="small masivo-done-nombre">${esc(r.nombre)}</td>
+            <td class="small">${esc(r.cedula)}</td>
+            <td><span class="badge bg-success-subtle text-success-emphasis">✅ Procesado</span></td>
+            <td class="text-nowrap">
+                <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="editMasivoRowName(${r.row_idx})" title="Editar nombre" ${r.usuario ? '' : 'disabled'}>
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="deleteMasivoRow(${r.row_idx})" title="Eliminar la cuenta (Canvas y Teams)" ${r.usuario ? '' : 'disabled'}>
+                    <i class="bi bi-trash3"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('masivoRowsTbody').innerHTML = pendingRows + doneRows
+        || '<tr><td colspan="5" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
+
+    document.getElementById('masivoSelectAll').checked = false;
+    updateMasivoSelectedCount();
+    updateMasivoDoneSelectedCount();
+}
+
+function toggleAllMasivoRows(checkbox) {
+    document.querySelectorAll('#masivoRowsTbody .masivo-row-check').forEach(cb => { cb.checked = checkbox.checked; });
+    updateMasivoSelectedCount();
+}
+
+function updateMasivoSelectedCount() {
+    const count = document.querySelectorAll('#masivoRowsTbody .masivo-row-check:checked').length;
+    document.getElementById('masivoSelectedCount').innerText = count;
+    document.getElementById('btnProcessSelectedMasivo').disabled = count === 0;
+}
+
+function updateMasivoDoneSelectedCount() {
+    const checks = document.querySelectorAll('#masivoRowsTbody .masivo-done-check');
+    const count = document.querySelectorAll('#masivoRowsTbody .masivo-done-check:checked').length;
+    document.getElementById('masivoDoneBulkBar').style.display = checks.length ? 'flex' : 'none';
+    document.getElementById('masivoDoneSelectedCount').innerText = count;
+    document.getElementById('btnDeleteSelectedMasivo').disabled = count === 0;
+}
+
+function removeMasivoPendingRow(rowIdx) {
+    const tr = document.querySelector(`#masivoRowsTbody tr[data-row-idx="${rowIdx}"]`);
+    if (tr) tr.remove();
+    delete _masivoOriginalValues[rowIdx];
+    updateMasivoSelectedCount();
+}
+
+function _masivoDoneRowEl(rowIdx) {
+    return document.querySelector(`#masivoRowsTbody tr[data-row-idx="${rowIdx}"][data-upn]`);
+}
+
+async function editMasivoRowName(rowIdx) {
+    const tr = _masivoDoneRowEl(rowIdx);
+    if (!tr) return;
+    const upn = tr.dataset.upn;
+    const nombreActual = tr.querySelector('.masivo-done-nombre').textContent.trim();
+    const nuevoNombre = prompt('Nuevo nombre completo:', nombreActual);
+    if (!nuevoNombre || nuevoNombre.trim() === '' || nuevoNombre.trim() === nombreActual) return;
+
+    try {
+        await api.patch(`/teams/users/${encodeURIComponent(upn)}`, { display_name: nuevoNombre.trim() });
+        tr.querySelector('.masivo-done-nombre').textContent = nuevoNombre.trim();
+        toast('Nombre actualizado', 'success');
+    } catch (e) {
+        toast(e.message, 'danger');
+    }
+}
+
+async function deleteMasivoRow(rowIdx) {
+    const tr = _masivoDoneRowEl(rowIdx);
+    if (!tr) return;
+    const upn = tr.dataset.upn;
+    if (!confirm(`¿Eliminar la cuenta de ${upn} (Canvas y Teams)? Esta acción no se puede deshacer.`)) return;
+
+    try {
+        await api.post('/egreso/delete-account', { identifier: upn, platform: 'both' });
+        toast('Cuenta eliminada', 'success');
+        tr.remove();
+        document.getElementById('masivoDoneCount').innerText =
+            Math.max(0, parseInt(document.getElementById('masivoDoneCount').innerText, 10) - 1);
+        updateMasivoDoneSelectedCount();
+    } catch (e) {
+        toast(e.message, 'danger');
+    }
+}
+
+async function deleteSelectedMasivo() {
+    const rows = Array.from(document.querySelectorAll('#masivoRowsTbody .masivo-done-check:checked')).map(cb => cb.closest('tr'));
+    if (rows.length === 0) return;
+    if (!confirm(`¿Eliminar ${rows.length} cuenta(s) por completo (Canvas y Teams)? Esta acción no se puede deshacer.`)) return;
+
+    const btn = document.getElementById('btnDeleteSelectedMasivo');
+    setLoading(btn, true);
+    let ok = 0, fail = 0;
+    for (const tr of rows) {
+        try {
+            await api.post('/egreso/delete-account', { identifier: tr.dataset.upn, platform: 'both' });
+            tr.remove();
+            ok++;
+        } catch (e) { fail++; }
+    }
+    setLoading(btn, false);
+    toast(`Cuentas eliminadas: ${ok}${fail ? ` · con error: ${fail}` : ''}`, fail ? 'warning' : 'success');
+    document.getElementById('masivoDoneCount').innerText = Math.max(0, parseInt(document.getElementById('masivoDoneCount').innerText, 10) - ok);
+    updateMasivoDoneSelectedCount();
+}
+
+async function processSelectedMasivo() {
     const url = document.getElementById('masivoUrl').value;
     const sheet = document.getElementById('masivoSheet').value;
     if (!url || !sheet) return;
-    
-    if (!confirm('¿Iniciar proceso de Carga Masiva?')) return;
-    
-    const btn = document.getElementById('btnImportMasivo');
+
+    const checkedRows = Array.from(document.querySelectorAll('#masivoRowsTbody .masivo-row-check:checked'))
+        .map(cb => cb.closest('tr'));
+    if (checkedRows.length === 0) return;
+
+    if (!confirm(`¿Iniciar Carga Masiva de ${checkedRows.length} fila(s) seleccionada(s)?`)) return;
+
+    const selected_rows = [];
+    const overrides = [];
+    checkedRows.forEach(tr => {
+        const rowIdx = parseInt(tr.dataset.rowIdx, 10);
+        selected_rows.push(rowIdx);
+        const original = _masivoOriginalValues[rowIdx] || {};
+        const override = { row_idx: rowIdx };
+        let hasChange = false;
+        tr.querySelectorAll('.masivo-field').forEach(input => {
+            const field = input.dataset.field;
+            const current = input.value.trim();
+            if (current !== (original[field] || '')) {
+                override[field] = current;
+                hasChange = true;
+            }
+        });
+        if (hasChange) overrides.push(override);
+    });
+
+    const btn = document.getElementById('btnProcessSelectedMasivo');
     setLoading(btn, true);
-    
+
     try {
-        const res = await api.post('/excel/masivo', { url: url, sheet_name: sheet });
+        const res = await api.post('/excel/masivo', {
+            url: url, sheet_name: sheet, selected_rows: selected_rows, overrides: overrides,
+        });
         document.getElementById('masivoSuccessCount').innerText = res.succeeded.length;
         document.getElementById('masivoErrorCount').innerText = res.failed.length;
         
@@ -1289,6 +1601,7 @@ async function importMasivo() {
         
         document.getElementById('masivoResultWrap').style.display = 'block';
         toast('Proceso completado', 'success');
+        previewMasivo();
     } catch (e) {
         toast(e.message, 'danger');
     } finally {
