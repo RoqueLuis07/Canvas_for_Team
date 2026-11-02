@@ -1033,6 +1033,11 @@ class RowEditRequest(BaseModel):
     cedula: str | None = None
     correo: str | None = None
     telefono: str | None = None
+    fecha: str | None = None
+    vendedor: str | None = None
+    """Fecha/Vendedor: solo existen en la planilla real de Diplomados — en
+    Docentes/Masivo estas columnas no se detectan y quedan sin efecto, igual
+    que cualquier otro campo cuya columna no exista en esa planilla."""
     estado: Literal["procesado", "pendiente"] | None = None
     upn: str | None = None
     """UPN/usuario de la cuenta real en Teams, si la fila tiene una — se usa
@@ -1051,6 +1056,8 @@ class AddRowRequest(BaseModel):
     cedula: str
     correo: str | None = None
     telefono: str | None = None
+    fecha: str | None = None
+    vendedor: str | None = None
 
 
 def _row_edit_find_columns(headers: dict) -> dict:
@@ -1059,6 +1066,8 @@ def _row_edit_find_columns(headers: dict) -> dict:
         "cedula": _match_col_idx(headers, "cedula", "cédula", "ci"),
         "correo": _match_col_idx(headers, "correo"),
         "telefono": _match_col_idx(headers, "telefono", "teléfono", "celular"),
+        "fecha": _match_col_idx(headers, "fecha"),
+        "vendedor": _match_col_idx(headers, "vendedor"),
         "usuario": _match_col_idx(headers, "usuario"),
     }
 
@@ -1115,6 +1124,10 @@ async def edit_excel_row(req: RowEditRequest) -> dict:
         _safe_set_cell(ws, req.row_idx, cols["correo"], req.correo)
     if req.telefono is not None and cols["telefono"]:
         _safe_set_cell(ws, req.row_idx, cols["telefono"], req.telefono)
+    if req.fecha is not None and cols["fecha"]:
+        _safe_set_cell(ws, req.row_idx, cols["fecha"], req.fecha)
+    if req.vendedor is not None and cols["vendedor"]:
+        _safe_set_cell(ws, req.row_idx, cols["vendedor"], req.vendedor)
 
     if req.estado is not None and col_estado:
         if req.estado == "pendiente":
@@ -1202,6 +1215,10 @@ async def add_excel_row(req: AddRowRequest) -> dict:
         _safe_set_cell(ws, new_row_idx, cols["correo"], req.correo.strip())
     if req.telefono and cols["telefono"]:
         _safe_set_cell(ws, new_row_idx, cols["telefono"], req.telefono.strip())
+    if req.fecha and cols["fecha"]:
+        _safe_set_cell(ws, new_row_idx, cols["fecha"], req.fecha.strip())
+    if req.vendedor and cols["vendedor"]:
+        _safe_set_cell(ws, new_row_idx, cols["vendedor"], req.vendedor.strip())
 
     out_io = io.BytesIO()
     wb.save(out_io)
@@ -1423,6 +1440,17 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
     _telefono_idx = _match_col_idx(headers_dict, "telefono", "teléfono", "celular")
     if _telefono_idx:
         col_telefono = _telefono_idx - 1
+    # Fecha/Vendedor: columnas propias de la planilla real de Diplomados
+    # (ver captura compartida por el usuario) — igual que Correo/Teléfono,
+    # son solo datos del registro, no afectan ninguna lógica de negocio.
+    col_fecha = -1
+    _fecha_idx = _match_col_idx(headers_dict, "fecha")
+    if _fecha_idx:
+        col_fecha = _fecha_idx - 1
+    col_vendedor = -1
+    _vendedor_idx = _match_col_idx(headers_dict, "vendedor")
+    if _vendedor_idx:
+        col_vendedor = _vendedor_idx - 1
     # Si no hay columna "Estado" propiamente dicha, "Enviado" cumple el mismo rol.
     if col_estado == -1:
         for i, h in enumerate(headers_raw):
@@ -1449,6 +1477,8 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
 
         correo_val = row_vals[col_correo] if col_correo >= 0 else ""
         telefono_val = row_vals[col_telefono] if col_telefono >= 0 else ""
+        fecha_val = row_vals[col_fecha] if col_fecha >= 0 else ""
+        vendedor_val = row_vals[col_vendedor] if col_vendedor >= 0 else ""
 
         estado_val = row_vals[col_estado] if col_estado >= 0 else ""
         estado_lower = estado_val.lower()
@@ -1465,6 +1495,15 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
                 "cedula": cedula_val,
                 "usuario": usuario_val,
                 "estado": estado_val,
+                # Correo/Teléfono: estaban ausentes acá aunque el modal de
+                # edición de fila (ver /excel/row/edit) los lee de este
+                # mismo objeto para precargarlos — sin esto, el modal
+                # siempre los mostraba vacíos en una fila ya procesada,
+                # aunque la celda real tuviera dato.
+                "correo": correo_val,
+                "telefono": telefono_val,
+                "fecha": fecha_val,
+                "vendedor": vendedor_val,
             })
         else:
             students_to_process += 1
@@ -1474,6 +1513,8 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
                 "cedula": cedula_val,
                 "correo": correo_val,
                 "telefono": telefono_val,
+                "fecha": fecha_val,
+                "vendedor": vendedor_val,
             })
 
         if len(sample_rows) < 10:
@@ -1624,6 +1665,8 @@ async def _process_diplomados_bg(
         col_cedula = get_col_idx("cedula", "cédula", "ci")
         col_correo = get_col_idx("correo")
         col_telefono = get_col_idx("telefono", "teléfono", "celular")
+        col_fecha = get_col_idx("fecha")
+        col_vendedor = get_col_idx("vendedor")
         col_curso = get_col_idx("curso", "id curso", "canvas")
         col_equipo = get_col_idx("equipo", "id equipo", "teams")
         col_curso_nombre = get_col_idx("nombre del curso", "curso", "diplomado")
@@ -1667,6 +1710,10 @@ async def _process_diplomados_bg(
                 _safe_set_cell(ws, r_idx, col_correo, vals["correo"])
             if "telefono" in vals and col_telefono:
                 _safe_set_cell(ws, r_idx, col_telefono, vals["telefono"])
+            if "fecha" in vals and col_fecha:
+                _safe_set_cell(ws, r_idx, col_fecha, vals["fecha"])
+            if "vendedor" in vals and col_vendedor:
+                _safe_set_cell(ws, r_idx, col_vendedor, vals["vendedor"])
 
         next_col = ws.max_column + 1
 
@@ -4092,6 +4139,11 @@ async def preview_docentes_onedrive(req: DiplomadosUrlRequest) -> DocentesPrevie
                 or (usuario_preview and "@" in usuario_preview)):
             already_processed.append({
                 "row_idx": r_idx, "nombre": nombre, "cedula": cedula, "usuario": usuario_preview, "estado": enviado,
+                # Antes faltaban acá: el modal de edición de fila (ver
+                # /excel/row/edit) los lee de este mismo objeto para
+                # precargarlos, y sin esto siempre los mostraba vacíos en
+                # una fila ya procesada aunque la celda real tuviera dato.
+                "correo": correo, "telefono": telefono,
             })
             continue
 
@@ -5261,6 +5313,8 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
         estado_val = row_vals[col_estado] if col_estado >= 0 else ""
         estado_lower = estado_val.lower()
         usuario_val = row_vals[col_usuario] if col_usuario >= 0 else ""
+        correo_val = row_vals[col_correo] if col_correo >= 0 else ""
+        telefono_val = row_vals[col_telefono] if col_telefono >= 0 else ""
 
         if ("✅" in estado_val or estado_lower in ["si", "yes", "true", "enviado", "ok"]
                 or "creado ok" in estado_lower or "ya exist" in estado_lower
@@ -5268,11 +5322,14 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
             students_already_processed += 1
             already_processed_details.append({
                 "row_idx": row_idx, "nombre": nombre_val, "cedula": cedula_val, "usuario": usuario_val, "estado": estado_val,
+                # Antes faltaban acá: el modal de edición de fila (ver
+                # /excel/row/edit) los lee de este mismo objeto para
+                # precargarlos, y sin esto siempre los mostraba vacíos en
+                # una fila ya procesada aunque la celda real tuviera dato.
+                "correo": correo_val, "telefono": telefono_val,
             })
         else:
             students_to_process += 1
-            correo_val = row_vals[col_correo] if col_correo >= 0 else ""
-            telefono_val = row_vals[col_telefono] if col_telefono >= 0 else ""
             student_details.append({
                 "row_idx": row_idx, "nombre": nombre_val, "cedula": cedula_val,
                 "correo": correo_val, "telefono": telefono_val,

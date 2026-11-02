@@ -260,10 +260,12 @@
                       <thead class="table-light">
                         <tr>
                           <th style="width:36px;"><input type="checkbox" id="diplomadoSelectAll" onchange="toggleAllDiplomadoRows(this)" title="Seleccionar todas las pendientes"></th>
+                          <th>Fecha</th>
                           <th>Nombre</th>
                           <th>Cédula</th>
                           <th>Correo</th>
                           <th>Teléfono</th>
+                          <th>Vendedor</th>
                           <th>Estado</th>
                           <th style="width:110px;">Acciones</th>
                         </tr>
@@ -526,6 +528,13 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+        <!-- Fecha/Vendedor: solo existen en la planilla real de Diplomados
+             (ver openRowEditModal/_rowEditSave) — se ocultan para Docentes/
+             Masivo con rowEditDiplOnly en vez de armar un segundo modal. -->
+        <div class="mb-3 rowEditDiplOnly">
+          <label class="form-label small fw-bold">Fecha <span class="text-muted">(solo registro del Excel)</span></label>
+          <input type="text" id="rowEditFecha" class="form-control form-control-sm">
+        </div>
         <div class="mb-3">
           <label class="form-label small fw-bold">Nombre <span class="text-muted">(sincroniza la cuenta en Teams)</span></label>
           <input type="text" id="rowEditNombre" class="form-control form-control-sm">
@@ -541,6 +550,10 @@
         <div class="mb-3">
           <label class="form-label small fw-bold">Teléfono <span class="text-muted">(sincroniza la cuenta en Teams)</span></label>
           <input type="text" id="rowEditTelefono" class="form-control form-control-sm">
+        </div>
+        <div class="mb-3 rowEditDiplOnly">
+          <label class="form-label small fw-bold">Vendedor <span class="text-muted">(solo registro del Excel)</span></label>
+          <input type="text" id="rowEditVendedor" class="form-control form-control-sm">
         </div>
         <div class="mb-3">
           <label class="form-label small fw-bold">Estado</label>
@@ -664,6 +677,7 @@ async function _saveNewRow(prefix, syntheticId) {
         await api.post('/excel/row/add', {
             url: url, sheet_name: sheetName, nombre: nombre, cedula: cedula,
             correo: get('correo') || null, telefono: get('telefono') || null,
+            fecha: get('fecha') || null, vendedor: get('vendedor') || null,
         });
         toast('Fila agregada a la planilla de OneDrive', 'success');
         _refreshPanel(prefix);
@@ -690,7 +704,16 @@ function openRowEditModal(prefix, rowIdx) {
     document.getElementById('rowEditCedula').value = tr.dataset.cedula || '';
     document.getElementById('rowEditCorreo').value = tr.dataset.correo || '';
     document.getElementById('rowEditTelefono').value = tr.dataset.telefono || '';
+    document.getElementById('rowEditFecha').value = tr.dataset.fecha || '';
+    document.getElementById('rowEditVendedor').value = tr.dataset.vendedor || '';
     document.getElementById('rowEditEstado').value = 'procesado';
+
+    // Fecha/Vendedor solo existen en la planilla real de Diplomados —
+    // Docentes/Masivo no tienen esas columnas, así que se ocultan en vez
+    // de mostrarse siempre vacías/sin sentido para esos paneles.
+    document.querySelectorAll('.rowEditDiplOnly').forEach(el => {
+        el.style.display = prefix === 'dipl' ? '' : 'none';
+    });
 
     const [url, sheetName] = _rowUrlSheet(prefix);
     _rowEditCtx = { prefix, rowIdx, upn: tr.dataset.upn || null, url, sheetName };
@@ -703,14 +726,23 @@ async function _rowEditSave() {
     const btn = document.getElementById('rowEditSaveBtn');
     setLoading(btn, true);
     try {
-        const res = await api.post('/excel/row/edit', {
+        const payload = {
             url: url, sheet_name: sheetName, row_idx: rowIdx, upn: upn,
             nombre: document.getElementById('rowEditNombre').value.trim(),
             cedula: document.getElementById('rowEditCedula').value.trim(),
             correo: document.getElementById('rowEditCorreo').value.trim(),
             telefono: document.getElementById('rowEditTelefono').value.trim(),
             estado: document.getElementById('rowEditEstado').value,
-        });
+        };
+        // Fecha/Vendedor: solo se envían para Diplomados — en Docentes/
+        // Masivo el backend los ignoraría igual (esas columnas no se
+        // detectan ahí), pero no tiene sentido mandarlos desde un panel
+        // cuyo modal ni siquiera los muestra.
+        if (prefix === 'dipl') {
+            payload.fecha = document.getElementById('rowEditFecha').value.trim();
+            payload.vendedor = document.getElementById('rowEditVendedor').value.trim();
+        }
+        const res = await api.post('/excel/row/edit', payload);
         bootstrap.Modal.getInstance(document.getElementById('rowEditModal')).hide();
         toast((upn && !res.synced_live_account) ? 'Fila actualizada (no se pudo sincronizar la cuenta en Teams)' : 'Fila actualizada', res.synced_live_account === false && upn ? 'warning' : 'success');
         _refreshPanel(prefix);
@@ -739,7 +771,7 @@ async function _rowEditSave() {
 // ese re-render.
 const PASTE_FIELDS = {
     doc: ['nombre', 'cedula', 'correo', 'telefono', 'plataforma'],
-    dipl: ['nombre', 'cedula', 'correo', 'telefono'],
+    dipl: ['fecha', 'nombre', 'cedula', 'correo', 'telefono', 'vendedor'],
     masivo: ['nombre', 'cedula', 'correo', 'telefono'],
 };
 
@@ -1499,6 +1531,7 @@ async function previewDiplomados() {
             originalValues[r.row_idx] = {
                 nombre: r.nombre || '', cedula: r.cedula || '',
                 correo: r.correo || '', telefono: r.telefono || '',
+                fecha: r.fecha || '', vendedor: r.vendedor || '',
             };
         });
 
@@ -1522,13 +1555,15 @@ function renderDiplomadosTable(pending, done, originalValues) {
     _diplomadosOriginalValues = originalValues || {};
 
     const pendingRows = pending.map(r => {
-        if (r.row_idx < 0) return _unsavedRowHtml('dipl', 'dipl-field', 'dipl-row-check', ['nombre', 'cedula', 'correo', 'telefono'], r, esc);
+        if (r.row_idx < 0) return _unsavedRowHtml('dipl', 'dipl-field', 'dipl-row-check', ['fecha', 'nombre', 'cedula', 'correo', 'telefono', 'vendedor'], r, esc);
         return `<tr data-row-idx="${r.row_idx}">
             <td><input type="checkbox" class="dipl-row-check" onchange="updateDiplomadoSelectedCount()" ${r._checked ? 'checked' : ''}></td>
+            <td><input type="text" class="form-control form-control-sm dipl-field" data-field="fecha" value="${esc(r.fecha)}"></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="nombre" value="${esc(r.nombre)}"></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="cedula" value="${esc(r.cedula)}"></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="correo" value="${esc(r.correo)}"></td>
             <td><input type="text" class="form-control form-control-sm dipl-field" data-field="telefono" value="${esc(r.telefono)}"></td>
+            <td><input type="text" class="form-control form-control-sm dipl-field" data-field="vendedor" value="${esc(r.vendedor)}"></td>
             <td><span class="status-icon status-pending"><i class="bi bi-circle"></i>Pendiente</span></td>
             <td>
                 <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="removeDiplomadoPendingRow(${r.row_idx})" title="Quitar de esta lista (no borra nada, solo no se procesa ahora)">
@@ -1540,11 +1575,13 @@ function renderDiplomadosTable(pending, done, originalValues) {
 
     const doneRows = done.map(r => {
         const upn = esc(r.usuario || '');
-        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" data-nombre="${esc(r.nombre)}" data-cedula="${esc(r.cedula)}" data-correo="${esc(r.correo || '')}" data-telefono="${esc(r.telefono || '')}" class="text-muted">
+        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" data-nombre="${esc(r.nombre)}" data-cedula="${esc(r.cedula)}" data-correo="${esc(r.correo || '')}" data-telefono="${esc(r.telefono || '')}" data-fecha="${esc(r.fecha || '')}" data-vendedor="${esc(r.vendedor || '')}" class="text-muted">
             <td><input type="checkbox" class="dipl-done-check" onchange="updateDiplomadoDoneSelectedCount()" ${r.usuario ? '' : 'disabled'}></td>
+            <td class="small">${esc(r.fecha || '-')}</td>
             <td class="small dipl-done-nombre">${esc(r.nombre)}</td>
             <td class="small">${esc(r.cedula)}</td>
             <td colspan="2" class="small">${upn || '-'}</td>
+            <td class="small">${esc(r.vendedor || '-')}</td>
             <td><span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>Procesado</span></td>
             <td class="text-nowrap">
                 <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="openRowEditModal('dipl', ${r.row_idx})" title="Editar fila" ${r.usuario ? '' : 'disabled'}>
@@ -1561,7 +1598,7 @@ function renderDiplomadosTable(pending, done, originalValues) {
     }).join('');
 
     document.getElementById('diplomadoRowsTbody').innerHTML = pendingRows + doneRows
-        || '<tr><td colspan="7" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
+        || '<tr><td colspan="9" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
 
     document.getElementById('diplomadoSelectAll').checked = false;
     updateDiplomadoSelectedCount();
@@ -1618,7 +1655,7 @@ function addNewRowDiplomado() {
     _addNewRowGeneric({
         tbody: 'diplomadoRowsTbody', prefix: 'dipl', fieldClass: 'dipl-field',
         checkClass: 'dipl-row-check', onChange: 'updateDiplomadoSelectedCount()',
-        fields: ['nombre', 'cedula', 'correo', 'telefono'],
+        fields: ['fecha', 'nombre', 'cedula', 'correo', 'telefono', 'vendedor'],
         tab: () => _diplomadosTabs[_diplomadosActiveTabId],
         originalValues: _diplomadosOriginalValues,
     });
