@@ -721,6 +721,109 @@ async function _rowEditSave() {
     }
 }
 
+// ── Pegado desde Excel/Google Sheets en las tablas editables ─────────────
+// Mismo parseo (tab/newline + detección de fila de cabecera) que _ssPaste
+// en main.js (showSpreadsheet), adaptado a estas tablas ya cargadas: ahí no
+// hay data-r/data-c sobre un grid en blanco, así que la fila de destino es
+// la POSICIÓN del input enfocado entre las filas pendientes ya renderizadas
+// (no row_idx — una fila sin guardar tiene un id sintético negativo) y la
+// columna es el índice de ese campo en PASTE_FIELDS[prefix]. Si el pegado
+// trae más filas que las que existen, el excedente se crea con el mismo
+// mecanismo de "Agregar fila nueva" (id sintético, originalValues, re-render
+// vía _rowEditRerender) — nunca llama a /excel/row/add: igual que una fila
+// agregada a mano, queda "Sin guardar" hasta que el usuario la guarde o la
+// seleccione para procesar. Se escribe directo sobre tab.pending (no sobre
+// los <input> del DOM) porque, si el pegado desborda y hace falta crear
+// filas nuevas, el re-render completo que eso exige reconstruye la tabla
+// desde tab.pending — cualquier edición hecha solo en el DOM se perdería en
+// ese re-render.
+const PASTE_FIELDS = {
+    doc: ['nombre', 'cedula', 'correo', 'telefono', 'plataforma'],
+    dipl: ['nombre', 'cedula', 'correo', 'telefono'],
+    masivo: ['nombre', 'cedula', 'correo', 'telefono'],
+};
+
+const _pasteTabAccessor = {
+    dipl: () => _diplomadosTabs[_diplomadosActiveTabId],
+    doc: () => _docTabs[_docActiveTabId],
+    masivo: () => _masivoTabs[_masivoActiveTabId],
+};
+
+function _pastePendingTrs(prefix) {
+    const tbody = document.getElementById(_rowEditTbody[prefix]);
+    return tbody ? Array.from(tbody.querySelectorAll('tr[data-row-idx]:not([data-upn])')) : [];
+}
+
+function _handleTablePaste(prefix, e) {
+    const target = e.target;
+    if (!target || target.tagName !== 'INPUT' || !target.dataset.field) return;
+    if (target.closest('tr[data-upn]')) return;
+
+    const fields = PASTE_FIELDS[prefix];
+    const startC = fields.indexOf(target.dataset.field);
+    if (startC === -1) return;
+
+    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    if (!text) return;
+
+    const lines   = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    const rowData = lines.filter(l => l.trim()).map(l => l.split('\t'));
+    if (!rowData.length) return;
+
+    // Detectar y omitir una fila de cabecera pegada junto con los datos
+    // (p. ej. "Nombre\tCédula\tCorreo\tTeléfono" copiado del Excel real).
+    // PASTE_FIELDS son claves sin tildes (cedula, telefono); hay que
+    // sacarle los acentos al texto pegado antes de comparar, si no
+    // "Cédula"/"Teléfono" nunca matchean contra "cedula"/"telefono".
+    const _stripAccents = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const firstRow = rowData[0].map(v => _stripAccents(v.trim().toLowerCase()));
+    const isHeader = firstRow.length > 0 && firstRow.some(v =>
+        fields.some(f => f === v || f.startsWith(v) || v.startsWith(f))
+    );
+    const data = isHeader ? rowData.slice(1) : rowData;
+    if (!data.length) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const pendingTrs = _pastePendingTrs(prefix);
+    const startR = pendingTrs.indexOf(target.closest('tr'));
+    if (startR === -1) return;
+
+    const tab = _pasteTabAccessor[prefix]();
+    if (!tab) return;
+
+    data.forEach((cols, ri) => {
+        const destR = startR + ri;
+        let rowObj = tab.pending[destR];
+        if (!rowObj) {
+            const syntheticId = _rowNewSeq--;
+            rowObj = { row_idx: syntheticId };
+            fields.forEach(f => { rowObj[f] = f === 'plataforma' ? 'both' : ''; });
+            tab.pending.push(rowObj);
+            tab.originalValues[syntheticId] = Object.fromEntries(fields.map(f => [f, rowObj[f]]));
+        }
+        // Solo se pisan las columnas que realmente vinieron en el pegado —
+        // un pegado de 2 columnas (ej. Nombre+Cédula) no debe vaciar
+        // Correo/Teléfono si la fila ya los tenía.
+        cols.forEach((val, ci) => {
+            const colIdx = startC + ci;
+            if (colIdx >= fields.length) return;
+            rowObj[fields[colIdx]] = val.trim();
+        });
+    });
+
+    _rowEditRerender[prefix]();
+    toast(`${data.length} fila${data.length !== 1 ? 's' : ''} pegadas`, 'success');
+
+    const refreshedTrs = _pastePendingTrs(prefix);
+    refreshedTrs[startR]?.querySelector(`[data-field="${fields[startC]}"]`)?.focus();
+}
+
+document.getElementById('docRowsTbody')?.addEventListener('paste', e => _handleTablePaste('doc', e), true);
+document.getElementById('diplomadoRowsTbody')?.addEventListener('paste', e => _handleTablePaste('dipl', e), true);
+document.getElementById('masivoRowsTbody')?.addEventListener('paste', e => _handleTablePaste('masivo', e), true);
+
 function toggleProg(pfx) {
     const t = document.getElementById(pfx + '_tipo').value;
     const inp = document.getElementById(pfx + '_programa');
