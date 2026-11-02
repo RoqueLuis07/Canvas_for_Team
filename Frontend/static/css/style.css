@@ -19,6 +19,15 @@
   --canvas-teal:    #0097A9;
   --canvas-yellow:  #C68A0A;
 
+  /* Paleta "monograma USIL" — blanco/azules/negro, estilo WinForms/WPF:
+     se usa en pantallas rediseñadas para reemplazar amarillo/rojo/verde
+     (ver .status-icon / .tab-bar más abajo). Los --canvas-* de arriba NO
+     se tocan — siguen existiendo para lo que todavía no se migró. */
+  --usil-blue-pale:  #EEF2FB; /* fondo muy claro, pestaña/fila inactiva */
+  --usil-blue-light: #4F7FD9; /* acento secundario, hover */
+  --usil-blue-dark:  #0F2D73; /* pestaña/botón activo */
+  --usil-ink:        #10141C; /* "negro" de marca — nunca #000 puro */
+
   /* Layout */
   --sidebar-w: 240px;
   --topbar-h: 64px;
@@ -1567,6 +1576,52 @@ select.ss-cell { cursor: pointer; }
 .autocomplete-title { font-size: 0.85rem; font-weight: 600; }
 .autocomplete-sub { font-size: 0.72rem; color: var(--text-muted); }
 .autocomplete-loading { padding: 8px 12px; font-size: 0.8rem; color: var(--text-muted); text-align: center; }
+
+/* ── 45. Tab-bar — pestañas siempre visibles, estilo WinForms/WPF ──
+   Reemplaza tanto los acordeones (que ocultan los demás paneles al abrir
+   uno) como los <select> desplegables: todos los botones quedan a la
+   vista permanentemente, uno queda "presionado" (activo) y el panel de
+   abajo cambia — sin nada que desplegar/plegar. Monocromático a
+   propósito (blanco/azules/negro), nada de colores de estado acá. */
+.tab-bar {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 4px; margin-bottom: 18px;
+  background: var(--usil-blue-pale);
+  border-radius: var(--radius);
+}
+html.dark-mode .tab-bar { background: rgba(255,255,255,.05); }
+.tab-bar-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-primary);
+  font-size: .85rem; font-weight: 600; white-space: nowrap;
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.tab-bar-btn i { font-size: .95rem; opacity: .75; }
+.tab-bar-btn:hover { background: rgba(25,70,185,.08); }
+.tab-bar-btn.active {
+  background: var(--usil-blue-dark); color: #fff;
+}
+.tab-bar-btn.active i { opacity: 1; }
+.tab-bar-btn:focus-visible { outline: 2px solid var(--usil-blue-dark); outline-offset: 2px; }
+
+/* ── 46. Status icon — estados sin amarillo/rojo/verde ──
+   Pendiente/Procesado/Error se distinguen por ÍCONO y peso tipográfico,
+   no por color de fondo. Un único acento (azul) para "activo/hecho";
+   el resto queda en texto neutro — para que la ausencia de color no
+   signifique ausencia de información, hay que leer el ícono. */
+.status-icon {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .78rem; font-weight: 600;
+}
+.status-icon.status-pending { color: var(--text-muted); font-weight: 500; }
+.status-icon.status-pending i { opacity: .7; }
+.status-icon.status-ok { color: var(--usil-blue-dark); }
+html.dark-mode .status-icon.status-ok { color: #8FB0ED; }
+.status-icon.status-error { color: var(--usil-ink); font-weight: 700; }
+.status-icon.status-error i { color: var(--usil-blue-dark); }
+html.dark-mode .status-icon.status-error { color: #F3F4F6; }
+html.dark-mode .status-icon.status-error i { color: #8FB0ED; }
 
 /* ── Respeta la preferencia de sistema "reducir movimiento" ── */
 @media (prefers-reduced-motion: reduce) {

@@ -3854,6 +3854,7 @@ async def preview_docentes_onedrive(req: DiplomadosUrlRequest) -> DocentesPrevie
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_cedula = get_col_idx("cedula", "cdula", "ci")
     col_correo = get_col_idx("correo", "email")
+    col_telefono = get_col_idx("telefono", "teléfono", "celular")
     col_plat = get_col_idx("plataforma")
     col_curso = get_col_idx("curso", "id curso", "canvas")
     col_equipo = get_col_idx("equipo", "id equipo", "teams")
@@ -3882,6 +3883,7 @@ async def preview_docentes_onedrive(req: DiplomadosUrlRequest) -> DocentesPrevie
             continue
 
         correo = str(ws.cell(row=r_idx, column=col_correo).value or "").strip() if col_correo else ""
+        telefono = str(ws.cell(row=r_idx, column=col_telefono).value or "").strip() if col_telefono else ""
         plat = str(ws.cell(row=r_idx, column=col_plat).value or "both").strip().lower() if col_plat else "both"
         id_curso = str(ws.cell(row=r_idx, column=col_curso).value or "").strip() if col_curso else ""
         id_equipo = str(ws.cell(row=r_idx, column=col_equipo).value or "").strip() if col_equipo else ""
@@ -3902,6 +3904,7 @@ async def preview_docentes_onedrive(req: DiplomadosUrlRequest) -> DocentesPrevie
             "nombre": nombre,
             "cedula": cedula,
             "correo": correo,
+            "telefono": telefono,
             "plataforma": plat,
             "curso": id_curso,
             "equipo": id_equipo
@@ -3953,6 +3956,7 @@ async def import_docentes_onedrive(req: DocentesProcessEditedRequest) -> BulkRes
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_cedula = get_col_idx("cedula", "cdula", "ci")
     col_correo = get_col_idx("correo", "email")
+    col_telefono = get_col_idx("telefono", "teléfono", "celular")
     col_plat = get_col_idx("plataforma")
     col_curso = get_col_idx("curso", "id curso", "canvas")
     col_equipo = get_col_idx("equipo", "id equipo", "teams")
@@ -3973,6 +3977,7 @@ async def import_docentes_onedrive(req: DocentesProcessEditedRequest) -> BulkRes
         if "nombre" in vals and col_nombre: ws.cell(row=r_idx, column=col_nombre, value=vals["nombre"])
         if "cedula" in vals and col_cedula: ws.cell(row=r_idx, column=col_cedula, value=vals["cedula"])
         if "correo" in vals and col_correo: ws.cell(row=r_idx, column=col_correo, value=vals["correo"])
+        if "telefono" in vals and col_telefono: ws.cell(row=r_idx, column=col_telefono, value=vals["telefono"])
         if "plataforma" in vals and col_plat: ws.cell(row=r_idx, column=col_plat, value=vals["plataforma"])
 
     col_cc = get_col_idx("cc", "copia")
@@ -4027,6 +4032,7 @@ async def import_docentes_onedrive(req: DocentesProcessEditedRequest) -> BulkRes
         nombre = str(ws.cell(row=r_idx, column=col_nombre).value or "").strip()
         cedula = _clean_cedula(str(ws.cell(row=r_idx, column=col_cedula).value or "").strip())
         correo = str(ws.cell(row=r_idx, column=col_correo).value or "").strip() if col_correo else ""
+        telefono = str(ws.cell(row=r_idx, column=col_telefono).value or "").strip() if col_telefono else ""
         plat = str(ws.cell(row=r_idx, column=col_plat).value or default_plat).strip().lower() if col_plat else default_plat
         id_curso = str(ws.cell(row=r_idx, column=col_curso).value or "").strip() if col_curso else ""
         id_equipo = str(ws.cell(row=r_idx, column=col_equipo).value or "").strip() if col_equipo else ""
@@ -4068,6 +4074,8 @@ async def import_docentes_onedrive(req: DocentesProcessEditedRequest) -> BulkRes
                 }
                 if cedula:
                     au_payload["postalCode"] = cedula
+                if telefono:
+                    au_payload["mobilePhone"] = telefono
                 au = await graph.post("/users", au_payload)
                 azure_id = au["id"]
                 await graph.assign_license(azure_id, settings.azure_sku_teachers)
@@ -5025,6 +5033,18 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
     _cedula_idx = _match_col_idx(headers_dict, "cedula", "cédula", "ci")
     if _cedula_idx:
         col_cedula = _cedula_idx - 1
+    # Correo/Teléfono: el procesamiento real (import_masivo_onedrive) ya usa
+    # Correo para la creación de cuenta — acá se agregan también al preview
+    # para que la tabla editable los muestre y permita corregirlos, igual
+    # que Diplomados/Docentes.
+    col_correo = -1
+    _correo_idx = _match_col_idx(headers_dict, "correo", "email")
+    if _correo_idx:
+        col_correo = _correo_idx - 1
+    col_telefono = -1
+    _telefono_idx = _match_col_idx(headers_dict, "telefono", "teléfono", "celular")
+    if _telefono_idx:
+        col_telefono = _telefono_idx - 1
 
     students_to_process = 0
     students_already_processed = 0
@@ -5055,7 +5075,12 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
             })
         else:
             students_to_process += 1
-            student_details.append({"row_idx": row_idx, "nombre": nombre_val, "cedula": cedula_val})
+            correo_val = row_vals[col_correo] if col_correo >= 0 else ""
+            telefono_val = row_vals[col_telefono] if col_telefono >= 0 else ""
+            student_details.append({
+                "row_idx": row_idx, "nombre": nombre_val, "cedula": cedula_val,
+                "correo": correo_val, "telefono": telefono_val,
+            })
 
         if len(sample_rows) < 10:
             sample_rows.append({h: v for h, v in zip(headers_raw, row_vals) if h})
@@ -5112,6 +5137,7 @@ async def import_masivo_onedrive(req: MasivoProcessEditedRequest) -> BulkResult:
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_cedula = get_col_idx("cedula", "cédula", "ci", "documento", "dni")
     col_correo = get_col_idx("correo", "email")
+    col_telefono = get_col_idx("telefono", "teléfono", "celular")
     col_plataforma = get_col_idx("plataforma", "platform")
 
     col_usuario = get_col_idx("usuario")
@@ -5127,6 +5153,7 @@ async def import_masivo_onedrive(req: MasivoProcessEditedRequest) -> BulkResult:
         if "nombre" in vals and col_nombre: ws.cell(row=r_idx, column=col_nombre, value=vals["nombre"])
         if "cedula" in vals and col_cedula: ws.cell(row=r_idx, column=col_cedula, value=vals["cedula"])
         if "correo" in vals and col_correo: ws.cell(row=r_idx, column=col_correo, value=vals["correo"])
+        if "telefono" in vals and col_telefono: ws.cell(row=r_idx, column=col_telefono, value=vals["telefono"])
         if "plataforma" in vals and col_plataforma: ws.cell(row=r_idx, column=col_plataforma, value=vals["plataforma"])
 
     next_col = ws.max_column + 1
@@ -5153,6 +5180,7 @@ async def import_masivo_onedrive(req: MasivoProcessEditedRequest) -> BulkResult:
         nombre = str(ws.cell(row=r_idx, column=col_nombre).value or "").strip()
         cedula = _clean_cedula(str(ws.cell(row=r_idx, column=col_cedula).value or "").strip())
         correo = str(ws.cell(row=r_idx, column=col_correo).value or "").strip() if col_correo else ""
+        telefono = str(ws.cell(row=r_idx, column=col_telefono).value or "").strip() if col_telefono else ""
         plat_val = str(ws.cell(row=r_idx, column=col_plataforma).value or default_plat).strip().lower() if col_plataforma else default_plat
         
         enviado = str(ws.cell(row=r_idx, column=col_enviado).value or "").strip()
@@ -5201,6 +5229,8 @@ async def import_masivo_onedrive(req: MasivoProcessEditedRequest) -> BulkResult:
                 }
                 if cedula:
                     au_payload["postalCode"] = cedula
+                if telefono:
+                    au_payload["mobilePhone"] = telefono
                 au = await graph.post("/users", au_payload)
                 await graph.assign_license(au["id"], settings.azure_sku_students)
             except Exception as e:

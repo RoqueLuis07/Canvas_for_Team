@@ -18,31 +18,20 @@
      mismo concepto (matricular gente en cursos/equipos) con distinto origen
      de datos, y no hace falta navegar entre páginas distintas para usarlas.
 
-     Las 3 modalidades quedan agrupadas en un solo desplegable (en vez de 3
-     pestañas fijas siempre visibles) — mismos botones con data-bs-toggle="tab"
-     de siempre, así que el deep-link ?tab=... (ver activateTabFromQuery más
-     abajo) sigue funcionando sin cambios: solo cambia el contenedor visual. -->
-<div class="dropdown mb-4" id="matricTabs" role="tablist">
-  <button class="btn-pill dropdown-toggle" type="button" id="matricTabToggle" data-bs-toggle="dropdown" aria-expanded="false">
-    <i class="bi bi-person-lines-fill me-2" id="matricTabToggleIcon"></i><span id="matricTabToggleLabel">Matriculación Unificada</span>
+     Las 3 modalidades quedan como pestañas siempre visibles (.tab-bar) —
+     mismos botones con data-bs-toggle="tab" de siempre, así que el
+     deep-link ?tab=... (ver activateTabFromQuery más abajo) sigue
+     funcionando sin cambios: solo cambió el contenedor visual. -->
+<div class="tab-bar" id="matricTabs" role="tablist">
+  <button class="tab-bar-btn active" id="unificada-tab" data-bs-toggle="tab" data-bs-target="#unificada" type="button" role="tab" aria-controls="unificada" aria-selected="true">
+    <i class="bi bi-person-lines-fill"></i>Matriculación Unificada
   </button>
-  <ul class="dropdown-menu" aria-labelledby="matricTabToggle">
-    <li>
-      <button class="dropdown-item active fw-bold" id="unificada-tab" data-bs-toggle="tab" data-bs-target="#unificada" type="button" role="tab" aria-controls="unificada" aria-selected="true">
-        <i class="bi bi-person-lines-fill me-2"></i>Matriculación Unificada
-      </button>
-    </li>
-    <li>
-      <button class="dropdown-item fw-bold" id="materias-tab" data-bs-toggle="tab" data-bs-target="#materias" type="button" role="tab" aria-controls="materias" aria-selected="false">
-        <i class="bi bi-journal-check me-2"></i>Por Materias
-      </button>
-    </li>
-    <li>
-      <button class="dropdown-item fw-bold" id="cpel-tab" data-bs-toggle="tab" data-bs-target="#cpel" type="button" role="tab" aria-controls="cpel" aria-selected="false">
-        <i class="bi bi-diagram-3-fill me-2"></i>CPEL por Carrera
-      </button>
-    </li>
-  </ul>
+  <button class="tab-bar-btn" id="materias-tab" data-bs-toggle="tab" data-bs-target="#materias" type="button" role="tab" aria-controls="materias" aria-selected="false">
+    <i class="bi bi-journal-check"></i>Por Materias
+  </button>
+  <button class="tab-bar-btn" id="cpel-tab" data-bs-toggle="tab" data-bs-target="#cpel" type="button" role="tab" aria-controls="cpel" aria-selected="false">
+    <i class="bi bi-diagram-3-fill"></i>CPEL por Carrera
+  </button>
 </div>
 
 <div class="tab-content" id="matricTabsContent">
@@ -1402,23 +1391,6 @@ async function _confirmarCpelConfirmed(materiasSeleccionadas) {
     if (!tab) return;
     const btn = document.getElementById(tab + '-tab');
     if (btn) new bootstrap.Tab(btn).show();
-})();
-
-// El botón desplegable de arriba muestra el nombre/ícono de la modalidad
-// activa — se actualiza cada vez que se activa una pestaña, sin importar
-// si fue por click en el desplegable o por el deep-link ?tab=...
-(function syncMatricTabToggle() {
-    const toggleLabel = document.getElementById('matricTabToggleLabel');
-    const toggleIcon = document.getElementById('matricTabToggleIcon');
-    if (!toggleLabel || !toggleIcon) return;
-
-    document.querySelectorAll('#matricTabs [data-bs-toggle="tab"]').forEach(btn => {
-        btn.addEventListener('shown.bs.tab', () => {
-            const icon = btn.querySelector('i');
-            toggleIcon.className = icon ? icon.className : '';
-            toggleLabel.textContent = btn.textContent.trim();
-        });
-    });
 })();
 </script>
 {% endblock %}
