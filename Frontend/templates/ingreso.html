@@ -180,7 +180,6 @@
                 <div class="d-flex justify-content-end gap-2 mb-4">
                   <button type="button" class="btn btn-outline-secondary" onclick="previewSendDiplomadosCredentials()" id="btnPreviewSendDiplomados" disabled><i class="bi bi-eye me-2"></i>Vista Previa de Envío</button>
                   <button type="button" class="btn btn-outline-primary" onclick="sendDiplomadosCredentials()" id="btnSendDiplomadosCredentials" disabled><i class="bi bi-envelope-check me-2"></i>Enviar Credenciales</button>
-                  <button type="button" class="btn btn-success text-white" onclick="importDiplomados()" id="btnImportDiplomados" disabled><i class="bi bi-check-circle me-2"></i>Confirmar y Procesar</button>
                 </div>
                 <div id="diplomadoSendPreviewWrap" style="display:none;" class="mb-4">
                   <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-envelope-paper me-2"></i>Pendientes de Recibir Credenciales (<span id="diplomadoSendPendingCount">0</span>)</h6>
@@ -194,26 +193,37 @@
                 </div>
                 <div id="diplomadoSendResult" class="mb-4"></div>
 
+                <!-- Tabla editable única: reemplaza las dos tablas de solo
+                     lectura (Pendientes/Ya Procesados) + el botón
+                     desconectado "Confirmar y Procesar" de antes — acá se
+                     ve todo junto, se corrige lo que haga falta (Nombre/
+                     Cédula/Correo/Teléfono) y se dispara el alta sin salir
+                     de esta vista. Las correcciones viajan al backend y se
+                     escriben también en el Excel real de OneDrive (ver
+                     /excel/diplomados/process-edited). -->
                 <div id="diplomadoPreviewWrap" style="display:none;" class="mb-4">
-                  <div class="row g-3">
-                    <div class="col-md-6">
-                      <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-hourglass-split me-2"></i>Pendientes de Procesar (<span id="diplomadoPendingCount">0</span>)</h6>
-                      <div class="table-responsive bg-white rounded border" style="max-height:320px; overflow-y:auto;">
-                        <table class="table table-sm table-hover mb-0">
-                          <thead class="table-light"><tr><th>Nombre</th><th>Cédula</th></tr></thead>
-                          <tbody id="diplomadoPendingTbody"></tbody>
-                        </table>
-                      </div>
+                  <div class="toolbar-pill">
+                    <span class="text-muted small">Pendientes: <strong id="diplomadoPendingCount">0</strong> · Ya procesados: <strong id="diplomadoDoneCount">0</strong></span>
+                    <div class="btn-group-end">
+                      <button type="button" class="btn-pill" id="btnProcessSelectedDiplomados" onclick="processSelectedDiplomados()" disabled>
+                        <i class="bi bi-check-circle me-1"></i>Procesar seleccionadas (<span id="diplomadoSelectedCount">0</span>)
+                      </button>
                     </div>
-                    <div class="col-md-6">
-                      <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-check-circle me-2"></i>Ya Procesados (<span id="diplomadoDoneCount">0</span>)</h6>
-                      <div class="table-responsive bg-white rounded border" style="max-height:320px; overflow-y:auto;">
-                        <table class="table table-sm table-hover mb-0">
-                          <thead class="table-light"><tr><th>Nombre</th><th>Cédula</th><th>Estado</th></tr></thead>
-                          <tbody id="diplomadoDoneTbody"></tbody>
-                        </table>
-                      </div>
-                    </div>
+                  </div>
+                  <div class="table-responsive bg-white rounded border" style="max-height:420px; overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0 align-middle">
+                      <thead class="table-light">
+                        <tr>
+                          <th style="width:36px;"><input type="checkbox" id="diplomadoSelectAll" onchange="toggleAllDiplomadoRows(this)" title="Seleccionar todas las pendientes"></th>
+                          <th>Nombre</th>
+                          <th>Cédula</th>
+                          <th>Correo</th>
+                          <th>Teléfono</th>
+                          <th>Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody id="diplomadoRowsTbody"></tbody>
+                    </table>
                   </div>
                 </div>
                 
@@ -794,57 +804,123 @@ async function fetchDiplomadoSheets() {
     }
 }
 
+// Valores originales por fila (row_idx -> {nombre, cedula, correo,
+// telefono}), para poder mandar al backend SOLO lo que el usuario
+// realmente editó en la tabla, no toda la fila de nuevo.
+let _diplomadosOriginalValues = {};
+
 async function previewDiplomados() {
     const url = document.getElementById('diplomadoUrl').value;
     const sheet = document.getElementById('diplomadoSheet').value;
     if (!url || !sheet) return toast('Completa la URL y la pestaña', 'warning');
-    
-    const btn = document.getElementById('btnImportDiplomados');
-    setLoading(btn, true);
-    
+
     try {
         const res = await api.post('/excel/diplomados/preview', { url: url, sheet_name: sheet });
+        renderDiplomadosTable(res.student_details || [], res.already_processed_details || []);
 
-        document.getElementById('diplomadoPendingCount').innerText = res.student_details.length;
-        document.getElementById('diplomadoPendingTbody').innerHTML = res.student_details.length
-            ? res.student_details.map(r => `<tr><td>${r.nombre || '-'}</td><td>${r.cedula || '-'}</td></tr>`).join('')
-            : '<tr><td colspan="2" class="text-muted small">Nadie pendiente — todos ya fueron procesados.</td></tr>';
-
-        document.getElementById('diplomadoDoneCount').innerText = res.already_processed_details.length;
-        document.getElementById('diplomadoDoneTbody').innerHTML = res.already_processed_details.length
-            ? res.already_processed_details.map(r => `<tr><td>${r.nombre || '-'}</td><td>${r.cedula || '-'}</td><td class="small">${r.estado || (r.usuario ? '✅ (usuario ya creado)' : '-')}</td></tr>`).join('')
-            : '<tr><td colspan="3" class="text-muted small">Ninguno procesado todavía.</td></tr>';
-
+        document.getElementById('diplomadoPendingCount').innerText = res.students_to_process;
+        document.getElementById('diplomadoDoneCount').innerText = res.students_already_processed;
         document.getElementById('diplomadoPreviewWrap').style.display = 'block';
         collapseOtherAccordions('collapseDiplomados');
-        document.getElementById('btnImportDiplomados').disabled = false;
         document.getElementById('btnSendDiplomadosCredentials').disabled = false;
         document.getElementById('btnPreviewSendDiplomados').disabled = false;
         toast(`Pendientes: ${res.students_to_process} · Ya procesados: ${res.students_already_processed}`, 'success');
     } catch (e) {
         toast(e.message, 'danger');
-    } finally {
-        setLoading(btn, false);
     }
+}
+
+function renderDiplomadosTable(pending, done) {
+    const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    _diplomadosOriginalValues = {};
+
+    const pendingRows = pending.map(r => {
+        _diplomadosOriginalValues[r.row_idx] = {
+            nombre: r.nombre || '', cedula: r.cedula || '',
+            correo: r.correo || '', telefono: r.telefono || '',
+        };
+        return `<tr data-row-idx="${r.row_idx}">
+            <td><input type="checkbox" class="dipl-row-check" onchange="updateDiplomadoSelectedCount()"></td>
+            <td><input type="text" class="form-control form-control-sm dipl-field" data-field="nombre" value="${esc(r.nombre)}"></td>
+            <td><input type="text" class="form-control form-control-sm dipl-field" data-field="cedula" value="${esc(r.cedula)}"></td>
+            <td><input type="text" class="form-control form-control-sm dipl-field" data-field="correo" value="${esc(r.correo)}"></td>
+            <td><input type="text" class="form-control form-control-sm dipl-field" data-field="telefono" value="${esc(r.telefono)}"></td>
+            <td><span class="badge bg-warning-subtle text-warning-emphasis">Pendiente</span></td>
+        </tr>`;
+    }).join('');
+
+    const doneRows = done.map(r => `<tr data-row-idx="${r.row_idx}" class="text-muted">
+            <td></td>
+            <td class="small">${esc(r.nombre)}</td>
+            <td class="small">${esc(r.cedula)}</td>
+            <td colspan="2" class="small">${esc(r.usuario || '')}</td>
+            <td><span class="badge bg-success-subtle text-success-emphasis">✅ Procesado</span></td>
+        </tr>`).join('');
+
+    document.getElementById('diplomadoRowsTbody').innerHTML = pendingRows + doneRows
+        || '<tr><td colspan="6" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
+
+    document.getElementById('diplomadoSelectAll').checked = false;
+    updateDiplomadoSelectedCount();
+}
+
+function toggleAllDiplomadoRows(checkbox) {
+    document.querySelectorAll('#diplomadoRowsTbody .dipl-row-check').forEach(cb => { cb.checked = checkbox.checked; });
+    updateDiplomadoSelectedCount();
+}
+
+function updateDiplomadoSelectedCount() {
+    const count = document.querySelectorAll('#diplomadoRowsTbody .dipl-row-check:checked').length;
+    document.getElementById('diplomadoSelectedCount').innerText = count;
+    document.getElementById('btnProcessSelectedDiplomados').disabled = count === 0;
 }
 
 let _diplomadosJobPollInterval = null;
 
-async function importDiplomados() {
+async function processSelectedDiplomados() {
     const url = document.getElementById('diplomadoUrl').value;
     const sheet = document.getElementById('diplomadoSheet').value;
     if (!url || !sheet) return;
 
-    if (!confirm('¿Iniciar proceso para Diplomados?')) return;
+    const checkedRows = Array.from(document.querySelectorAll('#diplomadoRowsTbody .dipl-row-check:checked'))
+        .map(cb => cb.closest('tr'));
+    if (checkedRows.length === 0) return;
 
-    const btn = document.getElementById('btnImportDiplomados');
+    if (!confirm(`¿Procesar ${checkedRows.length} fila(s) seleccionada(s)?`)) return;
+
+    const selected_rows = [];
+    const overrides = [];
+
+    checkedRows.forEach(tr => {
+        const rowIdx = parseInt(tr.dataset.rowIdx, 10);
+        selected_rows.push(rowIdx);
+
+        const original = _diplomadosOriginalValues[rowIdx] || {};
+        const override = { row_idx: rowIdx };
+        let hasChange = false;
+
+        tr.querySelectorAll('.dipl-field').forEach(input => {
+            const field = input.dataset.field;
+            const current = input.value.trim();
+            if (current !== (original[field] || '')) {
+                override[field] = current;
+                hasChange = true;
+            }
+        });
+
+        if (hasChange) overrides.push(override);
+    });
+
+    const btn = document.getElementById('btnProcessSelectedDiplomados');
     setLoading(btn, true);
 
     try {
-        const res = await api.post('/excel/diplomados', { url: url, sheet_name: sheet });
+        const res = await api.post('/excel/diplomados/process-edited', {
+            url: url, sheet_name: sheet, selected_rows: selected_rows, overrides: overrides,
+        });
         if (!res.job_id) throw new Error('No se recibió ID del trabajo.');
         toast('Alta de Diplomados iniciada en segundo plano.', 'info');
-        startDiplomadosJobPolling(res.job_id);
+        startDiplomadosJobPolling(res.job_id, btn);
     } catch (e) {
         toast(e.message, 'danger');
         setLoading(btn, false);
@@ -852,8 +928,7 @@ async function importDiplomados() {
     }
 }
 
-function startDiplomadosJobPolling(jobId) {
-    const btn = document.getElementById('btnImportDiplomados');
+function startDiplomadosJobPolling(jobId, btn) {
     if (_diplomadosJobPollInterval) clearInterval(_diplomadosJobPollInterval);
 
     document.getElementById('diplomadoResultWrap').style.display = 'block';
