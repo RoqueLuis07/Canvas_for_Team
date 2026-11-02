@@ -13,37 +13,38 @@
   </div>
 
   <!-- Filters -->
-  <div class="table-card" style="margin-bottom: 24px; padding: 16px;">
-    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
-      <input type="date" id="dateFrom" class="form-control" style="max-width: 150px;" placeholder="Desde...">
-      <input type="date" id="dateTo" class="form-control" style="max-width: 150px;" placeholder="Hasta...">
-      <select id="jobType" class="form-control" style="max-width: 240px;">
-        <option value="">Todos los tipos</option>
-        <option value="matriculacion_individual">Matriculación Individual</option>
-        <option value="matriculacion_masiva_json">Matriculación Masiva (Excel)</option>
-        <option value="matriculacion_masiva_onedrive">Matriculación Masiva (OneDrive)</option>
-        <option value="rollback_masivo_json">Rollback Masivo (Excel)</option>
-        <option value="rollback_masivo_onedrive">Rollback Masivo (OneDrive)</option>
-        <option value="creacion_cursos_onedrive">Creación de Cursos (OneDrive)</option>
-        <option value="fix_sis_id_onedrive">Corrección de SIS ID</option>
-        <option value="diplomados_onedrive">Alta de Diplomados (OneDrive)</option>
-        <option value="materias_masivo">Matriculación por Materias</option>
-        <option value="cpel_carrera_masivo">Matriculación CPEL por Carrera</option>
-        <option value="reenvio_credenciales_onedrive">Reenvío de Credenciales</option>
-        <option value="envio_credenciales_altas_onedrive">Envío de Credenciales (Altas)</option>
-      </select>
-      <input type="text" id="usernameFilter" placeholder="Filtrar por usuario..." class="form-control" style="max-width: 200px;">
-      <button class="btn btn-primary" onclick="loadJobs()">
-        <i class="bi bi-search"></i> Buscar
-      </button>
+  <div class="toolbar-pill mb-2">
+    <input type="date" id="dateFrom" class="form-control" style="max-width: 150px;" placeholder="Desde...">
+    <input type="date" id="dateTo" class="form-control" style="max-width: 150px;" placeholder="Hasta...">
+    <select id="jobType" class="form-select filter-select-md">
+      <option value="">Todos los tipos</option>
+      <option value="matriculacion_individual">Matriculación Individual</option>
+      <option value="matriculacion_masiva_json">Matriculación Masiva (Excel)</option>
+      <option value="matriculacion_masiva_onedrive">Matriculación Masiva (OneDrive)</option>
+      <option value="rollback_masivo_json">Rollback Masivo (Excel)</option>
+      <option value="rollback_masivo_onedrive">Rollback Masivo (OneDrive)</option>
+      <option value="creacion_cursos_onedrive">Creación de Cursos (OneDrive)</option>
+      <option value="fix_sis_id_onedrive">Corrección de SIS ID</option>
+      <option value="diplomados_onedrive">Alta de Diplomados (OneDrive)</option>
+      <option value="materias_masivo">Matriculación por Materias</option>
+      <option value="cpel_carrera_masivo">Matriculación CPEL por Carrera</option>
+      <option value="reenvio_credenciales_onedrive">Reenvío de Credenciales</option>
+      <option value="envio_credenciales_altas_onedrive">Envío de Credenciales (Altas)</option>
+    </select>
+    <div class="search-box">
+      <i class="bi bi-person"></i>
+      <input type="text" id="usernameFilter" placeholder="Filtrar por usuario..." class="form-control">
     </div>
-    <div style="display: flex; gap: 8px;">
-      <button class="btn btn-sm btn-outline-secondary" onclick="setToday()">Hoy</button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="setThisWeek()">Esta semana</button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="setThisMonth()">Este mes</button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="clearFilters()">Limpiar filtros</button>
-      <button class="btn btn-sm btn-success ms-auto" onclick="exportJobs()"><i class="bi bi-file-earmark-excel me-1"></i>Exportar a Excel</button>
+    <button type="button" class="btn-pill" onclick="loadJobs()"><i class="bi bi-search me-1"></i>Buscar</button>
+    <div class="btn-group-end">
+      <button type="button" class="btn-pill-outline" onclick="exportJobs()"><i class="bi bi-file-earmark-excel me-1"></i>Exportar a Excel</button>
     </div>
+  </div>
+  <div class="toolbar-pill mb-4">
+    <button type="button" class="btn-pill-outline" onclick="setToday()">Hoy</button>
+    <button type="button" class="btn-pill-outline" onclick="setThisWeek()">Esta semana</button>
+    <button type="button" class="btn-pill-outline" onclick="setThisMonth()">Este mes</button>
+    <button type="button" class="btn-pill-outline" onclick="clearFilters()">Limpiar filtros</button>
   </div>
 
   <!-- Table -->

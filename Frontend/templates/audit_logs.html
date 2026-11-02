@@ -9,19 +9,19 @@
   <p class="page-subtitle">Historial completo de todas las actividades realizadas en el webservice</p>
 
   <!-- Filters -->
-  <div class="table-card" style="margin-bottom: 24px; padding: 16px;">
-    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-      <input type="search" id="usernameFilter" placeholder="Filtrar por usuario..." class="form-control" style="max-width: 250px;" onkeydown="if(event.key==='Enter') loadAuditLogs()">
-      <input type="search" id="endpointFilter" placeholder="Filtrar por endpoint..." class="form-control" style="max-width: 250px;" onkeydown="if(event.key==='Enter') loadAuditLogs()">
-      <button class="btn btn-primary" onclick="loadAuditLogs()">
-        <i class="bi bi-search"></i> Buscar
-      </button>
-      <button class="btn btn-outline-secondary" onclick="clearFilters()">
-        <i class="bi bi-x-circle"></i> Limpiar
-      </button>
-      <button class="btn btn-outline-success ms-auto" onclick="exportCsv()" title="Exporta hasta 500 registros con los filtros aplicados">
-        <i class="bi bi-filetype-csv"></i> Exportar CSV
-      </button>
+  <div class="toolbar-pill mb-4">
+    <div class="search-box">
+      <i class="bi bi-person"></i>
+      <input type="search" id="usernameFilter" placeholder="Filtrar por usuario..." class="form-control" onkeydown="if(event.key==='Enter') loadAuditLogs()">
+    </div>
+    <div class="search-box">
+      <i class="bi bi-hdd-network"></i>
+      <input type="search" id="endpointFilter" placeholder="Filtrar por endpoint..." class="form-control" onkeydown="if(event.key==='Enter') loadAuditLogs()">
+    </div>
+    <button type="button" class="btn-pill" onclick="loadAuditLogs()"><i class="bi bi-search me-1"></i>Buscar</button>
+    <button type="button" class="btn-pill-outline" onclick="clearFilters()"><i class="bi bi-x-circle me-1"></i>Limpiar</button>
+    <div class="btn-group-end">
+      <button type="button" class="btn-pill-outline" onclick="exportCsv()" title="Exporta hasta 500 registros con los filtros aplicados"><i class="bi bi-filetype-csv me-1"></i>Exportar CSV</button>
     </div>
   </div>
 
