@@ -1185,6 +1185,18 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
     _cedula_idx = _match_col_idx(headers_dict, "cedula", "cédula", "ci")
     if _cedula_idx:
         col_cedula = _cedula_idx - 1
+    # Correo/Teléfono: mismo criterio flexible, solo necesarios para que la
+    # tabla editable del frontend pueda mostrarlos y permitir corregirlos
+    # (ver /excel/diplomados/process-edited) — no afectan la detección de
+    # "ya procesado" de acá abajo.
+    col_correo = -1
+    _correo_idx = _match_col_idx(headers_dict, "correo")
+    if _correo_idx:
+        col_correo = _correo_idx - 1
+    col_telefono = -1
+    _telefono_idx = _match_col_idx(headers_dict, "telefono", "teléfono", "celular")
+    if _telefono_idx:
+        col_telefono = _telefono_idx - 1
     # Si no hay columna "Estado" propiamente dicha, "Enviado" cumple el mismo rol.
     if col_estado == -1:
         for i, h in enumerate(headers_raw):
@@ -1209,6 +1221,9 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
         if not nombre_val or not cedula_val:
             continue
 
+        correo_val = row_vals[col_correo] if col_correo >= 0 else ""
+        telefono_val = row_vals[col_telefono] if col_telefono >= 0 else ""
+
         estado_val = row_vals[col_estado] if col_estado >= 0 else ""
         estado_lower = estado_val.lower()
         usuario_val = row_vals[col_usuario] if col_usuario >= 0 else ""
@@ -1219,6 +1234,7 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
                 or (usuario_val and "@" in usuario_val)):
             students_already_processed += 1
             already_processed_details.append({
+                "row_idx": row_idx,
                 "nombre": nombre_val,
                 "cedula": cedula_val,
                 "usuario": usuario_val,
@@ -1227,8 +1243,11 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
         else:
             students_to_process += 1
             student_details.append({
+                "row_idx": row_idx,
                 "nombre": nombre_val,
                 "cedula": cedula_val,
+                "correo": correo_val,
+                "telefono": telefono_val,
             })
 
         if len(sample_rows) < 10:
