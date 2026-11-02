@@ -4,11 +4,19 @@
 # vive en docker-compose.yml / docker/php/Dockerfile y no se toca acá.
 FROM php:8.4-cli
 
-RUN apt-get update && apt-get install -y \
+# libreoffice-writer: necesario para que el módulo de Actas convierta el
+# .docx generado (relleno de plantilla vía phpoffice/phpword) a PDF — mismo
+# criterio ya probado en el Dockerfile de producción del sistema FastAPI
+# (raíz del repo principal): solo el componente Writer, no el paquete
+# "libreoffice" completo, para no arrastrar Calc/Impress/Base y mantener la
+# imagen más liviana.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git unzip libzip-dev libpng-dev libonig-dev libsqlite3-dev libicu-dev \
+    libreoffice-writer fonts-dejavu \
  && docker-php-ext-install pdo_mysql pdo_sqlite zip gd intl mbstring \
  && pecl install redis \
- && docker-php-ext-enable redis
+ && docker-php-ext-enable redis \
+ && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
