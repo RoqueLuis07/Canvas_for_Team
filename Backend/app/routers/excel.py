@@ -992,6 +992,22 @@ class DiplomadosProcessEditedRequest(DiplomadosUrlRequest):
     lista explícita desde la tabla editable."""
 
 
+class MasivoProcessEditedRequest(DiplomadosUrlRequest):
+    """Igual que DiplomadosProcessEditedRequest, para la tabla editable de
+    Carga Masiva (ver /excel/masivo). Incluye "plataforma" como campo
+    editable además de nombre/cedula/correo, porque acá cada fila puede
+    pedir canvas/teams/both por separado."""
+    overrides: list[dict] = []
+    selected_rows: list[int] | None = None
+
+
+class DocentesProcessEditedRequest(DiplomadosUrlRequest):
+    """Igual que MasivoProcessEditedRequest, para la tabla editable de Alta
+    Docentes (ver /excel/docentes-onedrive)."""
+    overrides: list[dict] = []
+    selected_rows: list[int] | None = None
+
+
 
 class MatriculacionesPreviewResponse(BaseModel):
     headers: list[str]
@@ -3862,11 +3878,12 @@ async def preview_docentes_onedrive(req: DiplomadosUrlRequest) -> DocentesPrevie
                 or "creado ok" in enviado_lower or "ya exist" in enviado_lower
                 or (usuario_preview and "@" in usuario_preview)):
             already_processed.append({
-                "nombre": nombre, "cedula": cedula, "usuario": usuario_preview, "estado": enviado,
+                "row_idx": r_idx, "nombre": nombre, "cedula": cedula, "usuario": usuario_preview, "estado": enviado,
             })
             continue
 
         rows.append({
+            "row_idx": r_idx,
             "nombre": nombre,
             "cedula": cedula,
             "correo": correo,
@@ -3884,7 +3901,9 @@ async def preview_docentes_onedrive(req: DiplomadosUrlRequest) -> DocentesPrevie
     )
 
 @router.post("/excel/docentes-onedrive", summary="Alta Docentes OneDrive")
-async def import_docentes_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
+async def import_docentes_onedrive(req: DocentesProcessEditedRequest) -> BulkResult:
+    """Acepta `overrides`/`selected_rows` opcionales desde la tabla editable
+    del frontend — si no vienen, procesa todo como antes."""
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
 
@@ -3933,6 +3952,14 @@ async def import_docentes_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
     col_contra = get_col_idx("contrasena", "contrasea", "clave")
     col_enviado = get_col_idx("estado", "enviado")
 
+    # Correcciones hechas desde la tabla editable del frontend — mismo
+    # patrón aditivo que /excel/diplomados/process-edited.
+    for r_idx, vals in {o["row_idx"]: {k: v for k, v in o.items() if k != "row_idx"} for o in req.overrides if "row_idx" in o}.items():
+        if "nombre" in vals and col_nombre: ws.cell(row=r_idx, column=col_nombre, value=vals["nombre"])
+        if "cedula" in vals and col_cedula: ws.cell(row=r_idx, column=col_cedula, value=vals["cedula"])
+        if "correo" in vals and col_correo: ws.cell(row=r_idx, column=col_correo, value=vals["correo"])
+        if "plataforma" in vals and col_plat: ws.cell(row=r_idx, column=col_plat, value=vals["plataforma"])
+
     col_cc = get_col_idx("cc", "copia")
     sheet_cc_list = []
     if col_cc:
@@ -3976,6 +4003,10 @@ async def import_docentes_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
             continue
 
         users_to_process.append(r_idx)
+
+    if req.selected_rows is not None:
+        _selected = set(req.selected_rows)
+        users_to_process = [r for r in users_to_process if r in _selected]
 
     for r_idx in users_to_process:
         nombre = str(ws.cell(row=r_idx, column=col_nombre).value or "").strip()
@@ -5005,11 +5036,11 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
                 or (usuario_val and "@" in usuario_val)):
             students_already_processed += 1
             already_processed_details.append({
-                "nombre": nombre_val, "cedula": cedula_val, "usuario": usuario_val, "estado": estado_val,
+                "row_idx": row_idx, "nombre": nombre_val, "cedula": cedula_val, "usuario": usuario_val, "estado": estado_val,
             })
         else:
             students_to_process += 1
-            student_details.append({"nombre": nombre_val, "cedula": cedula_val})
+            student_details.append({"row_idx": row_idx, "nombre": nombre_val, "cedula": cedula_val})
 
         if len(sample_rows) < 10:
             sample_rows.append({h: v for h, v in zip(headers_raw, row_vals) if h})
@@ -5028,7 +5059,10 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
 
 
 @router.post("/excel/masivo", summary="Importar Masivamente desde OneDrive (Sin Matriculación)", response_model=BulkResult)
-async def import_masivo_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
+async def import_masivo_onedrive(req: MasivoProcessEditedRequest) -> BulkResult:
+    """Acepta `overrides`/`selected_rows` opcionales desde la tabla editable
+    del frontend (ver _process_diplomados_bg en este mismo archivo para el
+    mismo patrón ya aplicado ahí) — si no vienen, procesa todo como antes."""
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
     
@@ -5064,10 +5098,21 @@ async def import_masivo_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
     col_cedula = get_col_idx("cedula", "cédula", "ci", "documento", "dni")
     col_correo = get_col_idx("correo", "email")
     col_plataforma = get_col_idx("plataforma", "platform")
-    
+
     col_usuario = get_col_idx("usuario")
     col_contra = get_col_idx("contrasena", "contraseña", "clave")
     col_enviado = get_col_idx("estado", "enviado")
+
+    # Correcciones hechas desde la tabla editable del frontend (ver
+    # /excel/diplomados/process-edited para el mismo patrón): se aplican
+    # directo sobre las celdas ANTES de que arranque process_row(), que
+    # siempre lee de ws.cell(...) — el resto de esta función no necesita
+    # saber que hubo una edición.
+    for r_idx, vals in {o["row_idx"]: {k: v for k, v in o.items() if k != "row_idx"} for o in req.overrides if "row_idx" in o}.items():
+        if "nombre" in vals and col_nombre: ws.cell(row=r_idx, column=col_nombre, value=vals["nombre"])
+        if "cedula" in vals and col_cedula: ws.cell(row=r_idx, column=col_cedula, value=vals["cedula"])
+        if "correo" in vals and col_correo: ws.cell(row=r_idx, column=col_correo, value=vals["correo"])
+        if "plataforma" in vals and col_plataforma: ws.cell(row=r_idx, column=col_plataforma, value=vals["plataforma"])
 
     next_col = ws.max_column + 1
     if not col_usuario:
@@ -5203,10 +5248,13 @@ async def import_masivo_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
             ws.cell(row=r_idx, column=col_enviado).font = Font(color="FF0000", bold=True)
             result.failed.append({"nombre": nombre, "correo": login_id, "error": error_msg})
 
+    selected = set(req.selected_rows) if req.selected_rows is not None else None
     tasks = []
     for r_idx in range(header_row_idx + 1, ws.max_row + 1):
+        if selected is not None and r_idx not in selected:
+            continue
         tasks.append(process_row(r_idx))
-    
+
     batch_size = 5
     for i in range(0, len(tasks), batch_size):
         await asyncio.gather(*tasks[i:i+batch_size])
