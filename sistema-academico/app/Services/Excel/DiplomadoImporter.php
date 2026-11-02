@@ -150,6 +150,118 @@ class DiplomadoImporter
     }
 
     /**
+     * Como previsualizar(), pero devuelve TODAS las filas (no solo una
+     * muestra de 10) con un identificador estable (`fila_id`, el índice de
+     * la fila dentro de la hoja ya filtrada de encabezado/título) — para
+     * que la pantalla de importación pueda mostrarlas en una tabla
+     * editable y referenciar cada una al enviar importarSeleccionados().
+     *
+     * @return array{titulo: string, sheet_name: string, filas: list<array{fila_id: int, nombre: string, cedula: string, correo: string, ya_procesado: bool}>}
+     *
+     * @throws DiplomadoImportException
+     */
+    public function previsualizarCompleto(string $shareUrl, string $sheetName): array
+    {
+        $hoja = $this->leerHojaDesdeUrl($shareUrl, $sheetName);
+        $campos = $this->resolverCampos($hoja['headers']);
+        $this->validarCamposObligatorios($campos);
+
+        $filas = [];
+
+        foreach ($hoja['filas'] as $filaId => $fila) {
+            $nombre = $this->valorColumna($fila, $campos['nombre']);
+            $cedula = $this->valorColumna($fila, $campos['cedula']);
+
+            if ($nombre === null || $cedula === null) {
+                continue;
+            }
+
+            $filas[] = [
+                'fila_id' => $filaId,
+                'nombre' => $nombre,
+                'cedula' => $cedula,
+                'correo' => $this->valorColumna($fila, $campos['correo']) ?? '',
+                'ya_procesado' => $this->yaFueProcesada($fila, $campos),
+            ];
+        }
+
+        return [
+            'titulo' => $hoja['titulo'],
+            'sheet_name' => $sheetName,
+            'filas' => $filas,
+        ];
+    }
+
+    /**
+     * Procesa SOLO las filas seleccionadas por el admin desde la tabla
+     * editable, usando los valores que haya corregido ahí (si no corrigió
+     * un campo, se usa el que trae la planilla). Se asume que el llamador
+     * (la pantalla de importación) solo selecciona filas con
+     * `ya_procesado = false` — no se vuelve a chequear acá, a diferencia
+     * de importar(), que sí filtra todas las filas por su cuenta.
+     *
+     * @param  list<array{fila_id: int, nombre?: ?string, cedula?: ?string, correo?: ?string}>  $filasSeleccionadas
+     * @return array{succeeded: list<array<string, mixed>>, failed: list<array{input: array<string, mixed>, error: string}>}
+     *
+     * @throws DiplomadoImportException
+     */
+    public function importarSeleccionados(string $shareUrl, string $sheetName, array $filasSeleccionadas): array
+    {
+        $hoja = $this->leerHojaDesdeUrl($shareUrl, $sheetName);
+        $campos = $this->resolverCampos($hoja['headers']);
+        $this->validarCamposObligatorios($campos);
+
+        $esMba = str_contains(mb_strtolower($sheetName), 'mba') || str_contains(mb_strtolower($hoja['titulo']), 'mba');
+        $teamId = $this->resolverEquipo($hoja['titulo'], $esMba);
+
+        $resultado = ['succeeded' => [], 'failed' => []];
+
+        foreach ($filasSeleccionadas as $seleccion) {
+            if (! isset($seleccion['fila_id'])) {
+                continue;
+            }
+
+            $filaId = (int) $seleccion['fila_id'];
+            $fila = $hoja['filas'][$filaId] ?? null;
+
+            if ($fila === null) {
+                $resultado['failed'][] = [
+                    'input' => $seleccion,
+                    'error' => 'La fila ya no existe en la planilla (puede haber cambiado desde que se cargó la vista previa).',
+                ];
+
+                continue;
+            }
+
+            $nombre = $this->valorNoVacio($seleccion['nombre'] ?? null) ?? $this->valorColumna($fila, $campos['nombre']);
+            $cedula = $this->valorNoVacio($seleccion['cedula'] ?? null) ?? $this->valorColumna($fila, $campos['cedula']);
+
+            if ($nombre === null || $cedula === null) {
+                $resultado['failed'][] = ['input' => $seleccion, 'error' => 'Nombre y Cédula son obligatorios.'];
+
+                continue;
+            }
+
+            try {
+                $procesado = $this->procesarAlumno($nombre, $cedula, $teamId);
+                $procesado['fila_id'] = $filaId;
+                $resultado['succeeded'][] = $procesado;
+            } catch (Throwable $e) {
+                $resultado['failed'][] = ['input' => ['fila_id' => $filaId, 'nombre' => $nombre, 'cedula' => $cedula], 'error' => $e->getMessage()];
+            }
+        }
+
+        return $resultado;
+    }
+
+    protected function valorNoVacio(?string $valor): ?string
+    {
+        $valor = trim((string) $valor);
+
+        return $valor === '' ? null : $valor;
+    }
+
+    /**
      * Corrida real: resuelve/crea el equipo de Teams del Diplomado, y para
      * cada fila todavía no procesada da de alta la cuenta de Teams del
      * alumno (si no la tenía) y lo agrega al equipo.
@@ -326,13 +438,14 @@ class DiplomadoImporter
 
     /**
      * @param  array<string, int>  $headers
-     * @return array{nombre: ?int, cedula: ?int, estado: ?int, usuario: ?int}
+     * @return array{nombre: ?int, cedula: ?int, correo: ?int, estado: ?int, usuario: ?int}
      */
     protected function resolverCampos(array $headers): array
     {
         return [
             'nombre' => $this->matcher->matchColumn($headers, 'nombre', 'alumno', 'estudiante'),
             'cedula' => $this->matcher->matchColumn($headers, 'cedula', 'cédula', 'ci'),
+            'correo' => $this->matcher->matchColumn($headers, 'correo', 'email'),
             // Simplificación deliberada: producción también reconoce un
             // encabezado de Estado por la combinación "contiene 'canvas' Y
             // 'id'" (ej. "ID Canvas") — un caso raro que queda cubierto en
