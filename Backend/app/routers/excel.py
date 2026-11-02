@@ -1017,6 +1017,11 @@ class PreviewResponse(BaseModel):
     sample_rows: list[dict] = []
     student_details: list[dict] = []
     already_processed_details: list[dict] = []
+    team_id: str | None = None
+    """ID del Team/grupo M365 ya existente para este diplomado (resuelto por
+    el título de la fila 1, solo lectura — no se crea acá). None si todavía
+    no existe ningún Team con ese nombre; la tabla editable del frontend usa
+    esto para habilitar o no la acción "Quitar del grupo"."""
 
 
 class SendCredentialsPreviewResponse(BaseModel):
@@ -1253,6 +1258,19 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
         if len(sample_rows) < 10:
             sample_rows.append({h: v for h, v in zip(headers_raw, row_vals) if h})
 
+    # Resolución de solo lectura del Team ya existente para este diplomado
+    # (si lo hay) — mismo criterio de título que usa el procesamiento real
+    # (_find_row1_title + búsqueda exacta por nombre), pero sin crear nada
+    # acá: la tabla editable del frontend lo necesita para poder ofrecer
+    # "Quitar del grupo" en una fila ya procesada.
+    title_val = _find_row1_title(ws)
+    team_id = None
+    if title_val:
+        try:
+            team_id = await graph.search_group_by_name(title_val)
+        except Exception:
+            team_id = None
+
     wb.close()
     return PreviewResponse(
         sheet_name=req.sheet_name,
@@ -1262,6 +1280,7 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
         sample_rows=sample_rows,
         student_details=student_details,
         already_processed_details=already_processed_details,
+        team_id=team_id,
     )
 
 
