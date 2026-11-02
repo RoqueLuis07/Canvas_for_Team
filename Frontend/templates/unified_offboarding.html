@@ -132,11 +132,6 @@
               </label>
             </div>
           </div>
-          <div class="col-md-4 d-flex align-items-end mb-3">
-            <button class="btn btn-danger w-100 p-3" id="btnConfirmEgresoOneDrive" onclick="confirmEgresoOneDrive()" disabled>
-              <i class="bi bi-check-circle me-1"></i>Confirmar y Procesar
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -184,13 +179,16 @@
 </div>
 
 
-<!-- Inline Preview Egreso -->
+<!-- Inline Preview Egreso — con selección por fila: una acción destructiva
+     (baja/eliminación de cuentas) se beneficia especialmente de poder
+     elegir exactamente a quién, en vez de todo-o-nada. -->
 <div id="egresoPreviewWrap" style="display:none;" class="mb-4">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-    <label class="form-label fw-semibold mb-0">Previsualización (Muestra)</label>
-    <div>
-      <span class="badge bg-danger me-2" id="egresoToProcess">0 a procesar</span>
-      <span class="badge bg-secondary" id="egresoAlreadyProcessed">0 ignorados</span>
+  <div class="toolbar-pill">
+    <span class="text-muted small"><strong id="egresoToProcess">0</strong> a procesar · <strong id="egresoAlreadyProcessed">0</strong> ignorados</span>
+    <div class="btn-group-end">
+      <button type="button" class="btn-pill" id="btnConfirmEgresoOneDrive" onclick="confirmEgresoOneDrive()" disabled>
+        <i class="bi bi-check-circle me-1"></i>Confirmar baja (<span id="egresoSelectedCount">0</span>)
+      </button>
     </div>
   </div>
   <div class="table-responsive border rounded bg-white">
@@ -429,16 +427,21 @@ async function openEgresoOneDrive() {
         if (res.ok) {
             const data = await res.json();
             
-            document.getElementById('egresoToProcess').innerText = `${data.students_to_process} a procesar`;
-            document.getElementById('egresoAlreadyProcessed').innerText = `${data.students_already_processed} ignorados`;
-            
+            document.getElementById('egresoToProcess').innerText = data.students_to_process;
+            document.getElementById('egresoAlreadyProcessed').innerText = data.students_already_processed;
+
             const thead = document.getElementById('egresoPreviewHeaders');
-            thead.innerHTML = '<tr>' + data.headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
-            
+            thead.innerHTML = '<th style="width:36px;"><input type="checkbox" id="egresoSelectAll" onchange="toggleAllEgresoRows(this)" title="Seleccionar todos"></th>'
+                + data.headers.map(h => `<th>${h}</th>`).join('');
+
             const tbody = document.getElementById('egresoPreviewBody');
             let bodyHTML = '';
-            data.sample_rows.forEach(r => {
-                let rowHtml = '';
+            // student_details y sample_rows se arman en el mismo loop del
+            // backend, en el mismo orden — student_details[i].row_idx es el
+            // identificador real de la fila para sample_rows[i].
+            data.sample_rows.forEach((r, i) => {
+                const rowIdx = (data.student_details[i] || {}).row_idx;
+                let rowHtml = `<td><input type="checkbox" class="egreso-row-check" data-row-idx="${rowIdx}" onchange="updateEgresoSelectedCount()" checked></td>`;
                 data.headers.forEach(h => {
                     let cellVal = r[h] || '';
                     if (h.toLowerCase().includes('estado') || h.toLowerCase().includes('enviado') || h.toLowerCase().includes('desvinculado')) {
@@ -452,12 +455,13 @@ async function openEgresoOneDrive() {
                     }
                     rowHtml += `<td>${cellVal}</td>`;
                 });
-                bodyHTML += `<tr>${rowHtml}</tr>`;
+                bodyHTML += `<tr data-row-idx="${rowIdx}">${rowHtml}</tr>`;
             });
             tbody.innerHTML = bodyHTML;
-            
+
             document.getElementById('egresoPreviewWrap').style.display = 'block';
-            document.getElementById('btnConfirmEgresoOneDrive').disabled = false;
+            document.getElementById('egresoSelectAll').checked = true;
+            updateEgresoSelectedCount();
         } else {
             const err = await res.json();
             toast(err.detail || "Error al generar vista previa", "danger");
@@ -470,12 +474,29 @@ async function openEgresoOneDrive() {
     }
 }
 
+function toggleAllEgresoRows(checkbox) {
+    document.querySelectorAll('#egresoPreviewBody .egreso-row-check').forEach(cb => { cb.checked = checkbox.checked; });
+    updateEgresoSelectedCount();
+}
+
+function updateEgresoSelectedCount() {
+    const count = document.querySelectorAll('#egresoPreviewBody .egreso-row-check:checked').length;
+    document.getElementById('egresoSelectedCount').innerText = count;
+    document.getElementById('btnConfirmEgresoOneDrive').disabled = count === 0;
+}
+
 async function confirmEgresoOneDrive() {
     const url = document.getElementById('urlEgresoOneDrive').value.trim();
     const sheet = document.getElementById('sheetEgresoOneDrive').value;
     const deleteAccount = document.getElementById('chkDeleteAccountEgreso').checked;
-    
+
+    const selected_rows = Array.from(document.querySelectorAll('#egresoPreviewBody .egreso-row-check:checked'))
+        .map(cb => parseInt(cb.dataset.rowIdx, 10));
+    if (selected_rows.length === 0) return;
+    if (!confirm(`¿Dar de baja a ${selected_rows.length} usuario(s) seleccionado(s)? Esta acción ${deleteAccount ? 'elimina las cuentas permanentemente' : 'deshabilita las cuentas'} y no se puede deshacer fácilmente.`)) return;
+
     const btn = document.getElementById('btnConfirmEgresoOneDrive');
+    const originalBtnHTML = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Procesando...';
     btn.disabled = true;
 
@@ -483,13 +504,14 @@ async function confirmEgresoOneDrive() {
         const res = await fetch('/excel/egreso', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                url: url, 
+            body: JSON.stringify({
+                url: url,
                 sheet_name: sheet,
-                delete_account: deleteAccount
+                delete_account: deleteAccount,
+                selected_rows: selected_rows,
             })
         });
-        
+
         if (res.ok) {
             const data = await res.json();
             document.getElementById('egresoPreviewWrap').style.display = 'none';
@@ -501,7 +523,7 @@ async function confirmEgresoOneDrive() {
     } catch (e) {
         toast("Error de conexión al procesar", "danger");
     } finally {
-        btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Confirmar y Procesar';
+        btn.innerHTML = originalBtnHTML;
         btn.disabled = false;
     }
 }

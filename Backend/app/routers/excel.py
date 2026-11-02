@@ -1008,6 +1008,15 @@ class DocentesProcessEditedRequest(DiplomadosUrlRequest):
     selected_rows: list[int] | None = None
 
 
+class EgresoOneDriveProcessRequest(DiplomadosUrlRequest):
+    """Para la tabla editable de Egreso Masivo (ver /excel/egreso) — acá no
+    hay overrides de valores (dar de baja no necesita "corregir" nombre/
+    correo, solo elegir a quién), solo selected_rows: qué filas tildó el
+    usuario para procesar. None = comportamiento viejo (todas las
+    pendientes)."""
+    selected_rows: list[int] | None = None
+
+
 
 class MatriculacionesPreviewResponse(BaseModel):
     headers: list[str]
@@ -3593,7 +3602,7 @@ async def preview_egreso_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
             # Sin límite de muestra: esta acción da de baja/elimina cuentas de
             # forma permanente, así que conviene poder revisar la lista
             # completa antes de confirmar, no solo los primeros 3.
-            student_details.append({"nombre": nombre or cedula or correo, "correo": correo or cedula})
+            student_details.append({"row_idx": row_idx, "nombre": nombre or cedula or correo, "correo": correo or cedula})
             sample_rows.append({h: v for h, v in zip(headers_raw, row_vals) if h})
 
     return PreviewResponse(
@@ -3606,7 +3615,9 @@ async def preview_egreso_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
     )
 
 @router.post("/excel/egreso", summary="Procesar planilla de Egreso/Eliminación")
-async def import_egreso_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
+async def import_egreso_onedrive(req: EgresoOneDriveProcessRequest) -> BulkResult:
+    """Acepta `selected_rows` opcional desde la tabla editable del frontend
+    — si no viene, procesa todas las filas pendientes como antes."""
     try:
         return await _import_egreso_onedrive_inner(req)
     except HTTPException:
@@ -3617,7 +3628,7 @@ async def import_egreso_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
         print(tb)
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)} | Trace: {tb}")
 
-async def _import_egreso_onedrive_inner(req: DiplomadosUrlRequest) -> BulkResult:
+async def _import_egreso_onedrive_inner(req: EgresoOneDriveProcessRequest) -> BulkResult:
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
     
@@ -3700,6 +3711,10 @@ async def _import_egreso_onedrive_inner(req: DiplomadosUrlRequest) -> BulkResult
             "nombre": nombre or cedula or correo,
             "cedula": cedula,
         })
+
+    if req.selected_rows is not None:
+        _selected = set(req.selected_rows)
+        users_to_process = [u for u in users_to_process if u["r_idx"] in _selected]
 
     if len(users_to_process) > 50:
         raise HTTPException(status_code=400, detail=f"Demasiados registros nuevos pendientes ({len(users_to_process)}). Máximo 50 por ejecución.")
