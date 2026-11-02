@@ -613,6 +613,43 @@ html.dark-mode .canvas-panel { background: var(--card-bg); --panel-line: rgba(25
 /* ── 13. Search box ── */
 .search-box { max-width: 280px; position: relative; }
 
+/* ── 13b. Toolbar en píldora — buscador + filtros + botones de acción
+   redondeados, patrón de referencia tipo "planilla" (Rapifac): una fila
+   compacta arriba de la tabla en vez de controles sueltos. Reusa el único
+   azul de marca (--canvas-blue), sin agregar colores nuevos. */
+.toolbar-pill {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-bottom: 14px;
+}
+.toolbar-pill .form-control,
+.toolbar-pill .form-select {
+  border-radius: 999px;
+}
+.toolbar-pill .search-box { max-width: 260px; }
+.toolbar-pill .search-box .form-control { padding-left: 34px; }
+.toolbar-pill .search-box i.bi-search {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); font-size: .85rem; pointer-events: none;
+}
+.btn-pill {
+  border-radius: 999px; padding: 6px 18px; font-size: .82rem; font-weight: 600;
+  border: 1px solid transparent; white-space: nowrap;
+  background: var(--canvas-blue); color: #fff;
+  transition: background .15s, box-shadow .15s;
+}
+.btn-pill:hover { background: #15399A; color: #fff; }
+.btn-pill:focus-visible { outline: 2px solid var(--canvas-blue); outline-offset: 2px; }
+.btn-pill-outline {
+  border-radius: 999px; padding: 6px 18px; font-size: .82rem; font-weight: 600;
+  border: 1px solid var(--card-border); white-space: nowrap;
+  background: transparent; color: var(--text-primary);
+  transition: border-color .15s, color .15s, background .15s;
+}
+.btn-pill-outline:hover {
+  border-color: var(--canvas-blue); color: var(--canvas-blue); background: var(--accent-light);
+}
+.toolbar-pill .btn-group-end { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
 /* ── 14. Badges & status ── */
 .badge-role { font-size: .7rem; font-weight: 600; }
 .status-dot {

@@ -6,20 +6,27 @@
 <div class="d-flex align-items-center mb-4 gap-3 flex-wrap">
   <div><div class="page-title">Microsoft Teams</div><div class="page-subtitle">Gestión de equipos y miembros del tenant</div></div>
   <div class="ms-auto d-flex gap-2 flex-wrap">
-    <button class="btn btn-primary" onclick="openExcelMembers()"><i class="bi bi-file-earmark-excel-fill me-1"></i>Añadir miembros Excel</button>
-    <a href="/excel/template/teams-members" class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
-    <button class="btn btn-outline-danger" onclick="openTeamsIdDeleteModal()"><i class="bi bi-list-ol me-1"></i>Eliminación Masiva</button>
-    <button class="btn btn-outline-warning" onclick="openDeletedGroupsModal()"><i class="bi bi-recycle me-1"></i>Grupos Eliminados (Papelera)</button>
-    <button class="btn btn-outline-info" onclick="openGroupMembersModal()"><i class="bi bi-person-plus-fill me-1"></i>Agregar a Grupo por ID</button>
+    <button class="btn-pill" onclick="openExcelMembers()"><i class="bi bi-file-earmark-excel-fill me-1"></i>Añadir miembros Excel</button>
+    <a href="/excel/template/teams-members" class="btn-pill-outline"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
+    <button class="btn-pill-outline" onclick="openTeamsIdDeleteModal()"><i class="bi bi-list-ol me-1"></i>Eliminación Masiva</button>
+    <button class="btn-pill-outline" onclick="openDeletedGroupsModal()"><i class="bi bi-recycle me-1"></i>Grupos Eliminados (Papelera)</button>
+    <button class="btn-pill-outline" onclick="openGroupMembersModal()"><i class="bi bi-person-plus-fill me-1"></i>Agregar a Grupo por ID</button>
   </div>
 </div>
 
 <div class="table-card">
   <div class="card-header flex-wrap gap-2">
-    <input type="text" id="searchTeam" class="form-control search-box" placeholder="🔍 Buscar Team por nombre..." oninput="debouncedLoadTeams(this.value)">
-    <span class="ms-auto text-muted small" id="teamCount"></span>
-    <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToExcel('tableWrap','teams_equipos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadTeams()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise"></i></button>
+    <div class="toolbar-pill flex-grow-1 mb-0">
+      <div class="search-box">
+        <i class="bi bi-search"></i>
+        <input type="text" id="searchTeam" class="form-control" placeholder="Buscar Team por nombre..." oninput="debouncedLoadTeams(this.value)">
+      </div>
+      <span class="text-muted small" id="teamCount"></span>
+      <div class="btn-group-end">
+        <button type="button" class="btn-pill-outline" onclick="exportTableToExcel('tableWrap','teams_equipos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down me-1"></i>Exportar</button>
+        <button type="button" class="btn-pill" onclick="loadTeams()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+      </div>
+    </div>
   </div>
   <div id="tableWrap" class="table-responsive">
     <div class="text-center py-5"><span class="spinner-border"></span></div>
