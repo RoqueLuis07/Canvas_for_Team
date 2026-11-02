@@ -170,6 +170,106 @@ class HttpTeamsClient implements TeamsClient
     }
 
     /**
+     * Puerto de `list_disabled_users_with_licenses` de producción: cuentas
+     * deshabilitadas con licencias asignadas, resolviendo cada SKU ID a un
+     * nombre legible vía /subscribedSkus (una sola llamada extra, cacheada
+     * dentro de este mismo request).
+     */
+    public function listOrphanedLicenses(): array
+    {
+        $usuarios = $this->client()
+            ->get(self::GRAPH_BASE_URL.'/users', [
+                '$select' => 'id,displayName,userPrincipalName,accountEnabled,assignedLicenses',
+                '$filter' => 'accountEnabled eq false',
+            ])
+            ->throw()
+            ->json('value', []);
+
+        $conLicencia = array_values(array_filter($usuarios, fn (array $u) => ! empty($u['assignedLicenses'])));
+
+        if ($conLicencia === []) {
+            return [];
+        }
+
+        $skus = $this->client()
+            ->get(self::GRAPH_BASE_URL.'/subscribedSkus')
+            ->throw()
+            ->json('value', []);
+
+        $nombresPorSku = [];
+        foreach ($skus as $sku) {
+            if (! empty($sku['skuId'])) {
+                $nombresPorSku[$sku['skuId']] = $sku['skuPartNumber'] ?? $sku['skuId'];
+            }
+        }
+
+        return array_map(function (array $u) use ($nombresPorSku): array {
+            return [
+                'id' => (string) $u['id'],
+                'display_name' => (string) ($u['displayName'] ?? ''),
+                'upn' => (string) ($u['userPrincipalName'] ?? ''),
+                'licenses' => array_map(
+                    fn (array $lic) => $nombresPorSku[$lic['skuId'] ?? ''] ?? ($lic['skuId'] ?? ''),
+                    $u['assignedLicenses'] ?? [],
+                ),
+            ];
+        }, $conLicencia);
+    }
+
+    /**
+     * Puerto de `get_inactive_users` de producción: cuentas habilitadas sin
+     * inicio de sesión en los últimos $minDaysInactive días (o que nunca
+     * iniciaron sesión), vía el campo `signInActivity` de Graph.
+     */
+    public function listInactiveUsers(int $minDaysInactive): array
+    {
+        $usuarios = $this->client()
+            ->get(self::GRAPH_BASE_URL.'/users', [
+                '$select' => 'id,displayName,userPrincipalName,accountEnabled,signInActivity',
+                '$filter' => 'accountEnabled eq true',
+            ])
+            ->throw()
+            ->json('value', []);
+
+        $limite = now()->subDays($minDaysInactive);
+        $inactivos = [];
+
+        foreach ($usuarios as $u) {
+            $ultimoAcceso = $u['signInActivity']['lastSignInDateTime'] ?? null;
+
+            if ($ultimoAcceso === null) {
+                $inactivos[] = $this->mapInactiveUser($u, null);
+
+                continue;
+            }
+
+            try {
+                if (\Illuminate\Support\Carbon::parse($ultimoAcceso)->lt($limite)) {
+                    $inactivos[] = $this->mapInactiveUser($u, $ultimoAcceso);
+                }
+            } catch (\Throwable) {
+                // Fecha no parseable: se ignora la fila, igual que producción
+                // descarta silenciosamente cualquier signInActivity inválido.
+            }
+        }
+
+        return $inactivos;
+    }
+
+    /**
+     * @return array{id: string, display_name: string, upn: string, last_signin: ?string}
+     */
+    protected function mapInactiveUser(array $u, ?string $lastSignIn): array
+    {
+        return [
+            'id' => (string) $u['id'],
+            'display_name' => (string) ($u['displayName'] ?? ''),
+            'upn' => (string) ($u['userPrincipalName'] ?? ''),
+            'last_signin' => $lastSignIn,
+        ];
+    }
+
+    /**
      * Normaliza un nombre de equipo para comparar sin importar
      * tildes/mayúsculas/espacios en las puntas. Puerto de
      * `_norm_group_name` de producción.

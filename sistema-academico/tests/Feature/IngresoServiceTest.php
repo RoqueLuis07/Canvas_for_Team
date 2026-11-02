@@ -115,6 +115,16 @@ class IngresoServiceTest extends TestCase
             {
                 return null;
             }
+
+            public function listOrphanedLicenses(): array
+            {
+                return [];
+            }
+
+            public function listInactiveUsers(int $minDaysInactive): array
+            {
+                return [];
+            }
         };
     }
 

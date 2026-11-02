@@ -203,6 +203,16 @@ class InscripcionMateriaServiceTest extends TestCase
             {
                 return null;
             }
+
+            public function listOrphanedLicenses(): array
+            {
+                return [];
+            }
+
+            public function listInactiveUsers(int $minDaysInactive): array
+            {
+                return [];
+            }
         };
 
         $servicioConFalla = new InscripcionMateriaService(
@@ -492,6 +502,16 @@ class InscripcionMateriaServiceTest extends TestCase
             {
                 return null;
             }
+
+            public function listOrphanedLicenses(): array
+            {
+                return [];
+            }
+
+            public function listInactiveUsers(int $minDaysInactive): array
+            {
+                return [];
+            }
         };
         $servicioConFalla = new InscripcionMateriaService($canvas, $teamsCaido, app(SincronizacionService::class));
 
@@ -628,6 +648,16 @@ class InscripcionMateriaServiceTest extends TestCase
             public function findGroupByName(string $name): ?string
             {
                 return null;
+            }
+
+            public function listOrphanedLicenses(): array
+            {
+                return [];
+            }
+
+            public function listInactiveUsers(int $minDaysInactive): array
+            {
+                return [];
             }
         };
         $servicio = new InscripcionMateriaService(app(CanvasClient::class), $teamsCaido, app(SincronizacionService::class));

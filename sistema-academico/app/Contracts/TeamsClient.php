@@ -72,4 +72,23 @@ interface TeamsClient
      * @return string|null El groupId si existe, null si no se encontró.
      */
     public function findGroupByName(string $name): ?string;
+
+    /**
+     * Cuentas deshabilitadas (accountEnabled=false) que todavía tienen
+     * licencias asignadas — asientos pagos ocupados por cuentas
+     * abandonadas, candidatas a liberar con removeAllLicenses().
+     *
+     * @return list<array{id: string, display_name: string, upn: string, licenses: list<string>}>
+     */
+    public function listOrphanedLicenses(): array;
+
+    /**
+     * Cuentas habilitadas sin inicio de sesión en los últimos
+     * $minDaysInactive días (o que nunca iniciaron sesión). Requiere el
+     * permiso de aplicación 'AuditLog.Read.All' con consentimiento de
+     * administrador — Graph devuelve 403 al pedir `signInActivity` sin él.
+     *
+     * @return list<array{id: string, display_name: string, upn: string, last_signin: ?string}>
+     */
+    public function listInactiveUsers(int $minDaysInactive): array;
 }

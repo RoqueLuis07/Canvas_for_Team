@@ -111,6 +111,28 @@ class NullTeamsClient implements TeamsClient
         return self::$groupsByName[$this->normalizeGroupName($name)] ?? null;
     }
 
+    /**
+     * Sin credenciales reales no hay licencias que reportar — lista vacía
+     * en vez de inventar datos de ejemplo.
+     */
+    public function listOrphanedLicenses(): array
+    {
+        Log::info('[Teams simulado] Reporte de licencias huérfanas simulado (vacío)');
+
+        return [];
+    }
+
+    /**
+     * Sin credenciales reales no hay historial de inicio de sesión que
+     * consultar — lista vacía en vez de inventar datos de ejemplo.
+     */
+    public function listInactiveUsers(int $minDaysInactive): array
+    {
+        Log::info("[Teams simulado] Reporte de usuarios inactivos simulado (vacío, >{$minDaysInactive} días)");
+
+        return [];
+    }
+
     protected function normalizeGroupName(string $name): string
     {
         $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name) ?: $name;

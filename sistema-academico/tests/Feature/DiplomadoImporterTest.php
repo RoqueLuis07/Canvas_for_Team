@@ -150,6 +150,16 @@ class DiplomadoImporterTest extends TestCase
             {
                 return $this->grupoExistente;
             }
+
+            public function listOrphanedLicenses(): array
+            {
+                return [];
+            }
+
+            public function listInactiveUsers(int $minDaysInactive): array
+            {
+                return [];
+            }
         };
     }
 

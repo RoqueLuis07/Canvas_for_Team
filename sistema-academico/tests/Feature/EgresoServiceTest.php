@@ -118,6 +118,16 @@ class EgresoServiceTest extends TestCase
             {
                 return null;
             }
+
+            public function listOrphanedLicenses(): array
+            {
+                return [];
+            }
+
+            public function listInactiveUsers(int $minDaysInactive): array
+            {
+                return [];
+            }
         };
 
         $service = new EgresoService($canvas, $teams, app(SincronizacionService::class));
@@ -235,6 +245,16 @@ class EgresoServiceTest extends TestCase
             public function findGroupByName(string $name): ?string
             {
                 return null;
+            }
+
+            public function listOrphanedLicenses(): array
+            {
+                return [];
+            }
+
+            public function listInactiveUsers(int $minDaysInactive): array
+            {
+                return [];
             }
         };
 
