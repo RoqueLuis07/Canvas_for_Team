@@ -1190,6 +1190,11 @@ async function previewDocentes(silent = false) {
 
     try {
         const res = await api.post('/excel/docentes-onedrive/preview', { url: url, sheet_name: sheet });
+
+        // Si esta pestaña se cerró mientras el refresco silencioso estaba en
+        // vuelo, no la resucitemos — el usuario la cerró a propósito.
+        if (silent && existingId && !_docTabs[existingId]) return;
+
         const pending = res.sample_rows || [];
         const originalValues = {};
         pending.forEach(r => {
@@ -1633,6 +1638,11 @@ async function previewDiplomados(silent = false) {
 
     try {
         const res = await api.post('/excel/diplomados/preview', { url: url, sheet_name: sheet });
+
+        // Si esta pestaña se cerró mientras el refresco silencioso estaba en
+        // vuelo, no la resucitemos — el usuario la cerró a propósito.
+        if (silent && existingId && !_diplomadosTabs[existingId]) return;
+
         const pending = res.student_details || [];
         const originalValues = {};
         pending.forEach(r => {
@@ -2136,6 +2146,11 @@ async function previewMasivo(silent = false) {
 
     try {
         const res = await api.post('/excel/masivo/preview', { url: url, sheet_name: sheet });
+
+        // Si esta pestaña se cerró mientras el refresco silencioso estaba en
+        // vuelo, no la resucitemos — el usuario la cerró a propósito.
+        if (silent && existingId && !_masivoTabs[existingId]) return;
+
         const pending = res.student_details || [];
         const originalValues = {};
         pending.forEach(r => { originalValues[r.row_idx] = { nombre: r.nombre || '', cedula: r.cedula || '', correo: r.correo || '', telefono: r.telefono || '' }; });
