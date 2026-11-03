@@ -856,6 +856,109 @@ document.getElementById('docRowsTbody')?.addEventListener('paste', e => _handleT
 document.getElementById('diplomadoRowsTbody')?.addEventListener('paste', e => _handleTablePaste('dipl', e), true);
 document.getElementById('masivoRowsTbody')?.addEventListener('paste', e => _handleTablePaste('masivo', e), true);
 
+// ── Auto-actualización de Diplomados/Docentes/Masivo ──────────────────────
+// Cada AUTO_REFRESH_MS, si ese panel tiene una pestaña activa, se vuelve a
+// pedir su preview en silencio (sin toast) y se re-renderiza — así un
+// cambio nuevo en el Excel real (otro admin cargando filas, por ejemplo)
+// aparece solo, sin que haga falta reabrir la pestaña a mano. No hace falta
+// arrancar/parar el timer desde cada lugar donde se abre o cierra una
+// pestaña: el propio chequeo "¿hay pestaña activa?" en cada tick ya cubre
+// eso, y si no hay ninguna pestaña cargada el tick es un no-op barato.
+//
+// Nunca pisa una edición en curso — si cualquiera de esto es cierto para la
+// pestaña activa, el tick de ese ciclo no hace nada y se reintenta en el
+// próximo:
+//   - la pestaña del navegador está en segundo plano (document.hidden)
+//   - hay foco en un input de esa tabla (el usuario está tipeando ahora)
+//   - alguna celda pendiente difiere de originalValues (edición sin guardar)
+//   - hay una fila nueva sin guardar (row_idx < 0, de "Agregar fila" o pegado)
+//   - "Procesar seleccionadas" está corriendo para ese panel ahora mismo
+//     (se detecta por la presencia del spinner que pone setLoading(), no por
+//     btn.disabled solo — ese botón también está disabled con 0 filas
+//     tildadas, que es el estado más común y no debe bloquear el refresco)
+const AUTO_REFRESH_MS = 7000;
+
+function _autoRefreshBlocked(tbodyId, fieldClass, tab, processBtnId) {
+    if (document.hidden) return true;
+    if (!tab) return true;
+
+    const processBtn = document.getElementById(processBtnId);
+    if (processBtn && processBtn.querySelector('.spinner-border')) return true;
+
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return true;
+    if (tbody.contains(document.activeElement)) return true;
+
+    if ((tab.pending || []).some(r => r.row_idx < 0)) return true;
+
+    const pendingTrs = Array.from(tbody.querySelectorAll('tr[data-row-idx]:not([data-upn])'));
+    const hasUnsavedEdit = pendingTrs.some(tr => {
+        const rowIdx = parseInt(tr.dataset.rowIdx, 10);
+        const original = tab.originalValues ? tab.originalValues[rowIdx] : null;
+        if (!original) return false;
+        return Array.from(tr.querySelectorAll(`.${fieldClass}`)).some(input => {
+            const field = input.dataset.field;
+            return input.value.trim() !== (original[field] || '');
+        });
+    });
+    return hasUnsavedEdit;
+}
+
+// Mantiene tildadas las filas que ya lo estaban antes del refresco, para
+// las que su row_idx siga existiendo después — un refresco silencioso no
+// debería desmarcar una selección que el usuario ya hizo.
+function _restoreCheckedRows(tbodyId, checkClass, savedRowIdxs, updateCountFn) {
+    if (savedRowIdxs.size === 0) return;
+    document.querySelectorAll(`#${tbodyId} tr[data-row-idx]:not([data-upn])`).forEach(tr => {
+        const rowIdx = parseInt(tr.dataset.rowIdx, 10);
+        if (!savedRowIdxs.has(rowIdx)) return;
+        const check = tr.querySelector(`.${checkClass}`);
+        if (check) check.checked = true;
+    });
+    updateCountFn();
+}
+
+function _startAutoRefresh(cfg) {
+    let busy = false;
+    setInterval(async () => {
+        if (busy) return;
+        const tab = cfg.tabs()[cfg.activeTabId()];
+        if (_autoRefreshBlocked(cfg.tbodyId, cfg.fieldClass, tab, cfg.processBtnId)) return;
+
+        const savedChecked = new Set(
+            Array.from(document.querySelectorAll(`#${cfg.tbodyId} .${cfg.checkClass}:checked`))
+                .map(cb => parseInt(cb.closest('tr').dataset.rowIdx, 10))
+        );
+
+        busy = true;
+        try {
+            await cfg.previewFn(true);
+            _restoreCheckedRows(cfg.tbodyId, cfg.checkClass, savedChecked, cfg.updateCountFn);
+        } finally {
+            busy = false;
+        }
+    }, AUTO_REFRESH_MS);
+}
+
+_startAutoRefresh({
+    tbodyId: 'diplomadoRowsTbody', fieldClass: 'dipl-field', checkClass: 'dipl-row-check',
+    processBtnId: 'btnProcessSelectedDiplomados',
+    tabs: () => _diplomadosTabs, activeTabId: () => _diplomadosActiveTabId,
+    previewFn: previewDiplomados, updateCountFn: updateDiplomadoSelectedCount,
+});
+_startAutoRefresh({
+    tbodyId: 'docRowsTbody', fieldClass: 'doc-field', checkClass: 'doc-row-check',
+    processBtnId: 'btnProcessSelectedDocentes',
+    tabs: () => _docTabs, activeTabId: () => _docActiveTabId,
+    previewFn: previewDocentes, updateCountFn: updateDocSelectedCount,
+});
+_startAutoRefresh({
+    tbodyId: 'masivoRowsTbody', fieldClass: 'masivo-field', checkClass: 'masivo-row-check',
+    processBtnId: 'btnProcessSelectedMasivo',
+    tabs: () => _masivoTabs, activeTabId: () => _masivoActiveTabId,
+    previewFn: previewMasivo, updateCountFn: updateMasivoSelectedCount,
+});
+
 function toggleProg(pfx) {
     const t = document.getElementById(pfx + '_tipo').value;
     const inp = document.getElementById(pfx + '_programa');
@@ -1075,10 +1178,10 @@ function closeDocTab(tabId) {
     }
 }
 
-async function previewDocentes() {
+async function previewDocentes(silent = false) {
     const url = document.getElementById('doc_url').value;
     const sheet = document.getElementById('doc_sheet').value;
-    if (!url || !sheet) return toast('Completa la URL y la pestaña', 'warning');
+    if (!url || !sheet) return silent ? undefined : toast('Completa la URL y la pestaña', 'warning');
 
     const existingId = _docFindTabByKey(_docTabKey(url, sheet));
     if (!existingId && Object.keys(_docTabs).length >= DOC_MAX_TABS) {
@@ -1100,10 +1203,15 @@ async function previewDocentes() {
         const tabId = existingId || ('doc' + (++_docTabSeq));
         _docTabs[tabId] = { url, sheetName: sheet, pending, done: res.already_processed_details || [], originalValues };
 
+        if (silent && _docActiveTabId !== tabId) {
+            renderDocTabBar();
+            return;
+        }
         switchDocTab(tabId);
-        toast(`Pendientes: ${res.valid_rows} · Ya procesados: ${res.already_processed_details.length}`, 'success');
+        if (!silent) toast(`Pendientes: ${res.valid_rows} · Ya procesados: ${res.already_processed_details.length}`, 'success');
     } catch (e) {
-        toast(e.message, 'danger');
+        if (silent) console.warn('Auto-actualización de Docentes falló:', e.message);
+        else toast(e.message, 'danger');
     }
 }
 
@@ -1513,10 +1621,10 @@ function closeDiplomadoTab(tabId) {
     }
 }
 
-async function previewDiplomados() {
+async function previewDiplomados(silent = false) {
     const url = document.getElementById('diplomadoUrl').value;
     const sheet = document.getElementById('diplomadoSheet').value;
-    if (!url || !sheet) return toast('Completa la URL y la pestaña', 'warning');
+    if (!url || !sheet) return silent ? undefined : toast('Completa la URL y la pestaña', 'warning');
 
     const existingId = _diplFindTabByKey(_diplTabKey(url, sheet));
     if (!existingId && Object.keys(_diplomadosTabs).length >= DIPLOMADOS_MAX_TABS) {
@@ -1543,10 +1651,19 @@ async function previewDiplomados() {
             originalValues,
         };
 
+        // Auto-actualización en segundo plano (ver _startAutoRefresh): si el
+        // usuario cambió de pestaña mientras esta carga estaba en vuelo, no
+        // la forzamos de vuelta a la vista — los datos ya quedaron guardados
+        // en _diplomadosTabs[tabId] arriba, listos para cuando vuelva solo.
+        if (silent && _diplomadosActiveTabId !== tabId) {
+            renderDiplomadoTabBar();
+            return;
+        }
         switchDiplomadoTab(tabId);
-        toast(`Pendientes: ${res.students_to_process} · Ya procesados: ${res.students_already_processed}`, 'success');
+        if (!silent) toast(`Pendientes: ${res.students_to_process} · Ya procesados: ${res.students_already_processed}`, 'success');
     } catch (e) {
-        toast(e.message, 'danger');
+        if (silent) console.warn('Auto-actualización de Diplomados falló:', e.message);
+        else toast(e.message, 'danger');
     }
 }
 
@@ -2007,10 +2124,10 @@ function closeMasivoTab(tabId) {
     }
 }
 
-async function previewMasivo() {
+async function previewMasivo(silent = false) {
     const url = document.getElementById('masivoUrl').value;
     const sheet = document.getElementById('masivoSheet').value;
-    if (!url || !sheet) return toast('Completa la URL y la pestaña', 'warning');
+    if (!url || !sheet) return silent ? undefined : toast('Completa la URL y la pestaña', 'warning');
 
     const existingId = _masivoFindTabByKey(_masivoTabKey(url, sheet));
     if (!existingId && Object.keys(_masivoTabs).length >= MASIVO_MAX_TABS) {
@@ -2026,10 +2143,15 @@ async function previewMasivo() {
         const tabId = existingId || ('masivo' + (++_masivoTabSeq));
         _masivoTabs[tabId] = { url, sheetName: sheet, pending, done: res.already_processed_details || [], originalValues };
 
+        if (silent && _masivoActiveTabId !== tabId) {
+            renderMasivoTabBar();
+            return;
+        }
         switchMasivoTab(tabId);
-        toast(`Pendientes: ${res.students_to_process} · Ya procesados: ${res.students_already_processed}`, 'success');
+        if (!silent) toast(`Pendientes: ${res.students_to_process} · Ya procesados: ${res.students_already_processed}`, 'success');
     } catch (e) {
-        toast(e.message, 'danger');
+        if (silent) console.warn('Auto-actualización de Masivo falló:', e.message);
+        else toast(e.message, 'danger');
     }
 }
 
