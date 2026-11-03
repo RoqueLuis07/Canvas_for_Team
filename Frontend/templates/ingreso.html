@@ -147,8 +147,11 @@
           <div class="row g-3">
             <div class="col-md-6">
               <div class="card border-0 h-100">
-                <div class="card-header bg-success-subtle text-success-emphasis py-2">
-                  <i class="bi bi-check-circle me-2"></i>Éxitos (<span id="docSuccessCount">0</span>)
+                <div class="card-header bg-success-subtle text-success-emphasis py-2 d-flex justify-content-between align-items-center">
+                  <span><i class="bi bi-check-circle me-2"></i>Éxitos (<span id="docSuccessCount">0</span>)</span>
+                  <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="_copyEmailsToClipboard(_docLastEmails)" title="Copiar todos los correos creados">
+                    <i class="bi bi-clipboard"></i>
+                  </button>
                 </div>
                 <div class="card-body p-0">
                   <ul class="list-group list-group-flush" id="docSuccessList" style="max-height: 200px; overflow-y: auto;"></ul>
@@ -281,7 +284,12 @@
                   <div class="row g-3">
                     <div class="col-md-6">
                       <div class="card border-0 h-100">
-                        <div class="card-header bg-success-subtle text-success-emphasis fw-bold py-2"><i class="bi bi-check2-all me-1"></i>Éxitos (<span id="diplomadoSuccessCount">0</span>)</div>
+                        <div class="card-header bg-success-subtle text-success-emphasis fw-bold py-2 d-flex justify-content-between align-items-center">
+                          <span><i class="bi bi-check2-all me-1"></i>Éxitos (<span id="diplomadoSuccessCount">0</span>)</span>
+                          <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="_copyEmailsToClipboard(_diplomadosLastEmails)" title="Copiar todos los correos creados">
+                            <i class="bi bi-clipboard"></i>
+                          </button>
+                        </div>
                         <ul class="list-group list-group-flush" id="diplomadoSuccessList" style="max-height: 250px; overflow-y:auto;"></ul>
                       </div>
                     </div>
@@ -375,7 +383,12 @@
                   <div class="row g-3">
                     <div class="col-md-6">
                       <div class="card border-0 h-100">
-                        <div class="card-header bg-success-subtle text-success-emphasis fw-bold py-2"><i class="bi bi-check2-all me-1"></i>Éxitos (<span id="masivoSuccessCount">0</span>)</div>
+                        <div class="card-header bg-success-subtle text-success-emphasis fw-bold py-2 d-flex justify-content-between align-items-center">
+                          <span><i class="bi bi-check2-all me-1"></i>Éxitos (<span id="masivoSuccessCount">0</span>)</span>
+                          <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="_copyEmailsToClipboard(_masivoLastEmails)" title="Copiar todos los correos creados">
+                            <i class="bi bi-clipboard"></i>
+                          </button>
+                        </div>
                         <ul class="list-group list-group-flush" id="masivoSuccessList" style="max-height: 250px; overflow-y:auto;"></ul>
                       </div>
                     </div>
@@ -959,6 +972,27 @@ _startAutoRefresh({
     previewFn: previewMasivo, updateCountFn: updateMasivoSelectedCount,
 });
 
+// ── Copiar todos los correos creados en la última tanda procesada ─────────
+// Guardado en _xLastEmails justo después de armar cada lista de Éxitos, para
+// que el botón "Copiar correos" del panel correspondiente los tenga listos
+// sin volver a pedirle nada al backend — pensado para pegar directo en
+// Canvas después de una carga masiva/diplomados/docentes.
+let _docLastEmails = [];
+let _diplomadosLastEmails = [];
+let _masivoLastEmails = [];
+
+async function _copyEmailsToClipboard(emails) {
+    const list = (emails || []).filter(Boolean);
+    if (!list.length) return toast('No hay correos para copiar todavía — procesá primero.', 'warning');
+    const text = list.join('\n');
+    try {
+        await navigator.clipboard.writeText(text);
+        toast(`${list.length} correo${list.length !== 1 ? 's' : ''} copiado${list.length !== 1 ? 's' : ''} al portapapeles`, 'success');
+    } catch (e) {
+        toast('No se pudo copiar al portapapeles.', 'danger');
+    }
+}
+
 function toggleProg(pfx) {
     const t = document.getElementById(pfx + '_tipo').value;
     const inp = document.getElementById(pfx + '_programa');
@@ -1447,8 +1481,9 @@ async function processSelectedDocentes() {
         });
         document.getElementById('docSuccessCount').innerText = res.succeeded.length;
         document.getElementById('docErrorCount').innerText = res.failed.length;
-        
-        document.getElementById('docSuccessList').innerHTML = res.succeeded.map(r => 
+        _docLastEmails = res.succeeded.map(r => r.login_id).filter(Boolean);
+
+        document.getElementById('docSuccessList').innerHTML = res.succeeded.map(r =>
             `<li class="list-group-item py-1 small">
                 <strong>${r.nombre}</strong> (${r.login_id})
                 ${r.canvas === 'creado' ? '<span class="badge bg-success ms-1">Canvas</span>' : (r.canvas === 'existía' ? '<span class="badge bg-info ms-1">Canvas (Ya Existía)</span>' : '')}
@@ -1932,6 +1967,7 @@ function startDiplomadosJobPolling(jobId, btn) {
     document.getElementById('diplomadoErrorCount').innerText = '0';
     document.getElementById('diplomadoSuccessList').innerHTML = '';
     document.getElementById('diplomadoErrorList').innerHTML = `<li class="list-group-item py-1 small text-muted">Procesando en segundo plano (Trabajo #${jobId})...</li>`;
+    _diplomadosLastEmails = [];
 
     _diplomadosJobPollInterval = setInterval(async () => {
         try {
@@ -1944,6 +1980,7 @@ function startDiplomadosJobPolling(jobId, btn) {
 
             document.getElementById('diplomadoSuccessCount').innerText = job.result_count || succeeded.length;
             document.getElementById('diplomadoErrorCount').innerText = job.error_count || failed.length;
+            _diplomadosLastEmails = succeeded.map(r => r.login_id).filter(Boolean);
 
             document.getElementById('diplomadoSuccessList').innerHTML = succeeded.map(r =>
                 `<li class="list-group-item py-1 small">
@@ -2345,7 +2382,8 @@ async function processSelectedMasivo() {
         });
         document.getElementById('masivoSuccessCount').innerText = res.succeeded.length;
         document.getElementById('masivoErrorCount').innerText = res.failed.length;
-        
+        _masivoLastEmails = res.succeeded.map(r => r.correo).filter(Boolean);
+
         document.getElementById('masivoSuccessList').innerHTML = res.succeeded.map(r =>
             `<li class="list-group-item py-1 small">
                 <strong>${r.nombre || ''}</strong> (${r.correo || ''})${r.mensaje && r.mensaje !== 'OK' ? ' - ' + r.mensaje : ''}
