@@ -591,7 +591,7 @@ function mi_renderHistory(history) {
     }
 
     tbody.innerHTML = history.slice(0, 10).map(h => {
-        const dateStr = new Date(h.timestamp).toLocaleString();
+        const dateStr = new Date(h.timestamp).toLocaleDateString();
         let materiasHtml = h.results.map(r => `<div><span class="badge bg-secondary me-1">${r.materia_id}</span>${r.materia_name}</div>`).join('');
         let canvasHtml = h.results.map(r => `<div>${r.canvas_status === 'OK' ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger" title="'+r.canvas_status+'"></i>'}</div>`).join('');
         let teamsHtml = h.results.map(r => `<div>${r.teams_status === 'OK' ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger" title="'+r.teams_status+'"></i>'}</div>`).join('');

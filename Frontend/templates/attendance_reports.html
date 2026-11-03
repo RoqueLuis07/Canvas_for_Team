@@ -77,9 +77,8 @@ let currentReport = null;
 
 function updateTimestamp() {
   const now = new Date();
-  const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const dateStr = now.toLocaleDateString('es-ES');
-  document.getElementById('lastUpdate').textContent = `Última actualización: ${dateStr} ${timeStr}`;
+  document.getElementById('lastUpdate').textContent = `Última actualización: ${dateStr}`;
 }
 
 function refreshData() {

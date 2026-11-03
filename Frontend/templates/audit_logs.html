@@ -38,7 +38,7 @@
       <table class="table table-sm">
         <thead>
           <tr>
-            <th>Fecha/Hora</th>
+            <th>Fecha</th>
             <th>Usuario</th>
             <th>Método</th>
             <th>Endpoint</th>
@@ -99,7 +99,7 @@ async function loadPage() {
     // Render table
     document.getElementById('auditTableBody').innerHTML = data.logs.map(log => `
       <tr>
-        <td style="font-size: 0.85rem;">${new Date(log.timestamp).toLocaleString('es-ES')}</td>
+        <td style="font-size: 0.85rem;">${new Date(log.timestamp).toLocaleDateString('es-ES')}</td>
         <td><strong>${log.username}</strong></td>
         <td>
           <span style="padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;
@@ -198,9 +198,9 @@ async function exportCsv() {
     }
     const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [
-      ['Fecha/Hora', 'Usuario', 'Método', 'Endpoint', 'Estado', 'IP'].join(';'),
+      ['Fecha', 'Usuario', 'Método', 'Endpoint', 'Estado', 'IP'].join(';'),
       ...data.logs.map(l => [
-        new Date(l.timestamp).toLocaleString('es-ES'),
+        new Date(l.timestamp).toLocaleDateString('es-ES'),
         l.username, l.method, l.endpoint, l.status_code, l.ip_address
       ].map(esc).join(';'))
     ];

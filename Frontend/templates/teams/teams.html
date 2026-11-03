@@ -614,7 +614,7 @@ async function loadDeletedGroups() {
       <tr>
         <td><input class="form-check-input deleted-group-checkbox" type="checkbox" value="${g.id}" onchange="updateSelectedDeletedGroupsCount()"></td>
         <td>${g.displayName || '—'}</td>
-        <td class="small text-muted">${g.deletedDateTime ? new Date(g.deletedDateTime).toLocaleString('es-ES') : '—'}</td>
+        <td class="small text-muted">${g.deletedDateTime ? new Date(g.deletedDateTime).toLocaleDateString('es-ES') : '—'}</td>
       </tr>
     `).join('');
   } catch (e) {

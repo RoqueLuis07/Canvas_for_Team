@@ -311,7 +311,7 @@ async function verifyEmailSent() {
 
 function _fmtDate(iso) {
     if (!iso) return 'Nunca';
-    try { return new Date(iso).toLocaleString('es-PY'); } catch (e) { return iso; }
+    try { return new Date(iso).toLocaleDateString('es-PY'); } catch (e) { return iso; }
 }
 
 async function loadUnusedAccounts() {

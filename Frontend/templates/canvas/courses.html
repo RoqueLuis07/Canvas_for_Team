@@ -1063,7 +1063,7 @@ function downloadAttendanceExcel(courseId, courseName) {
   const rows = [
     [`Reporte de Asistencias — ${courseName}`],
     data.course?.instructor ? [`Docente: ${data.course.instructor}`] : [],
-    [`Generado: ${new Date().toLocaleString('es-PY')}`],
+    [`Generado: ${new Date().toLocaleDateString('es-PY')}`],
     [],
     ['ID', 'Estudiante', 'Login', ...dates, 'Total P', 'Porcentaje'],
   ];
@@ -1159,7 +1159,7 @@ async function doBulkAttendanceDownload() {
       const dates = Object.keys(data.dates || {}).sort();
       const rows = [
         ['Reporte de Asistencias', course.name],
-        ['Generado:', new Date().toLocaleString()],
+        ['Generado:', new Date().toLocaleDateString()],
         [],
         ['Estudiante', 'ID', 'Total', ...dates.map(() => '')],
       ];
