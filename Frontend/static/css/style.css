@@ -1623,6 +1623,28 @@ html.dark-mode .status-icon.status-ok { color: #8FB0ED; }
 html.dark-mode .status-icon.status-error { color: #F3F4F6; }
 html.dark-mode .status-icon.status-error i { color: #8FB0ED; }
 
+/* ── 47. Flow step label — agrupar visualmente un flujo largo en fases
+   claras (ej. "1. Fuente de datos" / "2. Revisar y procesar" en Alta
+   Unificada) sin reestructurar el markup existente: es solo un separador
+   visual que se agrega antes de cada bloque, cada bloque sigue siendo el
+   mismo HTML/ids de siempre. Monocromático, mismo criterio que .tab-bar. */
+.flow-step-label {
+  display: flex; align-items: center; gap: 10px;
+  margin: 28px 0 14px;
+  font-size: .8rem; font-weight: 700; letter-spacing: .02em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+.flow-step-label:first-child { margin-top: 0; }
+.flow-step-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--usil-blue-dark); color: #fff;
+  font-size: .75rem; font-weight: 700;
+}
+html.dark-mode .flow-step-num { background: #8FB0ED; color: #0F2D73; }
+
 /* ── Respeta la preferencia de sistema "reducir movimiento" ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

@@ -1300,18 +1300,30 @@ function openExcelDiplomados() {
 // campos de envio_credenciales.html y los de canvas/courses.html que no
 // tenían NINGÚN tipo de persistencia antes (urlEnvio, fixCoordRoleUrl,
 // fixSisIdUrl, deleteOdUrl).
+//
+// `sheet` (nuevo) empareja cada campo con el <select> de pestañas que
+// fetchXSheets() termina llenando — además de recordar la URL, ahora también
+// se recuerda qué pestaña/hoja se eligió la última vez, y una vez que esas
+// opciones reales llegan (vía fetchXSheets(), disparado arriba por el
+// auto-click) se la vuelve a seleccionar sola y se dispara su evento
+// `change` — el mismo que ya dispara cada preview/habilitación de botón
+// existente (onchange="previewX()" etc.), así no hace falta duplicar esa
+// lógica por panel. Un MutationObserver sobre el <select> detecta el
+// momento en que sus <option> reales llegan (cada fetchXSheets() puebla el
+// select en algún momento después del fetch, ya sea con appendChild o con
+// innerHTML) sin tener que tocar ninguna de esas funciones existentes.
 document.addEventListener('DOMContentLoaded', () => {
     const defaultUrls = {
-        'coursesOdUrl':       { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQARA_HJhg00QKcvL8bD1WvnATEbShmJ6jbq6qzgbWLzqIc?e=BayIS2', btn: 'btnLoadCoursesSheets' },
-        'diplomadoUrl':       { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQBjeh0nYFG7QbZx21y-3U-8AfhP2B9akxz7fo_LK_sKyGo?e=tXi91Q', btn: 'btnLoadDiplomadoSheets' },
-        'mat_url':            { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQCHMuoLYGs9T4NDeid5n9A7AZvphg9oml_g9dt-GYD5tY0?e=d4RKCr', btn: 'btnLoadMatSheets' },
-        'masivoUrl':          { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQA4gwZnz09sSIwlVtQ5bZlmAblW8XRtsRBXTTPnz6UTXjU?e=AlIYI6', btn: 'btnLoadMasivoSheets' },
-        'doc_url':            { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQAXcMN-cm4oQL3gRm2urNcTAeH-gSDKwUwleXVrjyAFcZY?e=GhWnCj', btn: 'btnLoadDocSheets' },
-        'urlEgresoOneDrive':  { url: '', btn: 'btnLoadSheetsEgreso' },
-        'urlEnvio':           { url: '', btn: 'btnLoadSheetsEnvio' },
-        'fixCoordRoleUrl':    { url: '', btn: 'btnLoadFixCoordRoleSheets' },
-        'fixSisIdUrl':        { url: '', btn: 'btnLoadFixSisIdSheets' },
-        'deleteOdUrl':        { url: '', btn: 'btnLoadDeleteSheets' },
+        'coursesOdUrl':       { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQARA_HJhg00QKcvL8bD1WvnATEbShmJ6jbq6qzgbWLzqIc?e=BayIS2', btn: 'btnLoadCoursesSheets', sheet: 'coursesOdSheet' },
+        'diplomadoUrl':       { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQBjeh0nYFG7QbZx21y-3U-8AfhP2B9akxz7fo_LK_sKyGo?e=tXi91Q', btn: 'btnLoadDiplomadoSheets', sheet: 'diplomadoSheet' },
+        'mat_url':            { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQCHMuoLYGs9T4NDeid5n9A7AZvphg9oml_g9dt-GYD5tY0?e=d4RKCr', btn: 'btnLoadMatSheets', sheet: 'mat_sheet' },
+        'masivoUrl':          { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQA4gwZnz09sSIwlVtQ5bZlmAblW8XRtsRBXTTPnz6UTXjU?e=AlIYI6', btn: 'btnLoadMasivoSheets', sheet: 'masivoSheet' },
+        'doc_url':            { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQAXcMN-cm4oQL3gRm2urNcTAeH-gSDKwUwleXVrjyAFcZY?e=GhWnCj', btn: 'btnLoadDocSheets', sheet: 'doc_sheet' },
+        'urlEgresoOneDrive':  { url: '', btn: 'btnLoadSheetsEgreso', sheet: 'sheetEgresoOneDrive' },
+        'urlEnvio':           { url: '', btn: 'btnLoadSheetsEnvio', sheet: 'sheetEnvio' },
+        'fixCoordRoleUrl':    { url: '', btn: 'btnLoadFixCoordRoleSheets', sheet: 'fixCoordRoleSheet' },
+        'fixSisIdUrl':        { url: '', btn: 'btnLoadFixSisIdSheets', sheet: 'fixSisIdSheet' },
+        'deleteOdUrl':        { url: '', btn: 'btnLoadDeleteSheets', sheet: 'deleteOdSheet' },
     };
 
     Object.keys(defaultUrls).forEach(id => {
@@ -1340,6 +1352,45 @@ document.addEventListener('DOMContentLoaded', () => {
         // cargar la página — es justo el caso de un link pegado por primera
         // vez el que más necesita quedar guardado.
         if (btn) btn.addEventListener('click', persistIfValid);
+
+        // Recordar + auto-seleccionar la hoja/pestaña elegida la última vez
+        // para este campo, en cuanto fetchXSheets() la termine de poblar con
+        // opciones reales. Independiente del auto-click de arriba: corre
+        // siempre que exista el <select> emparejado, haya o no `btn`.
+        const sheetEl = cfg.sheet ? document.getElementById(cfg.sheet) : null;
+        if (sheetEl) {
+            let savedSheet = '';
+            try { savedSheet = localStorage.getItem(`onedrive_excel_sheet_${cfg.sheet}`) || ''; } catch (e3) { /* idem */ }
+
+            sheetEl.addEventListener('change', () => {
+                if (sheetEl.value) {
+                    try { localStorage.setItem(`onedrive_excel_sheet_${cfg.sheet}`, sheetEl.value); } catch (e4) { /* idem */ }
+                }
+            });
+
+            if (savedSheet) {
+                let sheetFired = false;
+                const sheetObserver = new MutationObserver(() => {
+                    if (sheetFired) return;
+                    // Recién actuar cuando la opción recordada ya está entre
+                    // las opciones reales — mientras tanto puede haber
+                    // placeholders intermedios ("Cargando...", "Error al
+                    // cargar") que nunca van a matchear, y eso está bien: el
+                    // select se queda en su placeholder por defecto, como
+                    // pide la validación de esta tarea.
+                    const hasOption = Array.from(sheetEl.options).some(o => o.value === savedSheet);
+                    if (!hasOption) return;
+                    sheetFired = true;
+                    sheetEl.value = savedSheet;
+                    // Disparar `change` (no llamar previewX() directo) para
+                    // reusar exactamente el mismo onchange="..." que ya
+                    // dispara cada panel al elegir la pestaña a mano.
+                    sheetEl.dispatchEvent(new Event('change', { bubbles: true }));
+                    sheetObserver.disconnect();
+                });
+                sheetObserver.observe(sheetEl, { childList: true });
+            }
+        }
 
         // Auto-cargar pestañas: si el campo ya quedó con un valor (restaurado
         // o default) al entrar a la página, simular el click en su botón de
