@@ -57,16 +57,14 @@
 
 
 
-<!-- Accordion Creación Masiva (OneDrive) -->
-<div class="accordion mb-4" id="accordionCoursesOneDrive">
-  <div class="accordion-item border-warning shadow-sm">
-    <h2 class="accordion-header" id="headingCoursesOd">
-      <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCoursesOd" aria-expanded="true" aria-controls="collapseCoursesOd" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1));">
-        <i class="bi bi-cloud-arrow-up me-2 text-warning"></i> Carga de Cursos desde Planilla (OneDrive)
-      </button>
-    </h2>
-    <div id="collapseCoursesOd" class="accordion-collapse collapse show" aria-labelledby="headingCoursesOd" data-bs-parent="#accordionCoursesOneDrive">
-      <div class="accordion-body p-4">
+<!-- Antes un accordion de un solo ítem (siempre expandido por defecto,
+     "collapse show" — nada dependía de poder colapsarlo: no hay ningún otro
+     panel para alternar y ningún JS referenciaba collapseCoursesOd). Ya está
+     dentro de la pestaña "create" de arriba, así que envolverlo en otro
+     nivel de acordeón/pestañas no aporta nada — queda como un encabezado
+     simple, mismo criterio que Creación Individual en ingreso.html. -->
+<div class="mb-4">
+      <h5 class="mb-3 text-secondary"><i class="bi bi-cloud-arrow-up me-2"></i>Carga de Cursos desde Planilla (OneDrive)</h5>
         
         <div id="coursesOdFormWrap">
             <div class="alert alert-info">
@@ -115,9 +113,6 @@
             </div>
         </div>
 
-      </div>
-    </div>
-  </div>
 </div>
 
 <div class="row g-3">
@@ -255,7 +250,7 @@
                         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                             <label class="form-label fw-semibold mb-0 text-danger"><i class="bi bi-table me-2"></i>Previsualización</label>
                             <div>
-                                <span class="badge bg-danger me-2" id="deleteToProcess">0 a procesar</span>
+                                <span class="status-icon status-error me-2"><i class="bi bi-exclamation-triangle-fill"></i><span id="deleteToProcess">0 a procesar</span></span>
                                 <span class="badge bg-secondary" id="deleteAlreadyProcessed">0 ignorados</span>
                             </div>
                         </div>
@@ -1002,8 +997,8 @@ async function loadAttendanceData(courseId) {
       <div class="d-flex gap-2 align-items-center mb-3 flex-wrap">
         <span class="badge bg-primary">${students.length} estudiantes</span>
         ${hasData
-          ? `<span class="badge bg-success">${dates.length} fechas registradas</span>`
-          : `<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Sin datos de Roll Call</span>`
+          ? `<span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>${dates.length} fechas registradas</span>`
+          : `<span class="status-icon status-pending"><i class="bi bi-exclamation-triangle"></i>Sin datos de Roll Call</span>`
         }
         ${data.course?.instructor ? `<span class="text-muted small ms-2"><i class="bi bi-person-fill me-1"></i>${data.course.instructor}</span>` : ''}
       </div>
@@ -1486,11 +1481,11 @@ async function previewDeleteOd() {
                 let cellVal = r[h] || '';
                 if (h.toLowerCase().includes('estado') || h.toLowerCase().includes('enviado') || h.toLowerCase().includes('eliminado')) {
                     if (cellVal.toLowerCase() === 'ok' || cellVal.toLowerCase().includes('eliminado') || cellVal.toLowerCase().includes('baja')) {
-                        cellVal = `<span class="badge bg-warning text-dark">${cellVal}</span>`;
+                        cellVal = `<span class="status-icon status-pending"><i class="bi bi-circle"></i>${cellVal}</span>`;
                     } else if (cellVal.toLowerCase().includes('error')) {
-                        cellVal = `<span class="badge bg-danger">${cellVal}</span><span class="badge bg-success ms-1">Reintento</span>`;
+                        cellVal = `<span class="status-icon status-error"><i class="bi bi-x-circle-fill"></i>${cellVal}</span><span class="status-icon status-pending ms-1"><i class="bi bi-arrow-clockwise"></i>Reintento</span>`;
                     } else {
-                        cellVal = `<span class="badge bg-danger">A eliminar</span>`;
+                        cellVal = `<span class="status-icon status-error"><i class="bi bi-exclamation-triangle-fill"></i>A eliminar</span>`;
                     }
                 }
                 rowHtml += `<td>${cellVal}</td>`;
@@ -2283,8 +2278,8 @@ async function previewFixSisId() {
             <tr>
                 <td>${r.nombre || '<span class="text-muted">—</span>'}</td>
                 <td>${r.canvas_id}</td>
-                <td><span class="badge bg-danger">${r.sis_actual}</span></td>
-                <td><span class="badge bg-success">${r.sis_nuevo}</span></td>
+                <td><span class="status-icon status-error"><i class="bi bi-x-circle-fill"></i>${r.sis_actual}</span></td>
+                <td><span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>${r.sis_nuevo}</span></td>
             </tr>
         `).join('') || '<tr><td colspan="4" class="text-center text-muted p-3">No hay cursos pendientes de corrección.</td></tr>';
 
