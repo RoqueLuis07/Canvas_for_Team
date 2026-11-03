@@ -319,8 +319,8 @@ function viewJobDetail(jobId, encodedDataJson) {
 
   const body = `
     <div class="mb-3 d-flex gap-2">
-      <span class="badge bg-success">${okRows.length} exitoso(s)</span>
-      <span class="badge bg-danger">${errRows.length} con error</span>
+      <span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>${okRows.length} exitoso(s)</span>
+      <span class="status-icon status-error"><i class="bi bi-x-circle-fill"></i>${errRows.length} con error</span>
     </div>
     ${errRows.length ? `<h6 class="text-danger">Errores</h6>${errRows.map(r => renderRow(r, true)).join('')}` : ''}
     ${okRows.length ? `<h6 class="${errRows.length ? 'mt-3' : ''}">Exitosos</h6>${okRows.map(r => renderRow(r, false)).join('')}` : ''}

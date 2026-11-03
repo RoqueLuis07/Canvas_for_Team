@@ -69,9 +69,9 @@
 <div id="envioResultWrap" style="display:none;">
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
-      <span class="badge bg-success fs-6 me-2" id="envioToProcess">0 a procesar</span>
+      <span class="status-icon status-ok fs-6 me-2"><i class="bi bi-check-circle-fill"></i><span id="envioToProcess">0 a procesar</span></span>
       <span class="badge bg-secondary fs-6 me-2" id="envioAlreadyProcessed">0 ya enviados</span>
-      <span class="badge bg-warning text-dark fs-6" id="envioNotCreated">0 sin crear todavía</span>
+      <span class="status-icon status-pending fs-6"><i class="bi bi-circle"></i><span id="envioNotCreated">0 sin crear todavía</span></span>
     </div>
     <button class="btn btn-success" id="btnConfirmarEnvio" onclick="confirmarEnvio()">
       <i class="bi bi-envelope-check me-1"></i>Confirmar y Enviar

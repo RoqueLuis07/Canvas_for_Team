@@ -446,11 +446,11 @@ async function openEgresoOneDrive() {
                     let cellVal = r[h] || '';
                     if (h.toLowerCase().includes('estado') || h.toLowerCase().includes('enviado') || h.toLowerCase().includes('desvinculado')) {
                         if (cellVal.toLowerCase() === 'ok' || cellVal.toLowerCase().includes('eliminado') || cellVal.toLowerCase().includes('baja')) {
-                            cellVal = `<span class="badge bg-warning text-dark">${cellVal}</span>`;
+                            cellVal = `<span class="status-icon status-pending"><i class="bi bi-circle"></i>${cellVal}</span>`;
                         } else if (cellVal.toLowerCase().includes('error')) {
-                            cellVal = `<span class="badge bg-danger">${cellVal}</span><span class="badge bg-success ms-1">Reintento</span>`;
+                            cellVal = `<span class="status-icon status-error"><i class="bi bi-x-circle-fill"></i>${cellVal}</span><span class="status-icon status-pending ms-1"><i class="bi bi-arrow-clockwise"></i>Reintento</span>`;
                         } else {
-                            cellVal = `<span class="badge bg-success">A procesar</span>`;
+                            cellVal = `<span class="status-icon status-error"><i class="bi bi-exclamation-triangle-fill"></i>A procesar</span>`;
                         }
                     }
                     rowHtml += `<td>${cellVal}</td>`;

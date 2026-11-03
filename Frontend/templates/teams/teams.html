@@ -654,7 +654,7 @@ async function executeRestoreAndCheck() {
       }
       const hasExtra = (r.members_count ?? 0) > (r.owners_count ?? 0);
       const badge = hasExtra
-        ? '<span class="badge bg-success">Sí — tenía gente matriculada</span>'
+        ? '<span class="status-icon status-pending"><i class="bi bi-exclamation-triangle"></i>Sí — tenía gente matriculada</span>'
         : '<span class="badge bg-secondary">No — solo owners (parece duplicado vacío)</span>';
       return `
         <tr>

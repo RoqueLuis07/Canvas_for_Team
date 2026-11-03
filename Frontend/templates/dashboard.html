@@ -314,7 +314,11 @@ async function loadStats() {
       const rows = teams.slice(0, 8).map(t => {
         const initial = (t.displayName || '?')[0].toUpperCase();
         const vis     = t.visibility;
-        const visCls  = vis === 'Public' ? 'bg-success-subtle text-success-emphasis' : vis === 'Private' ? 'bg-warning-subtle text-warning-emphasis' : 'bg-secondary-subtle text-secondary-emphasis';
+        // Etiqueta de clasificación (no un estado ok/pendiente/error), así
+        // que se queda como badge compacto (el .status-icon con ícono+texto
+        // no entra bien en esta fila tan angosta de micro-avatar) — solo se
+        // le sacan los colores amarillo/verde de Bootstrap.
+        const visCls  = vis === 'Public' ? 'bg-primary-subtle text-primary-emphasis' : 'bg-secondary-subtle text-secondary-emphasis';
         return `<div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
           <div class="micro-avatar micro-avatar-purple">${initial}</div>
           <div class="flex-grow-1 overflow-hidden">
@@ -338,7 +342,7 @@ async function loadStats() {
       
       const rows = courses.slice(0, 8).map(c => {
         const state   = c.workflow_state;
-        const statCls = state === 'available' ? 'bg-success-subtle text-success-emphasis' : state === 'completed' ? 'bg-secondary-subtle text-secondary-emphasis' : 'bg-warning-subtle text-warning-emphasis';
+        const statCls = state === 'available' ? 'bg-primary-subtle text-primary-emphasis' : 'bg-secondary-subtle text-secondary-emphasis';
         const statLbl = state === 'available' ? 'Publicado' : state === 'completed' ? 'Completado' : state || '—';
         return `<div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
           <div class="flex-grow-1 overflow-hidden">
@@ -444,7 +448,7 @@ async function loadAudit() {
           <div class="small">
             <span class="fw-semibold">${label}</span>
             <span class="text-muted"> ${e.resource}</span>
-            ${e.status !== 'ok' ? '<span class="badge bg-danger-subtle text-danger-emphasis ms-1 badge-xs">error</span>' : ''}
+            ${e.status !== 'ok' ? '<span class="status-icon status-error ms-1"><i class="bi bi-x-circle-fill"></i>error</span>' : ''}
           </div>
           ${e.detail ? `<div class="text-muted text-truncate small">${e.detail}</div>` : ''}
           <div class="text-muted small">${e.user} · ${timeAgo(e.ts)}</div>

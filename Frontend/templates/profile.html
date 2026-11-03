@@ -260,7 +260,9 @@ async function renderProfile() {
       document.getElementById('statGrupos').textContent = groups.length;
       document.getElementById('statDoc').textContent = docCount;
       document.getElementById('canvasBadge').textContent = `${_enrollments.length} cursos`;
-      document.getElementById('canvasBadge').className = 'badge bg-warning text-dark ms-2';
+      // Chip informativo junto a otros badges neutros del header (no es un
+      // estado ok/pendiente/error) — se le saca el amarillo de Bootstrap.
+      document.getElementById('canvasBadge').className = 'badge bg-primary-subtle text-primary-emphasis ms-2';
 
       // Augment badges with Canvas user info
       document.getElementById('pBadges').insertAdjacentHTML('beforeend',
@@ -295,7 +297,7 @@ async function renderProfile() {
       );
       if (u.accountEnabled === false) {
         document.getElementById('pBadges').insertAdjacentHTML('beforeend',
-          `<span class="badge bg-danger">Cuenta deshabilitada</span>`
+          `<span class="status-icon status-error"><i class="bi bi-exclamation-triangle-fill"></i>Cuenta deshabilitada</span>`
         );
       }
 

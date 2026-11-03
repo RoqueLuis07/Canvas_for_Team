@@ -395,9 +395,9 @@ async function loadSinglePlatform() {
         const res = await api.get('/reports/single-platform-accounts');
 
         document.getElementById('singlePlatformSummary').innerHTML = `
-            <span class="badge bg-success me-2">${res.total_both_platforms} en ambas plataformas</span>
-            <span class="badge bg-warning text-dark me-2">${res.total_only_canvas} solo en Canvas</span>
-            <span class="badge bg-warning text-dark">${res.total_only_azure} solo en Teams/Azure AD</span>
+            <span class="status-icon status-ok me-2"><i class="bi bi-check-circle-fill"></i>${res.total_both_platforms} en ambas plataformas</span>
+            <span class="status-icon status-pending me-2"><i class="bi bi-exclamation-triangle"></i>${res.total_only_canvas} solo en Canvas</span>
+            <span class="status-icon status-pending"><i class="bi bi-exclamation-triangle"></i>${res.total_only_azure} solo en Teams/Azure AD</span>
             <div class="mt-1">Total: ${res.total_canvas_users} en Canvas, ${res.total_azure_users} en Teams/Azure AD.</div>
         `;
 

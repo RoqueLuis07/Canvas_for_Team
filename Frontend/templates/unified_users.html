@@ -120,8 +120,8 @@
 
     const tStatus = teamsUser
       ? (teamsUser.accountEnabled
-        ? '<span class="badge bg-success">Activo en Teams</span>'
-        : '<span class="badge bg-danger">Bloqueado en Teams</span>')
+        ? '<span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>Activo en Teams</span>'
+        : '<span class="status-icon status-error"><i class="bi bi-exclamation-triangle-fill"></i>Bloqueado en Teams</span>')
       : '';
       
     const initials = displayName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
