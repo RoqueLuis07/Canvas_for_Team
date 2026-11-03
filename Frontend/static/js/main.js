@@ -1289,33 +1289,93 @@ function openExcelDiplomados() {
 
 
 
-// Restore OneDrive URL across pages with defaults
+// Restore OneDrive URL across pages with defaults, y disparar "Cargar
+// Pestañas" solo una vez para ese campo ya quedó resuelto (restaurado o
+// default) — antes este bloque solo rellenaba el <input>, pero el usuario
+// seguía teniendo que clickear "Cargar Pestañas" a mano en cada sesión aunque
+// el link ya estuviera ahí. `btn` empareja cada campo con el botón que ya
+// dispara su propio fetchXSheets()/manejo de errores existente — no se
+// duplica esa lógica acá, solo se simula el click una vez resuelto el valor.
+// Se agregaron acá (sin `url` default, solo persistencia+auto-click) los
+// campos de envio_credenciales.html y los de canvas/courses.html que no
+// tenían NINGÚN tipo de persistencia antes (urlEnvio, fixCoordRoleUrl,
+// fixSisIdUrl, deleteOdUrl).
 document.addEventListener('DOMContentLoaded', () => {
     const defaultUrls = {
-        'coursesOdUrl': 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQARA_HJhg00QKcvL8bD1WvnATEbShmJ6jbq6qzgbWLzqIc?e=BayIS2',
-        'diplomadoUrl': 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQBjeh0nYFG7QbZx21y-3U-8AfhP2B9akxz7fo_LK_sKyGo?e=tXi91Q',
-        'mat_url': 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQCHMuoLYGs9T4NDeid5n9A7AZvphg9oml_g9dt-GYD5tY0?e=d4RKCr',
-        'masivoUrl': 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQA4gwZnz09sSIwlVtQ5bZlmAblW8XRtsRBXTTPnz6UTXjU?e=AlIYI6',
-        'doc_url': 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQAXcMN-cm4oQL3gRm2urNcTAeH-gSDKwUwleXVrjyAFcZY?e=GhWnCj',
-        'urlEgresoOneDrive': ''
+        'coursesOdUrl':       { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQARA_HJhg00QKcvL8bD1WvnATEbShmJ6jbq6qzgbWLzqIc?e=BayIS2', btn: 'btnLoadCoursesSheets' },
+        'diplomadoUrl':       { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQBjeh0nYFG7QbZx21y-3U-8AfhP2B9akxz7fo_LK_sKyGo?e=tXi91Q', btn: 'btnLoadDiplomadoSheets' },
+        'mat_url':            { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQCHMuoLYGs9T4NDeid5n9A7AZvphg9oml_g9dt-GYD5tY0?e=d4RKCr', btn: 'btnLoadMatSheets' },
+        'masivoUrl':          { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQA4gwZnz09sSIwlVtQ5bZlmAblW8XRtsRBXTTPnz6UTXjU?e=AlIYI6', btn: 'btnLoadMasivoSheets' },
+        'doc_url':            { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQAXcMN-cm4oQL3gRm2urNcTAeH-gSDKwUwleXVrjyAFcZY?e=GhWnCj', btn: 'btnLoadDocSheets' },
+        'urlEgresoOneDrive':  { url: '', btn: 'btnLoadSheetsEgreso' },
+        'urlEnvio':           { url: '', btn: 'btnLoadSheetsEnvio' },
+        'fixCoordRoleUrl':    { url: '', btn: 'btnLoadFixCoordRoleSheets' },
+        'fixSisIdUrl':        { url: '', btn: 'btnLoadFixSisIdSheets' },
+        'deleteOdUrl':        { url: '', btn: 'btnLoadDeleteSheets' },
     };
-    
+
     Object.keys(defaultUrls).forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            const savedUrl = localStorage.getItem(`onedrive_excel_url_${id}`);
-            if (savedUrl) {
-                el.value = savedUrl;
-            } else if (defaultUrls[id]) {
-                el.value = defaultUrls[id];
+        if (!el) return;
+        const cfg = defaultUrls[id];
+
+        let savedUrl = '';
+        try { savedUrl = localStorage.getItem(`onedrive_excel_url_${id}`) || ''; } catch (e) { /* localStorage puede fallar (ventana privada, etc.) — seguir sin persistencia */ }
+
+        const resolvedUrl = savedUrl || cfg.url;
+        if (resolvedUrl) el.value = resolvedUrl;
+
+        const persistIfValid = () => {
+            if (el.value && el.value.includes('http')) {
+                try { localStorage.setItem(`onedrive_excel_url_${id}`, el.value); } catch (e2) { /* idem */ }
             }
-            
-            el.addEventListener('change', (e) => {
-                if (e.target.value && e.target.value.includes('http')) {
-                    localStorage.setItem(`onedrive_excel_url_${id}`, e.target.value);
-                }
-            });
+        };
+        el.addEventListener('change', persistIfValid);
+
+        const btn = cfg.btn ? document.getElementById(cfg.btn) : null;
+        // También guardar al clickear el botón (no solo en `change`, que
+        // depende de blur): pegar un link nuevo y clickear "Cargar Pestañas"
+        // sin salir antes del campo no debe perderse para la próxima sesión.
+        // Esto debe valer siempre, no solo cuando ya había un valor al
+        // cargar la página — es justo el caso de un link pegado por primera
+        // vez el que más necesita quedar guardado.
+        if (btn) btn.addEventListener('click', persistIfValid);
+
+        // Auto-cargar pestañas: si el campo ya quedó con un valor (restaurado
+        // o default) al entrar a la página, simular el click en su botón de
+        // "Cargar Pestañas" para no obligar a un click manual cada sesión.
+        // Varios de estos campos viven dentro de una pestaña (.tab-pane) o
+        // acordeón (.accordion-collapse) oculto por defecto — diplomadoUrl/
+        // doc_url/masivoUrl en ingreso.html, por ejemplo, están los 3 detrás
+        // de pestañas que no están activas al cargar la página. Si se
+        // disparara el auto-click ahí mismo, cada carga de esa página
+        // bajaría 3-4 Excels de OneDrive de una sola vez aunque el usuario
+        // solo vaya a mirar uno — en vez de eso, se espera a que esa pestaña/
+        // acordeón se abra por primera vez para recién ahí cargar, y solo
+        // una vez por carga de página (no en cada apertura).
+        if (!resolvedUrl || !btn) return;
+
+        if (el.offsetParent !== null) {
+            btn.click();
+            return;
         }
+
+        const pane = el.closest('.tab-pane, .accordion-collapse');
+        if (!pane) { btn.click(); return; } // no se encontró contenedor conocido — más seguro cargar ya que asumir
+
+        let fired = false;
+        const tryFire = () => {
+            if (fired || el.offsetParent === null) return;
+            fired = true;
+            btn.click();
+        };
+        // shown.bs.tab / shown.bs.collapse se emiten burbujeando hasta
+        // document (eventos custom de Bootstrap 5) — un solo listener acá
+        // cubre tanto pestañas (.tab-pane) como acordeones
+        // (.accordion-collapse) sin tener que ubicar el botón disparador
+        // exacto de cada uno.
+        document.addEventListener('shown.bs.tab', tryFire);
+        document.addEventListener('shown.bs.collapse', tryFire);
     });
 });
 
