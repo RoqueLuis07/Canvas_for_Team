@@ -138,9 +138,18 @@ async def init_db():
                 display_name TEXT NOT NULL,
                 mail TEXT UNIQUE,
                 user_principal_name TEXT,
+                mobile_phone TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+        """)
+
+        # Migración: instalaciones ya existentes no tienen la columna de
+        # teléfono — antes ninguna función pedía mobilePhone a Graph, así
+        # que nunca llegaba ni a esta tabla ni al frontend. Idempotente,
+        # igual que la migración de canvas_enrollments de arriba.
+        cursor.execute("""
+            ALTER TABLE azure_users ADD COLUMN IF NOT EXISTS mobile_phone TEXT;
         """)
 
         cursor.execute("""
@@ -446,18 +455,20 @@ async def upsert_azure_users(users: list) -> int:
                 try:
                     cursor.execute("""
                         INSERT INTO azure_users
-                            (id, display_name, mail, user_principal_name, updated_at)
-                        VALUES (%s, %s, %s, %s, %s)
+                            (id, display_name, mail, user_principal_name, mobile_phone, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE SET
                             display_name = EXCLUDED.display_name,
                             mail = EXCLUDED.mail,
                             user_principal_name = EXCLUDED.user_principal_name,
+                            mobile_phone = EXCLUDED.mobile_phone,
                             updated_at = EXCLUDED.updated_at
                     """, (
                         user.get('id'),
                         user.get('displayName', ''),
                         user.get('mail') or None,
                         user.get('userPrincipalName', ''),
+                        user.get('mobilePhone') or None,
                         datetime.utcnow()
                     ))
                     count += 1
@@ -473,14 +484,26 @@ async def upsert_azure_users(users: list) -> int:
 
 
 async def get_azure_users(search: str | None = None) -> list:
-    """Return Azure AD users from local DB, optionally filtered by search term."""
+    """Return Azure AD users from local DB, optionally filtered by search term.
+
+    Devuelve las claves en camelCase (displayName/userPrincipalName/
+    mobilePhone), igual que los objetos que vienen directo de Microsoft
+    Graph — el frontend (ej. autocomplete de `/teams/users` en teams.html,
+    que lee `u.displayName`/`u.userPrincipalName`) no distingue si la
+    respuesta vino de acá o de Graph en vivo, así que ambos caminos tienen
+    que tener la misma forma. Antes esta función devolvía las columnas tal
+    cual (snake_case: display_name/user_principal_name), lo que rompía
+    silenciosamente esos campos en el frontend cada vez que la caché local
+    atendía el pedido en vez de Graph — un bug preexistente, no introducido
+    acá, que se corrige de paso porque el teléfono necesitaba el mismo
+    tratamiento para no repetir el mismo problema."""
     try:
         def _get(conn):
             cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             if search:
                 q = f"%{search.lower()}%"
                 cursor.execute("""
-                    SELECT id, display_name, mail, user_principal_name
+                    SELECT id, display_name, mail, user_principal_name, mobile_phone
                     FROM azure_users
                     WHERE lower(display_name) LIKE %s
                        OR lower(user_principal_name) LIKE %s
@@ -489,10 +512,19 @@ async def get_azure_users(search: str | None = None) -> list:
                 """, (q, q, q))
             else:
                 cursor.execute("""
-                    SELECT id, display_name, mail, user_principal_name
+                    SELECT id, display_name, mail, user_principal_name, mobile_phone
                     FROM azure_users ORDER BY display_name
                 """)
-            return [dict(r) for r in cursor.fetchall()]
+            return [
+                {
+                    "id": r["id"],
+                    "displayName": r["display_name"],
+                    "mail": r["mail"],
+                    "userPrincipalName": r["user_principal_name"],
+                    "mobilePhone": r["mobile_phone"],
+                }
+                for r in cursor.fetchall()
+            ]
         return await _run(_get)
     except Exception as e:
         logger.error(f"Error getting Azure users: {e}")

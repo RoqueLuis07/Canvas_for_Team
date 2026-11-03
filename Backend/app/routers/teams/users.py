@@ -26,7 +26,7 @@ async def list_users(
     top: Annotated[int, Query(ge=1, le=999)] = 999,
     max_records: Annotated[int, Query(ge=1, le=10000)] = 5000,
 ):
-    select = "id,displayName,userPrincipalName,mail,department,jobTitle,accountEnabled"
+    select = graph.DEFAULT_USER_SELECT_FIELDS
     if search:
         # For searches: try DB first (instant), fall back to Graph if DB empty
         db_result = await database.get_azure_users(search)
@@ -57,7 +57,7 @@ async def list_users(
 @router.get("/{user_id}", summary="Obtener usuario por ID o UPN")
 async def get_user(user_id: str):
     try:
-        return await graph.get(f"/users/{user_id}")
+        return await graph.get(f"/users/{user_id}", params={"$select": graph.DEFAULT_USER_SELECT_FIELDS})
     except StarletteHTTPException:
         raise
     except Exception as exc:

@@ -117,6 +117,10 @@
     const displayName = canvasUser?.name || teamsUser?.displayName || 'Usuario Desconocido';
     const email = teamsUser?.mail || teamsUser?.userPrincipalName || canvasUser?.login_id || fallbackQuery;
     const sis = canvasUser?.sis_user_id || '—';
+    // El backend (/profile/lookup → _graph_user_to_dict) ya trae mobilePhone/
+    // phone desde Azure AD — nunca se mostraba acá aunque el dato viaja en
+    // la respuesta, mismo patrón ya usado en profile.html.
+    const phone = teamsUser ? [teamsUser.mobilePhone, teamsUser.phone].filter(Boolean).join(' · ') : '';
 
     const tStatus = teamsUser
       ? (teamsUser.accountEnabled
@@ -138,6 +142,7 @@
           <div class="d-flex flex-wrap gap-2 align-items-center">
             ${canvasUser ? `<span class="badge bg-light text-dark border"><i class="bi bi-mortarboard-fill text-warning me-1"></i>Canvas SIS: ${esc(sis)}</span>` : ''}
             ${teamsUser ? `<span class="badge bg-light text-dark border"><i class="bi bi-person-badge-fill me-1" style="color:#6264a7"></i>${esc(teamsUser.jobTitle || teamsUser.department || 'Azure AD')}</span>` : ''}
+            ${phone ? `<span class="badge bg-light text-dark border"><i class="bi bi-telephone-fill me-1"></i>${esc(phone)}</span>` : ''}
             ${tStatus}
             ${teamsUser ? `<button class="btn btn-sm btn-outline-danger ms-auto" onclick="promptResetTeamsPassword('${teamsUser.id}')"><i class="bi bi-key-fill me-1"></i>Restablecer Contraseña (Teams)</button>` : ''}
           </div>

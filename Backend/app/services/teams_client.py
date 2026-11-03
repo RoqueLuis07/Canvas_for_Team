@@ -21,6 +21,15 @@ _TIMEOUT = httpx.Timeout(30.0)
 _token_cache: dict = {"access_token": None, "expires_at": 0}
 _sku_cache: dict[str, str] = {}
 
+# Campos por defecto al listar/buscar usuarios del directorio (Buscar
+# Usuarios, listados de Teams) — centralizado acá para que list_users()
+# (teams/users.py), search_users() y get_user_by_upn_exact() (este archivo)
+# pidan siempre el mismo set y no se desincronicen a mano. mobilePhone se
+# agregó porque antes ninguna de estas tres funciones lo pedía, así que el
+# teléfono de la cuenta nunca llegaba al frontend sin importar qué tabla lo
+# mostrara.
+DEFAULT_USER_SELECT_FIELDS = "id,displayName,userPrincipalName,mail,department,jobTitle,accountEnabled,mobilePhone"
+
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 _TRANSIENT = (
@@ -333,7 +342,7 @@ async def get_user_by_upn_exact(upn_or_id: str, select: str | None = None) -> di
     y la intención sea recuperar esa cuenta puntual (ej. tras un "already
     exists" al crearla), no buscar por texto."""
     try:
-        return await get(f"/users/{upn_or_id}", params={"$select": select or "id,displayName,userPrincipalName,mail"})
+        return await get(f"/users/{upn_or_id}", params={"$select": select or DEFAULT_USER_SELECT_FIELDS})
     except Exception:
         return None
 
@@ -343,7 +352,7 @@ async def search_users(query: str, select: str | None = None) -> list[Any]:
     params: dict = {
         "$search": f'"displayName:{query}" OR "userPrincipalName:{query}" OR "mail:{query}"',
         "$top": 50,
-        "$select": select or "id,displayName,userPrincipalName,mail,department,jobTitle,accountEnabled",
+        "$select": select or DEFAULT_USER_SELECT_FIELDS,
         "$orderby": "displayName",
     }
     return await paginate_limited(
