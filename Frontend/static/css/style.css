@@ -1645,6 +1645,13 @@ html.dark-mode .status-icon.status-error i { color: #8FB0ED; }
 }
 html.dark-mode .flow-step-num { background: #8FB0ED; color: #0F2D73; }
 
+/* ── 48. Border de atención — reemplaza border-warning/border-success en
+   tarjetas que necesitan destacar "esto necesita que lo revises" sin usar
+   amarillo/verde (ej. acordeón de alumnos por materia en Matriculaciones:
+   cada tarjeta que tiene materias sin match automático se resalta así). */
+.border-attention { border-color: var(--usil-blue-dark) !important; border-width: 2px !important; }
+html.dark-mode .border-attention { border-color: #8FB0ED !important; }
+
 /* ── Respeta la preferencia de sistema "reducir movimiento" ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

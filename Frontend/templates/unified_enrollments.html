@@ -39,22 +39,31 @@
   <!-- ══════════════ Tab: Matriculación Unificada ══════════════ -->
   <div class="tab-pane fade show active" id="unificada" role="tabpanel" aria-labelledby="unificada-tab">
 
-    <div class="d-flex justify-content-end mb-3 gap-2 flex-wrap">
-      <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#collapseMatriculaciones" aria-expanded="false" aria-controls="collapseMatriculaciones"><i class="bi bi-file-earmark-excel me-2"></i>Matriculación Masiva (OneDrive)</button>
-      <button class="btn btn-info text-dark" data-bs-toggle="collapse" data-bs-target="#collapseMatriculacionInd" aria-expanded="false" aria-controls="collapseMatriculacionInd"><i class="bi bi-person-check-fill me-2"></i>Matriculación Individual</button>
+    <div class="d-flex justify-content-between align-items-start mb-3 gap-2 flex-wrap">
+      <!-- Antes 2 botones independientes cada uno togglaba su propio
+           accordion de 1 solo ítem (podían quedar los 2 abiertos a la vez).
+           Convertidos a .tab-bar — mismo patrón que ingreso.html — para que
+           sea exactamente uno de los dos métodos visible, nunca ambos ni
+           ninguno. Los ids de los paneles (collapseMatriculacionInd/
+           collapseMatriculaciones) se mantienen sin cambios porque el resto
+           del script los referencia. -->
+      <div class="tab-bar" id="matMetodoTabs" role="tablist">
+        <button class="tab-bar-btn active" id="matriculacion-ind-tab" data-bs-toggle="tab" data-bs-target="#collapseMatriculacionInd" type="button" role="tab" aria-controls="collapseMatriculacionInd" aria-selected="true">
+          <i class="bi bi-person-check-fill"></i>Matriculación Individual
+        </button>
+        <button class="tab-bar-btn" id="matriculacion-masiva-tab" data-bs-toggle="tab" data-bs-target="#collapseMatriculaciones" type="button" role="tab" aria-controls="collapseMatriculaciones" aria-selected="false">
+          <i class="bi bi-file-earmark-excel"></i>Matriculación Masiva (OneDrive)
+        </button>
+      </div>
       <a href="/template/unified-enrollment" class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
     </div>
 
-    <!-- Accordion Matriculación Individual -->
-    <div class="accordion mb-4" id="accordionMatriculacionInd">
-      <div class="accordion-item border-info shadow-sm">
-        <h2 class="accordion-header" id="headingMatriculacionInd">
-          <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMatriculacionInd" aria-expanded="true" aria-controls="collapseMatriculacionInd" style="background: linear-gradient(135deg, rgba(13, 202, 240, 0.1), rgba(13, 202, 240, 0.05));">
-            <i class="bi bi-person-check-fill me-2 text-info"></i> Matriculación Individual
-          </button>
-        </h2>
-        <div id="collapseMatriculacionInd" class="accordion-collapse collapse show" aria-labelledby="headingMatriculacionInd" data-bs-parent="#accordionMatriculacionInd">
-          <div class="accordion-body p-4">
+    <div class="tab-content" id="matMetodoTabsContent">
+
+    <!-- Panel Matriculación Individual (pestaña activa por defecto, igual
+         que antes con el accordion-collapse "show") -->
+    <div id="collapseMatriculacionInd" class="tab-pane fade show active" role="tabpanel" aria-labelledby="matriculacion-ind-tab">
+          <h5 class="mb-3 text-secondary"><i class="bi bi-person-check-fill me-2"></i>Matriculación Individual</h5>
 
             <div class="row g-3 mb-4">
                 <div class="col-md-6">
@@ -164,21 +173,12 @@
               </div>
             </div>
 
-          </div>
-        </div>
-      </div>
     </div>
+    <!-- fin Panel Matriculación Individual -->
 
-    <!-- Accordion Matriculación Masiva (OneDrive) -->
-    <div class="accordion mb-4" id="accordionMatriculaciones">
-      <div class="accordion-item border-primary shadow-sm">
-        <h2 class="accordion-header" id="headingMatriculaciones">
-          <button class="accordion-button fw-bold text-dark collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseMatriculaciones" aria-expanded="false" aria-controls="collapseMatriculaciones" style="background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(13, 110, 253, 0.05));">
-            <i class="bi bi-file-earmark-spreadsheet me-2 text-primary"></i> Matriculación Masiva desde OneDrive
-          </button>
-        </h2>
-        <div id="collapseMatriculaciones" class="accordion-collapse collapse" aria-labelledby="headingMatriculaciones" data-bs-parent="#accordionMatriculaciones">
-          <div class="accordion-body p-4">
+    <!-- Panel Matriculación Masiva (OneDrive) -->
+    <div id="collapseMatriculaciones" class="tab-pane fade" role="tabpanel" aria-labelledby="matriculacion-masiva-tab">
+          <h5 class="mb-3 text-secondary"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Matriculación Masiva desde OneDrive</h5>
             <div class="mb-4">
               <label class="form-label fw-semibold">Enlace del Excel (OneDrive) <span class="text-danger">*</span></label>
               <div class="input-group">
@@ -203,8 +203,8 @@
               <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                 <label class="form-label fw-semibold mb-0">Previsualización (hasta 500 filas)</label>
                 <div>
-                  <span class="badge bg-success me-2" id="matPreviewToProcess">0 a procesar</span>
-                  <span class="badge bg-warning text-dark" id="matPreviewSkipped">0 ya existentes</span>
+                  <span class="status-icon status-ok me-2"><i class="bi bi-check-circle-fill"></i><span id="matPreviewToProcess">0 a procesar</span></span>
+                  <span class="status-icon status-pending"><i class="bi bi-circle"></i><span id="matPreviewSkipped">0 ya existentes</span></span>
                 </div>
               </div>
               <div class="table-responsive border rounded bg-white" style="max-height: 400px; overflow-y: auto;">
@@ -223,15 +223,16 @@
                 <button type="button" class="btn btn-danger me-auto" id="btnRollbackMat" onclick="rollbackMatriculaciones()" disabled>
               <i class="bi bi-arrow-counterclockwise me-1"></i>Revertir Operación
             </button>
-            <button type="button" class="btn btn-secondary" data-bs-toggle="collapse" data-bs-target="#collapseMatriculaciones">Cancelar</button>
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('matriculacion-ind-tab').click()">Cancelar</button>
             <button type="button" class="btn btn-success" id="btnImportMat" onclick="doImportMatriculaciones()" disabled>
               <i class="bi bi-play-circle me-1"></i>Procesar Matriculaciones
             </button>
             </div>
-          </div>
-        </div>
-      </div>
     </div>
+    <!-- fin Panel Matriculación Masiva -->
+
+    </div>
+    <!-- fin tab-content matMetodoTabsContent -->
 
   </div>
 
@@ -395,28 +396,15 @@
    Tab: Matriculación Unificada
    ════════════════════════════════════════════════════════════════ */
 
-/* ── Acordeones: un solo panel visible a la vez, como tabs (ver mismo
-   fix en ingreso.html). Antes los dos arrancaban abiertos y no se cerraban
-   entre sí. ── */
-const _MAT_ACCORDION_IDS = ['collapseMatriculacionInd', 'collapseMatriculaciones'];
+/* ── Matriculación Individual/Masiva pasaron de 2 accordions de 1 ítem
+   cada uno a pestañas reales (.tab-bar), que ya tienen exclusividad mutua
+   nativa de Bootstrap — no hace falta JS propio para eso (ver mismo cambio
+   en ingreso.html). collapseOtherAccordions/restoreAccordions quedan como
+   no-ops (en vez de borrar cada uno de sus call-sites) para no arriesgar
+   una referencia rota. */
+function collapseOtherAccordions(activeId) {}
 
-function collapseOtherAccordions(activeId) {
-    _MAT_ACCORDION_IDS.forEach(id => {
-        if (id === activeId) return;
-        const el = document.getElementById(id);
-        if (el && el.classList.contains('show')) {
-            bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).hide();
-        }
-    });
-}
-
-// Ya no se reabren los demás paneles al terminar un proceso.
 function restoreAccordions() {}
-
-_MAT_ACCORDION_IDS.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('show.bs.collapse', () => collapseOtherAccordions(id));
-});
 
 let mi_materiasList = []; // from backend
 let mi_selectedMaterias = [];
@@ -708,11 +696,11 @@ async function enableMatProcessBtn() {
                     let cellVal = r[h] || '';
                     if (h.toLowerCase().includes('estado') || h.toLowerCase().includes('enviado')) {
                         if (cellVal.toLowerCase() === 'ok' || cellVal.toLowerCase().includes('matriculado')) {
-                            cellVal = `<span class="badge bg-warning text-dark">${cellVal}</span>`;
+                            cellVal = `<span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>${cellVal}</span>`;
                         } else if (cellVal.toLowerCase().includes('error')) {
-                            cellVal = `<span class="badge bg-danger">${cellVal}</span><span class="badge bg-success ms-1">Reintento</span>`;
+                            cellVal = `<span class="status-icon status-error"><i class="bi bi-x-circle-fill"></i>${cellVal} · Reintento</span>`;
                         } else {
-                            cellVal = `<span class="badge bg-success">A procesar</span>`;
+                            cellVal = `<span class="status-icon status-pending"><i class="bi bi-circle"></i>A procesar</span>`;
                         }
                     }
                     rowHtml += `<td>${cellVal}</td>`;
@@ -966,9 +954,9 @@ let materiasPreviewData = null;
 
 function badgeForStatus(status, score) {
   const pct = score != null ? Math.round(score * 100) + '%' : '-';
-  if (status === 'auto') return `<span class="badge bg-success">${pct}</span>`;
-  if (status === 'revisar') return `<span class="badge bg-warning text-dark">${pct} · revisar</span>`;
-  return `<span class="badge bg-danger">sin match</span>`;
+  if (status === 'auto') return `<span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>${pct}</span>`;
+  if (status === 'revisar') return `<span class="status-icon status-pending"><i class="bi bi-circle"></i>${pct} · revisar</span>`;
+  return `<span class="status-icon status-error"><i class="bi bi-x-circle-fill"></i>sin match</span>`;
 }
 
 async function analizarMaterias() {
@@ -1051,14 +1039,14 @@ function renderMateriasPreview(data) {
     }).join('');
 
     cards += `
-      <div class="accordion-item ${needsAttention ? 'border-warning' : 'border-success'} shadow-sm mb-2">
+      <div class="accordion-item ${needsAttention ? 'border-attention' : ''} shadow-sm mb-2">
         <h2 class="accordion-header">
           <button class="accordion-button ${needsAttention ? '' : 'collapsed'} fw-semibold" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}">
             <span class="me-2">${al.alumno}</span>
             <span class="small text-muted me-3">${al.cedula}</span>
-            <span class="badge bg-success me-1">${autoN} auto</span>
-            ${revisarN ? `<span class="badge bg-warning text-dark me-1">${revisarN} revisar</span>` : ''}
-            ${sinMatchN ? `<span class="badge bg-danger me-1">${sinMatchN} sin match</span>` : ''}
+            <span class="status-icon status-ok me-1"><i class="bi bi-check-circle-fill"></i>${autoN} auto</span>
+            ${revisarN ? `<span class="status-icon status-pending me-1"><i class="bi bi-circle"></i>${revisarN} revisar</span>` : ''}
+            ${sinMatchN ? `<span class="status-icon status-error me-1"><i class="bi bi-x-circle-fill"></i>${sinMatchN} sin match</span>` : ''}
           </button>
         </h2>
         <div id="${collapseId}" class="accordion-collapse collapse ${needsAttention ? 'show' : ''}" data-bs-parent="#materiasAccordion">
@@ -1271,7 +1259,7 @@ function renderMateriasCpel() {
       <input type="checkbox" class="form-check-input chk-cpel-materia" data-idx="${i}" checked>
       <span>
         <strong>${m.materia_base}</strong> <span class="text-muted small">— ${m.course_name}</span>
-        ${!m.periodo ? '<span class="badge bg-warning text-dark ms-1">período no detectado — revisar equipo de Teams manualmente</span>' : ''}
+        ${!m.periodo ? '<span class="status-icon status-pending ms-1"><i class="bi bi-circle"></i>período no detectado — revisar equipo de Teams manualmente</span>' : ''}
       </span>
     </label>
   `).join('');
