@@ -373,7 +373,6 @@
                           <th>Nombre</th>
                           <th>Cédula</th>
                           <th>Correo</th>
-                          <th>Teléfono</th>
                           <th>Estado</th>
                           <th style="width:90px;">Acciones</th>
                         </tr>
@@ -566,7 +565,10 @@
           <label class="form-label small fw-bold">Correo <span class="text-muted">(solo registro del Excel)</span></label>
           <input type="text" id="rowEditCorreo" class="form-control form-control-sm">
         </div>
-        <div class="mb-3">
+        <!-- Masivo no tiene columna Teléfono en su planilla real — se oculta
+             igual que Fecha/Vendedor para Docentes/Masivo (ver
+             openRowEditModal/_rowEditSave). -->
+        <div class="mb-3 rowEditNoMasivo">
           <label class="form-label small fw-bold">Teléfono <span class="text-muted">(sincroniza la cuenta en Teams)</span></label>
           <input type="text" id="rowEditTelefono" class="form-control form-control-sm">
         </div>
@@ -733,6 +735,9 @@ function openRowEditModal(prefix, rowIdx) {
     document.querySelectorAll('.rowEditDiplOnly').forEach(el => {
         el.style.display = prefix === 'dipl' ? '' : 'none';
     });
+    document.querySelectorAll('.rowEditNoMasivo').forEach(el => {
+        el.style.display = prefix === 'masivo' ? 'none' : '';
+    });
 
     const [url, sheetName] = _rowUrlSheet(prefix);
     _rowEditCtx = { prefix, rowIdx, upn: tr.dataset.upn || null, url, sheetName };
@@ -750,9 +755,14 @@ async function _rowEditSave() {
             nombre: document.getElementById('rowEditNombre').value.trim(),
             cedula: document.getElementById('rowEditCedula').value.trim(),
             correo: document.getElementById('rowEditCorreo').value.trim(),
-            telefono: document.getElementById('rowEditTelefono').value.trim(),
             estado: document.getElementById('rowEditEstado').value,
         };
+        // Teléfono: no se envía para Masivo — esa planilla no tiene esa
+        // columna y el modal ni siquiera la muestra ahí (ver
+        // rowEditNoMasivo más arriba).
+        if (prefix !== 'masivo') {
+            payload.telefono = document.getElementById('rowEditTelefono').value.trim();
+        }
         // Fecha/Vendedor: solo se envían para Diplomados — en Docentes/
         // Masivo el backend los ignoraría igual (esas columnas no se
         // detectan ahí), pero no tiene sentido mandarlos desde un panel
@@ -791,7 +801,7 @@ async function _rowEditSave() {
 const PASTE_FIELDS = {
     doc: ['nombre', 'cedula', 'correo', 'telefono', 'plataforma'],
     dipl: ['fecha', 'nombre', 'cedula', 'correo', 'telefono', 'vendedor'],
-    masivo: ['nombre', 'cedula', 'correo', 'telefono'],
+    masivo: ['nombre', 'cedula', 'correo'],
 };
 
 const _pasteTabAccessor = {
@@ -2196,7 +2206,7 @@ async function previewMasivo(silent = false) {
 
         const pending = res.student_details || [];
         const originalValues = {};
-        pending.forEach(r => { originalValues[r.row_idx] = { nombre: r.nombre || '', cedula: r.cedula || '', correo: r.correo || '', telefono: r.telefono || '' }; });
+        pending.forEach(r => { originalValues[r.row_idx] = { nombre: r.nombre || '', cedula: r.cedula || '', correo: r.correo || '' }; });
 
         const tabId = existingId || ('masivo' + (++_masivoTabSeq));
         _masivoTabs[tabId] = { url, sheetName: sheet, pending, done: res.already_processed_details || [], originalValues };
@@ -2218,13 +2228,12 @@ function renderMasivoTable(pending, done, originalValues) {
     _masivoOriginalValues = originalValues || {};
 
     const pendingRows = pending.map(r => {
-        if (r.row_idx < 0) return _unsavedRowHtml('masivo', 'masivo-field', 'masivo-row-check', ['nombre', 'cedula', 'correo', 'telefono'], r, esc);
+        if (r.row_idx < 0) return _unsavedRowHtml('masivo', 'masivo-field', 'masivo-row-check', ['nombre', 'cedula', 'correo'], r, esc);
         return `<tr data-row-idx="${r.row_idx}">
             <td><input type="checkbox" class="masivo-row-check" onchange="updateMasivoSelectedCount()" ${r._checked ? 'checked' : ''}></td>
             <td><input type="text" class="form-control form-control-sm masivo-field" data-field="nombre" value="${esc(r.nombre)}"></td>
             <td><input type="text" class="form-control form-control-sm masivo-field" data-field="cedula" value="${esc(r.cedula)}"></td>
             <td><input type="text" class="form-control form-control-sm masivo-field" data-field="correo" value="${esc(r.correo)}"></td>
-            <td><input type="text" class="form-control form-control-sm masivo-field" data-field="telefono" value="${esc(r.telefono)}"></td>
             <td><span class="status-icon status-pending"><i class="bi bi-circle"></i>Pendiente</span></td>
             <td>
                 <button type="button" class="btn btn-sm btn-link text-muted p-0" onclick="removeMasivoPendingRow(${r.row_idx})" title="Quitar de esta lista">
@@ -2236,11 +2245,11 @@ function renderMasivoTable(pending, done, originalValues) {
 
     const doneRows = done.map(r => {
         const upn = esc(r.usuario || '');
-        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" data-nombre="${esc(r.nombre)}" data-cedula="${esc(r.cedula)}" data-correo="${esc(r.correo || '')}" data-telefono="${esc(r.telefono || '')}" class="text-muted">
+        return `<tr data-row-idx="${r.row_idx}" data-upn="${upn}" data-nombre="${esc(r.nombre)}" data-cedula="${esc(r.cedula)}" data-correo="${esc(r.correo || '')}" class="text-muted">
             <td><input type="checkbox" class="masivo-done-check" onchange="updateMasivoDoneSelectedCount()" ${r.usuario ? '' : 'disabled'}></td>
             <td class="small masivo-done-nombre">${esc(r.nombre)}</td>
             <td class="small">${esc(r.cedula)}</td>
-            <td colspan="2" class="small">${upn || '-'}</td>
+            <td class="small">${upn || '-'}</td>
             <td><span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>Procesado</span></td>
             <td class="text-nowrap">
                 <button type="button" class="btn btn-sm btn-link p-0 me-2" onclick="openRowEditModal('masivo', ${r.row_idx})" title="Editar fila" ${r.usuario ? '' : 'disabled'}>
@@ -2254,7 +2263,7 @@ function renderMasivoTable(pending, done, originalValues) {
     }).join('');
 
     document.getElementById('masivoRowsTbody').innerHTML = pendingRows + doneRows
-        || '<tr><td colspan="7" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
+        || '<tr><td colspan="6" class="text-center text-muted small py-3">No hay filas en esta pestaña.</td></tr>';
 
     document.getElementById('masivoSelectAll').checked = false;
     updateMasivoSelectedCount();
@@ -2302,7 +2311,7 @@ function addNewRowMasivo() {
     _addNewRowGeneric({
         tbody: 'masivoRowsTbody', prefix: 'masivo', fieldClass: 'masivo-field',
         checkClass: 'masivo-row-check', onChange: 'updateMasivoSelectedCount()',
-        fields: ['nombre', 'cedula', 'correo', 'telefono'],
+        fields: ['nombre', 'cedula', 'correo'],
         tab: () => _masivoTabs[_masivoActiveTabId],
         originalValues: _masivoOriginalValues,
     });
