@@ -587,6 +587,27 @@ async def send_mail(
     await post(f"/users/{mailbox}/sendMail", {"message": message, "saveToSentItems": True})
 
 
+async def create_draft_email(
+    mailbox: str, subject: str, html_body: str, to_email: str,
+    cc: list[str] | None = None,
+) -> dict:
+    """Crea un borrador (sin enviarlo) en la bandeja de Borradores de
+    `mailbox`, vía Microsoft Graph (POST /users/{mailbox}/messages) — mismo
+    endpoint que ya usa `send_mail_with_attachments` como primer paso antes
+    de subir adjuntos y enviar, acá simplemente no se llama a .../send al
+    final. Requiere el mismo permiso de aplicación 'Mail.Send' + acceso de
+    escritura a mensajes (Mail.ReadWrite) con consentimiento de
+    administrador. Devuelve el mensaje creado (incluye "id" y "webLink")."""
+    message: dict = {
+        "subject": subject,
+        "body": {"contentType": "HTML", "content": html_body},
+        "toRecipients": [{"emailAddress": {"address": to_email}}],
+    }
+    if cc:
+        message["ccRecipients"] = [{"emailAddress": {"address": addr}} for addr in cc]
+    return await post(f"/users/{mailbox}/messages", message)
+
+
 # Tamaño de trozo recomendado por la documentación de Graph para
 # uploadSession: debe ser múltiplo de 320 KiB.
 _UPLOAD_CHUNK_SIZE = 4 * 320 * 1024  # 1.25 MB
