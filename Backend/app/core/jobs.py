@@ -70,6 +70,19 @@ async def _run(fn):
             raise
 
 
+def username_from_request(request) -> str:
+    """Resuelve el username real desde la cookie de sesión del request, para
+    create_job() — antes varios endpoints hardcodeaban username="admin",
+    así que Historial de Trabajos nunca mostraba quién hizo cada carga de
+    verdad. `request` puede ser None (p. ej. tareas de fondo sin contexto
+    de request); en ese caso, igual que si no hay sesión, cae a "admin"."""
+    if request is None:
+        return "admin"
+    from app.services import auth as auth_service
+    user = auth_service.get_user_from_request(request)
+    return (user or {}).get("email") or "admin"
+
+
 def init_jobs_db():
     """Initialize jobs database."""
     conn = psycopg2.connect(settings.supabase_database_url)

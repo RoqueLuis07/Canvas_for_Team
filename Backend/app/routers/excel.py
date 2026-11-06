@@ -16,7 +16,7 @@ from openpyxl.cell.cell import MergedCell
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import pandas as pd
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -1563,7 +1563,7 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
 
 
 @router.post("/excel/diplomados", summary="Procesar planilla de Diplomados directo en OneDrive")
-async def import_diplomados_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def import_diplomados_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     """Dispara la creación de Diplomados en segundo plano.
 
     Antes era una request HTTP síncrona con un límite artificial de 50
@@ -1594,13 +1594,13 @@ async def import_diplomados_onedrive(req: DiplomadosUrlRequest, bg_tasks: Backgr
     except Exception:
         raise HTTPException(status_code=400, detail="El archivo descargado no es un Excel válido.")
 
-    job_id = await jobs.create_job(job_type="diplomados_onedrive", operation="Alta de Diplomados", username="admin")
+    job_id = await jobs.create_job(job_type="diplomados_onedrive", operation="Alta de Diplomados", username=jobs.username_from_request(request))
     bg_tasks.add_task(_process_diplomados_bg, job_id, req, contents, encoded_url)
     return {"status": "success", "job_id": job_id, "message": "Alta de Diplomados iniciada en segundo plano."}
 
 
 @router.post("/excel/diplomados/process-edited", summary="Procesar filas seleccionadas de Diplomados, con correcciones hechas en la tabla editable")
-async def process_diplomados_edited(req: DiplomadosProcessEditedRequest, bg_tasks: BackgroundTasks) -> dict:
+async def process_diplomados_edited(req: DiplomadosProcessEditedRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     """Igual que /excel/diplomados, pero en vez de procesar todas las filas
     pendientes de la planilla tal cual está en OneDrive, procesa solo las
     filas que el usuario tildó en la tabla editable del frontend, con los
@@ -1635,7 +1635,7 @@ async def process_diplomados_edited(req: DiplomadosProcessEditedRequest, bg_task
     }
     selected_row_indices = set(req.selected_rows) if req.selected_rows is not None else None
 
-    job_id = await jobs.create_job(job_type="diplomados_onedrive", operation="Alta de Diplomados", username="admin")
+    job_id = await jobs.create_job(job_type="diplomados_onedrive", operation="Alta de Diplomados", username=jobs.username_from_request(request))
     bg_tasks.add_task(_process_diplomados_bg, job_id, req, contents, encoded_url, overrides, selected_row_indices)
     return {"status": "success", "job_id": job_id, "message": "Alta de Diplomados iniciada en segundo plano."}
 
@@ -3155,7 +3155,7 @@ async def preview_fix_sis_id(req: DiplomadosUrlRequest) -> FixSisIdPreviewRespon
 
 
 @router.post("/excel/courses/fix-sis-id", summary="Corregir masivamente el SIS ID de cursos ya creados en Canvas")
-async def fix_sis_id_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def fix_sis_id_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
 
@@ -3178,7 +3178,7 @@ async def fix_sis_id_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTas
     job_id = await jobs.create_job(
         job_type="fix_sis_id_onedrive",
         operation="Corrección masiva de SIS ID",
-        username="admin",
+        username=jobs.username_from_request(request),
     )
     bg_tasks.add_task(_process_fix_sis_id_bg, job_id, req, contents, encoded_url)
 
@@ -3317,7 +3317,7 @@ async def append_report_onedrive(report_url: str, succeeded: list, failed: list)
         print(f"Error actualizando reporte maestro: {str(e)}")
 
 @router.post("/excel/courses", summary="Crear cursos en Canvas desde planilla OneDrive")
-async def import_courses_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def import_courses_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     """Descarga y valida la planilla, y dispara la creación de cursos en segundo plano.
 
     Crear cursos + equipos de Teams (con espera de replicación de Azure AD
@@ -3348,7 +3348,7 @@ async def import_courses_onedrive(req: DiplomadosUrlRequest, bg_tasks: Backgroun
     job_id = await jobs.create_job(
         job_type="creacion_cursos_onedrive",
         operation="Creación masiva de cursos",
-        username="admin",
+        username=jobs.username_from_request(request),
     )
     bg_tasks.add_task(_process_courses_bg, job_id, req, contents, encoded_url)
 
@@ -4784,7 +4784,7 @@ async def _process_matriculaciones_bg(job_id: int, req: DiplomadosUrlRequest, co
         await jobs.complete_job(job_id, success_count, error_count, f"Procesado, pero no se pudo guardar en OneDrive: {e}")
 
 @router.post("/excel/matriculaciones-onedrive")
-async def import_matriculaciones_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def import_matriculaciones_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
     
@@ -4797,7 +4797,7 @@ async def import_matriculaciones_onedrive(req: DiplomadosUrlRequest, bg_tasks: B
     job_id = await jobs.create_job(
         job_type="matriculacion_masiva_onedrive",
         operation="import",
-        username="admin" # Ideally from auth token
+        username=jobs.username_from_request(request)
     )
     
     bg_tasks.add_task(_process_matriculaciones_bg, job_id, req, contents, encoded_url)
@@ -4932,7 +4932,7 @@ async def _process_rollback_bg(job_id: int, req: DiplomadosUrlRequest, contents:
 
 
 @router.post("/excel/rollback")
-async def rollback_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def rollback_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
 
@@ -4945,7 +4945,7 @@ async def rollback_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks
     job_id = await jobs.create_job(
         job_type="rollback_masivo_onedrive",
         operation="rollback",
-        username="admin"
+        username=jobs.username_from_request(request)
     )
     
     bg_tasks.add_task(_process_rollback_bg, job_id, req, contents, encoded_url)
@@ -5018,14 +5018,14 @@ async def _process_matriculaciones_json_bg(job_id: int, data: list[dict]):
     await jobs.complete_job(job_id, success_count, error_count, "Matriculación finalizada.")
 
 @router.post("/excel/matriculaciones/json")
-async def import_matriculaciones_json(req: JsonDataRequest, bg_tasks: BackgroundTasks) -> dict:
+async def import_matriculaciones_json(req: JsonDataRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.data:
         raise HTTPException(status_code=400, detail="No hay datos para procesar.")
         
     job_id = await jobs.create_job(
         job_type="matriculacion_masiva_json",
         operation="import",
-        username="admin"
+        username=jobs.username_from_request(request)
     )
     
     bg_tasks.add_task(_process_matriculaciones_json_bg, job_id, req.data)
@@ -5098,14 +5098,14 @@ async def _process_rollback_json_bg(job_id: int, data: list[dict]):
     await jobs.complete_job(job_id, success_count, error_count, "Reversión completada.")
 
 @router.post("/excel/rollback/json")
-async def rollback_json(req: JsonDataRequest, bg_tasks: BackgroundTasks) -> dict:
+async def rollback_json(req: JsonDataRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.data:
         raise HTTPException(status_code=400, detail="No hay datos para procesar.")
         
     job_id = await jobs.create_job(
         job_type="rollback_masivo_json",
         operation="rollback",
-        username="admin"
+        username=jobs.username_from_request(request)
     )
     
     bg_tasks.add_task(_process_rollback_json_bg, job_id, req.data)
@@ -5927,7 +5927,7 @@ async def preview_envio_credenciales(req: DiplomadosUrlRequest) -> EnvioCredenci
 
 
 @router.post("/excel/envio-credenciales", summary="Enviar credenciales masivamente a altas nuevas desde OneDrive")
-async def envio_credenciales_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def envio_credenciales_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
 
@@ -5990,7 +5990,7 @@ async def envio_credenciales_onedrive(req: DiplomadosUrlRequest, bg_tasks: Backg
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"El archivo Excel está abierto o el enlace es de Solo Lectura. Detalle real: {e}")
 
-    job_id = await jobs.create_job(job_type="envio_credenciales_altas_onedrive", operation="import", username="admin")
+    job_id = await jobs.create_job(job_type="envio_credenciales_altas_onedrive", operation="import", username=jobs.username_from_request(request))
     bg_tasks.add_task(_process_envio_credenciales_bg, job_id, wb, ws.title, encoded_url, col_correo_estado, rows_to_process, is_diplomado)
     return {"status": "success", "job_id": job_id, "message": "Envío de credenciales iniciado en segundo plano.", "to_process": len(rows_to_process)}
 

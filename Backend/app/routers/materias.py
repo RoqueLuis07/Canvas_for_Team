@@ -23,7 +23,7 @@ import unicodedata
 from typing import Any
 
 import openpyxl
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -281,7 +281,7 @@ MAX_ENROLL_ITEMS = 300
 
 
 @router.post("/enroll", summary="Matricular alumnos en las materias confirmadas")
-async def enroll_materias(req: MateriasEnrollRequest, bg_tasks: BackgroundTasks) -> dict:
+async def enroll_materias(req: MateriasEnrollRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     """Recibe la lista YA REVISADA por el usuario (después de corregir los
     matches dudosos en la vista previa) y matricula a cada alumno, por
     cédula (SIS ID), en el curso confirmado. Corre en background con
@@ -293,7 +293,7 @@ async def enroll_materias(req: MateriasEnrollRequest, bg_tasks: BackgroundTasks)
     if len(items) > MAX_ENROLL_ITEMS:
         raise HTTPException(status_code=400, detail=f"Demasiados registros ({len(items)}). Máximo {MAX_ENROLL_ITEMS} por ejecución.")
 
-    job_id = await jobs.create_job(job_type="materias_masivo", operation="import", username="admin")
+    job_id = await jobs.create_job(job_type="materias_masivo", operation="import", username=jobs.username_from_request(request))
     bg_tasks.add_task(_process_materias_enroll_bg, job_id, items)
     return {"status": "success", "job_id": job_id, "message": "Matriculación por materias iniciada en segundo plano."}
 
