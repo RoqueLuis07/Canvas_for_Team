@@ -451,7 +451,9 @@ function exportJobs() {
   window.location.href = `/jobs/export?${params.toString()}`;
 }
 
-// Load on startup
-loadJobs();
+// Load on startup — diferido a DOMContentLoaded: este <script> se parsea
+// antes que main.js (que define `api`), así que llamar loadJobs() acá
+// directo fallaba con "api is not defined" en cada carga de la página.
+document.addEventListener('DOMContentLoaded', loadJobs);
 </script>
 {% endblock %}
