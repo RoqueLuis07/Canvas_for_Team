@@ -168,6 +168,10 @@
                     <div class="side-panel-row total"><span class="spr-label">Registros recientes</span><span class="spr-value" id="mi_hist_total">0</span></div>
                     <div class="side-panel-row"><span class="spr-label">Sin errores</span><span class="spr-value" id="mi_hist_ok">0</span></div>
                     <div class="side-panel-row"><span class="spr-label">Con errores</span><span class="spr-value" id="mi_hist_err">0</span></div>
+                    <hr class="my-2">
+                    <div class="side-panel-row"><span class="spr-label">Materias matriculadas</span><span class="spr-value" id="mi_hist_materias">0</span></div>
+                    <div class="side-panel-row"><span class="spr-label">Programas distintos</span><span class="spr-value" id="mi_hist_programas">0</span></div>
+                    <div class="side-panel-row"><span class="spr-label">Último registro</span><span class="spr-value small" id="mi_hist_last">—</span></div>
                   </div>
                 </div>
               </div>
@@ -486,7 +490,7 @@ function mi_renderSelected() {
     msg.style.display = 'none';
     container.innerHTML = mi_selectedMaterias.map(m => `
         <span class="badge bg-primary fs-6 d-flex align-items-center gap-2 p-2">
-            ${m.id} - ${m.name}
+            <span>${m.id} - ${m.name}${m.program ? `<br><small class="fw-normal opacity-75">${m.program}</small>` : ''}</span>
             <i class="bi bi-x-circle-fill cursor-pointer text-white-50" onclick="mi_removeMateria('${m.id}')" title="Quitar"></i>
         </span>
     `).join('');
@@ -533,9 +537,15 @@ async function mi_doEnroll() {
 
         const res = await api.post('/api/matriculacion/individual', payload);
 
-        let html = `<strong>Matriculación Completada</strong><ul class="mb-0 mt-2">`;
+        const okCount = res.results.filter(r => r.canvas_status === 'OK' && r.teams_status === 'OK').length;
+        let html = `<div class="d-flex justify-content-between align-items-center mb-2">
+            <strong>Matriculación Completada</strong>
+            <span class="small text-muted">${email} · SYS ${sys} · ${new Date().toLocaleString()}</span>
+        </div>
+        <div class="small text-muted mb-2">${okCount}/${res.results.length} materia(s) sin errores en ambas plataformas</div>
+        <ul class="mb-0">`;
         res.results.forEach(r => {
-            html += `<li><strong>${r.materia_name}</strong> - Canvas: ${r.canvas_status} | Teams: ${r.teams_status}</li>`;
+            html += `<li><strong>${r.materia_name}</strong>${r.materia_id ? ` <span class="text-muted">(${r.materia_id})</span>` : ''} - Canvas: ${r.canvas_status} | Teams: ${r.teams_status}</li>`;
         });
         html += `</ul>`;
 
@@ -571,6 +581,14 @@ async function mi_loadHistory() {
         document.getElementById('mi_hist_ok').textContent = histOkCount;
         document.getElementById('mi_hist_err').textContent = _miHistoryCache.length - histOkCount;
 
+        const materiasCount = _miHistoryCache.reduce((sum, h) => sum + (h.results || []).length, 0);
+        const programasSet = new Set(_miHistoryCache.flatMap(h => (h.program || '').split(',').map(p => p.trim()).filter(Boolean)));
+        document.getElementById('mi_hist_materias').textContent = materiasCount;
+        document.getElementById('mi_hist_programas').textContent = programasSet.size;
+        document.getElementById('mi_hist_last').textContent = _miHistoryCache.length
+            ? new Date(Math.max(..._miHistoryCache.map(h => new Date(h.timestamp).getTime()))).toLocaleString()
+            : '—';
+
         mi_filterHistory();
     } catch(e) {
         console.error('Error loading history:', e);
@@ -601,14 +619,17 @@ function mi_renderHistory(history) {
 
     tbody.innerHTML = history.slice(0, 10).map(h => {
         const dateStr = new Date(h.timestamp).toLocaleDateString();
-        let materiasHtml = h.results.map(r => `<div><span class="badge bg-secondary me-1">${r.materia_id}</span>${r.materia_name}</div>`).join('');
-        let canvasHtml = h.results.map(r => `<div>${r.canvas_status === 'OK' ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger" title="'+r.canvas_status+'"></i>'}</div>`).join('');
-        let teamsHtml = h.results.map(r => `<div>${r.teams_status === 'OK' ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger" title="'+r.teams_status+'"></i>'}</div>`).join('');
+        const timeStr = new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        let programasHtml = (h.program || '').split(',').map(p => p.trim()).filter(Boolean)
+            .map(p => `<div class="mb-1"><span class="badge bg-info text-dark">${p}</span></div>`).join('') || '<span class="text-muted">—</span>';
+        let materiasHtml = h.results.map(r => `<div class="mb-1"><span class="badge bg-secondary me-1">${r.materia_id}</span>${r.materia_name}</div>`).join('');
+        let canvasHtml = h.results.map(r => `<div class="mb-1">${r.canvas_status === 'OK' ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger" title="'+r.canvas_status+'"></i>'}</div>`).join('');
+        let teamsHtml = h.results.map(r => `<div class="mb-1">${r.teams_status === 'OK' ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger" title="'+r.teams_status+'"></i>'}</div>`).join('');
 
         return `<tr>
-            <td class="small text-muted">${dateStr}</td>
+            <td class="small text-muted">${dateStr}<br>${timeStr}</td>
             <td><strong>${h.email}</strong><br><small class="text-muted">SYS: ${h.sys_id}</small></td>
-            <td><span class="badge bg-info text-dark">${h.program}</span></td>
+            <td class="small">${programasHtml}</td>
             <td class="small">${materiasHtml}</td>
             <td class="text-center">${canvasHtml}</td>
             <td class="text-center">${teamsHtml}</td>
