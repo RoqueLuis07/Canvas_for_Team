@@ -3779,6 +3779,17 @@ async def _process_courses_bg(job_id: int, req: DiplomadosUrlRequest, contents: 
     if req.report_url and (result.succeeded or result.failed):
         await append_report_onedrive(req.report_url, result.succeeded, result.failed)
 
+    await jobs.update_job_progress(
+        job_id,
+        len(result.succeeded),
+        len(result.failed),
+        data_json=json.dumps({
+            "total_to_process": total_rows,
+            "processed": len(result.succeeded) + len(result.failed),
+            "results": result.succeeded + result.failed,
+        }),
+    )
+
     await jobs.complete_job(
         job_id,
         len(result.succeeded),
@@ -4701,8 +4712,9 @@ async def _process_matriculaciones_bg(job_id: int, req: DiplomadosUrlRequest, co
     tasks = []
     success_count = 0
     error_count = 0
+    results_list = []
     total_to_process = ws.max_row - header_row_idx
-    
+
     # Pre-calcular tareas válidas (filas)
     valid_rows = []
     for r_idx in range(header_row_idx + 1, ws.max_row + 1):
@@ -4713,7 +4725,7 @@ async def _process_matriculaciones_bg(job_id: int, req: DiplomadosUrlRequest, co
         if estado_val == "ok" or "matriculado" in estado_val:
             continue
         valid_rows.append(r_idx)
-    
+
     if not valid_rows:
         await jobs.complete_job(job_id, 0, 0, "No hay filas nuevas para procesar.")
         return
@@ -4749,14 +4761,17 @@ async def _process_matriculaciones_bg(job_id: int, req: DiplomadosUrlRequest, co
             if enroll_res.get("status") == "success":
                 success_count += 1
                 ws.cell(row=r_idx, column=env_col, value="OK").fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                results_list.append({"usuario": user_val, "curso": canvas_val, "equipo": teams_val, "status": "✅ OK"})
             else:
                 msg = enroll_res.get("message", "Error desconocido")
                 error_count += 1
                 ws.cell(row=r_idx, column=env_col, value=f"Error: {msg}").fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+                results_list.append({"usuario": user_val, "curso": canvas_val, "equipo": teams_val, "status": f"❌ {msg}"})
         except Exception as ex:
             msg = str(ex)
             error_count += 1
             ws.cell(row=r_idx, column=env_col, value=f"Error: {msg}").fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            results_list.append({"usuario": user_val, "curso": canvas_val, "equipo": teams_val, "status": f"❌ Error: {ex}"})
 
     # Process in chunks and update DB progress periodically
     batch_size = 5
@@ -4776,7 +4791,16 @@ async def _process_matriculaciones_bg(job_id: int, req: DiplomadosUrlRequest, co
     out_io = io.BytesIO()
     wb.save(out_io)
     out_io.seek(0)
-    
+
+    await jobs.update_job_progress(
+        job_id, success_count, error_count,
+        data_json=json.dumps({
+            "total_to_process": len(valid_rows),
+            "processed": success_count + error_count,
+            "results": results_list,
+        }),
+    )
+
     try:
         await graph.put_raw(f"/shares/{encoded_url}/driveItem/content", out_io.read())
         await jobs.complete_job(job_id, success_count, error_count, "Guardado en OneDrive correctamente.")
