@@ -15,31 +15,65 @@ _CONNECT_TIMEOUT = 5
 _STATEMENT_TIMEOUT_MS = 8000
 _RUN_TIMEOUT = 10
 
+# Conexión persistente y reusada (en vez de abrir una psycopg2.connect()
+# nueva en cada llamada) — log_activity() corre en el middleware de CADA
+# request de la app, así que abrir una conexión nueva por request agotaba
+# en minutos el límite de conexiones concurrentes del pooler de Supabase en
+# modo sesión (FATAL: max clients reached in session mode, pool_size: 15),
+# causando 503 en cascada en requests sin relación alguna con auditoría
+# (por ejemplo, reportes largos que corren mientras otras pestañas siguen
+# generando tráfico de fondo). Mismo patrón que ya usa app.core.database.
+_conn = None
+_db_lock = asyncio.Lock()
 
-async def _run(fn):
-    """Abre una conexión nueva, ejecuta `fn(conn)` en un hilo aparte (para no
-    bloquear el event loop con I/O de red síncrono — relevante sobre todo
-    para log_activity(), que corre en el middleware de CADA request) y
-    garantiza el cierre de la conexión incluso si `fn` lanza una excepción.
 
-    Tiene timeout de conexión y de consulta (del lado del servidor) más un
-    timeout general de la operación: sin esto, una DB colgada frena el
-    middleware de auditoría y, con él, CADA request de la app."""
-    def _wrapped():
-        conn = psycopg2.connect(
+def _get_conn():
+    global _conn
+    if _conn is None or _conn.closed:
+        _conn = psycopg2.connect(
             settings.supabase_database_url,
             connect_timeout=_CONNECT_TIMEOUT,
             options=f"-c statement_timeout={_STATEMENT_TIMEOUT_MS}",
         )
+    return _conn
+
+
+async def close_audit_db() -> None:
+    global _conn
+    if _conn is not None and not _conn.closed:
+        _conn.close()
+        _conn = None
+
+
+async def _run(fn):
+    """Ejecuta `fn(conn)` sobre la conexión persistente, en un hilo aparte
+    (para no bloquear el event loop) y serializado por `_db_lock`. Si `fn`
+    lanza una excepción, hace rollback antes de propagarla — sin esto, la
+    conexión global queda en estado "transacción abortada" tras cualquier
+    error y rompe todas las llamadas siguientes. Si la operación entera no
+    vuelve a tiempo, se descarta la conexión para que la próxima llamada
+    abra una nueva en vez de quedar todo el middleware de auditoría
+    colgado indefinidamente."""
+    def _wrapped():
+        conn = _get_conn()
         try:
             return fn(conn)
-        finally:
-            conn.close()
-    try:
-        return await asyncio.wait_for(asyncio.to_thread(_wrapped), timeout=_RUN_TIMEOUT)
-    except asyncio.TimeoutError:
-        logger.error(f"Audit DB operation timed out after {_RUN_TIMEOUT}s")
-        raise
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                global _conn
+                _conn = None
+            raise
+
+    async with _db_lock:
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(_wrapped), timeout=_RUN_TIMEOUT)
+        except asyncio.TimeoutError:
+            global _conn
+            logger.error(f"Audit DB operation timed out after {_RUN_TIMEOUT}s, discarding connection")
+            _conn = None
+            raise
 
 
 def init_audit_db():

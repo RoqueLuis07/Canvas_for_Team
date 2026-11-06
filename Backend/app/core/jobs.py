@@ -15,30 +15,59 @@ _CONNECT_TIMEOUT = 5
 _STATEMENT_TIMEOUT_MS = 8000
 _RUN_TIMEOUT = 10
 
+# Conexión persistente y reusada en vez de abrir una psycopg2.connect()
+# nueva en cada operación — bajo carga (varias cargas masivas en curso +
+# el auto-refresh de Historial de Trabajos cada pocos segundos) esto
+# agotaba el límite de conexiones concurrentes del pooler de Supabase en
+# modo sesión (pool_size: 15) y causaba 503 en requests sin relación
+# alguna con jobs. Mismo patrón que ya usa app.core.database.
+_conn = None
+_db_lock = asyncio.Lock()
 
-async def _run(fn):
-    """Abre una conexión nueva, ejecuta `fn(conn)` en un hilo aparte (para no
-    bloquear el event loop con I/O de red síncrono) y garantiza el cierre de
-    la conexión incluso si `fn` lanza una excepción a mitad de camino.
 
-    Tiene timeout de conexión y de consulta (del lado del servidor) más un
-    timeout general de la operación, para no dejar la pantalla de Historial
-    de Trabajos colgada indefinidamente si la DB no responde."""
-    def _wrapped():
-        conn = psycopg2.connect(
+def _get_conn():
+    global _conn
+    if _conn is None or _conn.closed:
+        _conn = psycopg2.connect(
             settings.supabase_database_url,
             connect_timeout=_CONNECT_TIMEOUT,
             options=f"-c statement_timeout={_STATEMENT_TIMEOUT_MS}",
         )
+    return _conn
+
+
+async def close_jobs_db() -> None:
+    global _conn
+    if _conn is not None and not _conn.closed:
+        _conn.close()
+        _conn = None
+
+
+async def _run(fn):
+    """Ejecuta `fn(conn)` sobre la conexión persistente, en un hilo aparte y
+    serializado por `_db_lock`, con rollback automático si `fn` lanza una
+    excepción (para no dejar la conexión en estado "transacción abortada")
+    y descarte de la conexión si la operación no vuelve a tiempo."""
+    def _wrapped():
+        conn = _get_conn()
         try:
             return fn(conn)
-        finally:
-            conn.close()
-    try:
-        return await asyncio.wait_for(asyncio.to_thread(_wrapped), timeout=_RUN_TIMEOUT)
-    except asyncio.TimeoutError:
-        logger.error(f"Jobs DB operation timed out after {_RUN_TIMEOUT}s")
-        raise
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                global _conn
+                _conn = None
+            raise
+
+    async with _db_lock:
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(_wrapped), timeout=_RUN_TIMEOUT)
+        except asyncio.TimeoutError:
+            global _conn
+            logger.error(f"Jobs DB operation timed out after {_RUN_TIMEOUT}s, discarding connection")
+            _conn = None
+            raise
 
 
 def init_jobs_db():

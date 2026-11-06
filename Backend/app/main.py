@@ -80,10 +80,14 @@ async def lifespan(app: FastAPI):
     yield
     from app.services import canvas_client, teams_client
     from app.core import database as db
+    from app.core import audit_log, jobs as jobs_db, actas_db
     try:
         await canvas_client.close_client()
         await teams_client.close_client()
         await db.close_db()
+        await audit_log.close_audit_db()
+        await jobs_db.close_jobs_db()
+        await actas_db.close_actas_db()
     except Exception as e:
         logger.error(f"Failed to close connections cleanly: {e}")
 
