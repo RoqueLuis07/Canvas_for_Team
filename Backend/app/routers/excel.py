@@ -4,6 +4,7 @@ All templates use Spanish headers; upload endpoints accept both Spanish
 and English column names via the _get() helper that tries multiple keys.
 """
 import asyncio
+import datetime
 import io
 import logging
 import re
@@ -33,6 +34,21 @@ from app.core import database
 
 def _err(exc: Exception) -> str:
     return getattr(exc, "detail", str(exc))
+
+
+def _cell_str(value: Any) -> str:
+    """Convierte el valor crudo de una celda a texto para mostrar en las
+    tablas del frontend. openpyxl devuelve datetime/date reales cuando la
+    celda de Excel tiene formato de fecha — str() de esos objetos agrega
+    "00:00:00" aunque la celda no tenga hora, así que acá se formatea
+    siempre como dd/mm/aaaa, sin hora."""
+    if value is None:
+        return ""
+    if isinstance(value, datetime.datetime):
+        return value.strftime("%d/%m/%Y")
+    if isinstance(value, datetime.date):
+        return value.strftime("%d/%m/%Y")
+    return str(value).strip()
 
 router = APIRouter(tags=["Excel Import/Export"])
 _ACCOUNT = settings.canvas_account_id
@@ -216,7 +232,7 @@ def _find_header_row_and_headers(ws, max_scan_rows=15):
     """
     keywords = ["nombre", "curso", "usuario", "correo", "cedula", "cédula", "documento", "id canvas", "id teams"]
     for row_idx in range(1, min(max_scan_rows, ws.max_row + 1)):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, min(50, ws.max_column + 1))]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, min(50, ws.max_column + 1))]
         valid_cols = [v for v in row_vals if v]
         if len(valid_cols) >= 2:
             row_str = " ".join(valid_cols).lower()
@@ -269,7 +285,7 @@ def _find_row1_title(ws, max_scan_cols: int = 30) -> str:
     sea, a su vez, el ID (GUID) del equipo de Teams.
     """
     for c in range(1, min(max_scan_cols, ws.max_column) + 1):
-        v = str(ws.cell(row=1, column=c).value or "").strip()
+        v = _cell_str(ws.cell(row=1, column=c).value)
         if v and not _UUID_RE.match(v):
             return v
     return ""
@@ -1464,7 +1480,7 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
     already_processed_details = []
 
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
 
         # Check if the row has at least a name
         if not any(row_vals):
@@ -2740,7 +2756,7 @@ async def preview_courses_onedrive(req: DiplomadosUrlRequest) -> CoursesPreviewR
     course_details = []
 
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
         
         # Check if the row has at least a course name (assuming column 0 or 1 is name)
         if not any(row_vals):
@@ -2850,7 +2866,7 @@ async def preview_fix_coordinador_role(req: DiplomadosUrlRequest):
 
     rows = []
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
         if not any(row_vals):
             continue
         sis_id = row_vals[col_sis] if 0 <= col_sis < len(row_vals) else ""
@@ -3825,7 +3841,7 @@ async def preview_egreso_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
     student_details = []
 
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
 
         if not any(row_vals):
             continue
@@ -4582,7 +4598,7 @@ async def preview_matriculaciones_onedrive(req: DiplomadosUrlRequest) -> Preview
     students_already_processed = 0
 
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
         if not any(row_vals):
             continue
             
@@ -4818,7 +4834,7 @@ async def _process_rollback_bg(job_id: int, req: DiplomadosUrlRequest, contents:
     header_row_idx = 1
     headers = {}
     for r in range(1, min(10, ws.max_row + 1)):
-        row_vals = [str(ws.cell(row=r, column=c).value or "").strip() for c in range(1, ws.max_column + 1)]
+        row_vals = [_cell_str(ws.cell(row=r, column=c).value) for c in range(1, ws.max_column + 1)]
         if any("nombre" in _norm(v) for v in row_vals):
             header_row_idx = r
             headers = {_norm(v): c for c, v in enumerate(row_vals, start=1) if v}
@@ -5300,7 +5316,7 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
     already_processed_details = []
 
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
 
         if not any(row_vals):
             continue
@@ -5875,7 +5891,7 @@ async def preview_envio_credenciales(req: DiplomadosUrlRequest) -> EnvioCredenci
     sample_rows = []
 
     for r_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=r_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=r_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
         if not any(row_vals):
             continue
         nombre = row_vals[cols["nombre"] - 1]
