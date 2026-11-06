@@ -4,13 +4,20 @@
 {% block nav_tt %}active{% endblock %}
 {% block content %}
 <div class="d-flex align-items-center mb-4 gap-3 flex-wrap">
-  <div><div class="page-title">Microsoft Teams</div><div class="page-subtitle">Gestión de equipos y miembros del tenant</div></div>
-  <div class="ms-auto d-flex gap-2 flex-wrap">
+  <div><div class="page-title">Microsoft Teams</div><div class="page-subtitle">Gestión de equipos y miembros de la organización</div></div>
+  <div class="ms-auto d-flex gap-2 flex-wrap align-items-center">
     <button class="btn-pill" onclick="openExcelMembers()"><i class="bi bi-file-earmark-excel-fill me-1"></i>Añadir miembros Excel</button>
     <a href="/excel/template/teams-members" class="btn-pill-outline"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
-    <button class="btn-pill-outline" onclick="openTeamsIdDeleteModal()"><i class="bi bi-list-ol me-1"></i>Eliminación Masiva</button>
-    <button class="btn-pill-outline" onclick="openDeletedGroupsModal()"><i class="bi bi-recycle me-1"></i>Grupos Eliminados (Papelera)</button>
-    <button class="btn-pill-outline" onclick="openGroupMembersModal()"><i class="bi bi-person-plus-fill me-1"></i>Agregar a Grupo por ID</button>
+    <div class="dropdown">
+      <button class="btn-pill-outline dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Acciones de riesgo o para power users">
+        <i class="bi bi-gear-fill me-1"></i>Avanzado
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><button class="dropdown-item text-danger" onclick="openTeamsIdDeleteModal()" title="Acción destructiva"><i class="bi bi-list-ol me-2"></i>Eliminación Masiva</button></li>
+        <li><button class="dropdown-item" onclick="openDeletedGroupsModal()"><i class="bi bi-recycle me-2"></i>Grupos Eliminados (Papelera)</button></li>
+        <li><button class="dropdown-item" onclick="openGroupMembersModal()" title="Requiere el ID de Azure AD del grupo"><i class="bi bi-person-plus-fill me-2"></i>Agregar a Grupo por ID</button></li>
+      </ul>
+    </div>
   </div>
 </div>
 
@@ -225,7 +232,6 @@ function renderTeamsTable(pageTeams) {
   const html = `<table class="table table-sm table-hover mb-0">
     <thead style="background:var(--card-border);position:sticky;top:0;z-index:10">
       <tr>
-        <th style="max-width:150px">ID</th>
         <th>Nombre</th>
         <th>Descripción</th>
         <th>Visibilidad</th>
@@ -235,11 +241,13 @@ function renderTeamsTable(pageTeams) {
     <tbody>
       ${pageTeams.map(row => `
         <tr>
-          <td style="display:flex;align-items:center;gap:0.5rem;flex-wrap:nowrap" title="${row.id}">
-            <span class="small text-muted" style="min-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong>${row.id.substring(0, 20)}...</strong></span>
-            <button type="button" class="btn btn-sm btn-link p-0 copy-btn" style="color:var(--text-muted);padding:0!important;flex-shrink:0" title="Copiar ID" data-copy-id="${row.id}" data-copy-label="Team ID"><i class="bi bi-files"></i></button>
+          <td>
+            <div class="fw-semibold small" style="color:var(--sidebar-accent)">${row.displayName}</div>
+            <div class="d-flex align-items-center gap-1" title="${row.id}">
+              <span class="small text-muted" style="font-size:0.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${row.id.substring(0, 20)}...</span>
+              <button type="button" class="btn btn-sm btn-link p-0 copy-btn" style="color:var(--text-muted);padding:0!important;flex-shrink:0" title="Copiar ID" data-copy-id="${row.id}" data-copy-label="Team ID"><i class="bi bi-files"></i></button>
+            </div>
           </td>
-          <td class="fw-semibold small" style="color:var(--sidebar-accent)">${row.displayName}</td>
           <td class="small text-muted">${(row.description || '').substring(0, 50)}${(row.description || '').length > 50 ? '...' : ''}</td>
           <td class="small"><span class="badge ${row.visibility === 'Public' ? 'bg-success' : 'bg-warning text-dark'}">${row.visibility || '—'}</span></td>
           <td>
