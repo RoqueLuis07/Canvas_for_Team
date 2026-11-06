@@ -108,15 +108,19 @@ async def find_duplicates(body: FindDuplicatesRequest):
 
         teams_matches = []
         try:
-            # postalCode no está indexado para $filter por defecto en Graph;
-            # si la tenant no lo permite, cae a una búsqueda $search más
-            # amplia por el propio texto de la cédula.
+            # postalCode no está indexado para $filter por defecto en Graph
+            # ("Unsupported or invalid query filter clause...") — hace falta
+            # pedir explícitamente "advanced query" con $count=true y el
+            # header ConsistencyLevel: eventual para poder filtrar por esta
+            # propiedad.
             res = await graph.get(
                 "/users",
                 params={
                     "$filter": f"postalCode eq '{cedula}'",
                     "$select": "id,displayName,userPrincipalName,createdDateTime,accountEnabled",
+                    "$count": "true",
                 },
+                extra_headers={"ConsistencyLevel": "eventual"},
             )
             teams_matches = res.get("value", []) if res else []
         except Exception as e:

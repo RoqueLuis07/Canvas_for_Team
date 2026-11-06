@@ -186,8 +186,11 @@ async def close_client() -> None:
         _client_instance = None
 
 @_retry
-async def get(path: str, params: dict | None = None) -> Any:
-    r = await _client().get(f"{_GRAPH}{path}", headers=_headers(), params=params)
+async def get(path: str, params: dict | None = None, extra_headers: dict | None = None) -> Any:
+    headers = _headers()
+    if extra_headers:
+        headers.update(extra_headers)
+    r = await _client().get(f"{_GRAPH}{path}", headers=headers, params=params)
     _raise(r)
     return r.json()
 
