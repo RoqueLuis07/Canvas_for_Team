@@ -6,22 +6,32 @@
 
 {% block content %}
   <h1 class="page-title"><i class="bi bi-shield-lock-fill me-2"></i>Registro de Auditoría</h1>
-  <p class="page-subtitle">Historial completo de todas las actividades realizadas en el webservice</p>
+  <p class="page-subtitle">Quién hizo qué y cuándo, en todo el sistema</p>
 
   <!-- Filters -->
-  <div class="toolbar-pill mb-4">
+  <div class="toolbar-pill mb-4 flex-wrap">
     <div class="search-box">
       <i class="bi bi-person"></i>
       <input type="search" id="usernameFilter" placeholder="Filtrar por usuario..." class="form-control" onkeydown="if(event.key==='Enter') loadAuditLogs()">
     </div>
     <div class="search-box">
       <i class="bi bi-hdd-network"></i>
-      <input type="search" id="endpointFilter" placeholder="Filtrar por endpoint..." class="form-control" onkeydown="if(event.key==='Enter') loadAuditLogs()">
+      <input type="search" id="endpointFilter" placeholder="Filtrar por endpoint (técnico)..." class="form-control" onkeydown="if(event.key==='Enter') loadAuditLogs()">
+    </div>
+    <div class="d-flex align-items-center gap-1">
+      <label class="small text-muted mb-0" for="dateFromFilter">Desde</label>
+      <input type="date" id="dateFromFilter" class="form-control form-control-sm" style="width:150px;" onchange="loadAuditLogs()">
+      <label class="small text-muted mb-0" for="dateToFilter">Hasta</label>
+      <input type="date" id="dateToFilter" class="form-control form-control-sm" style="width:150px;" onchange="loadAuditLogs()">
     </div>
     <button type="button" class="btn-pill" onclick="loadAuditLogs()"><i class="bi bi-search me-1"></i>Buscar</button>
     <button type="button" class="btn-pill-outline" onclick="clearFilters()"><i class="bi bi-x-circle me-1"></i>Limpiar</button>
     <div class="btn-group-end">
-      <button type="button" class="btn-pill-outline" onclick="exportCsv()" title="Exporta hasta 500 registros con los filtros aplicados"><i class="bi bi-filetype-csv me-1"></i>Exportar CSV</button>
+      <div class="form-check form-switch mb-0 me-2">
+        <input class="form-check-input" type="checkbox" id="technicalViewToggle" onchange="loadPage()">
+        <label class="form-check-label small text-muted" for="technicalViewToggle">Vista técnica</label>
+      </div>
+      <button type="button" class="btn-pill-outline" onclick="exportCsv()" title="Exporta hasta 5000 registros con los filtros aplicados"><i class="bi bi-filetype-csv me-1"></i>Exportar CSV</button>
     </div>
   </div>
 
@@ -36,12 +46,11 @@
     </div>
     <div class="table-scroll">
       <table class="table table-sm">
-        <thead>
+        <thead id="auditTableHead">
           <tr>
             <th>Fecha</th>
+            <th>Acción</th>
             <th>Usuario</th>
-            <th>Método</th>
-            <th>Endpoint</th>
             <th>Estado</th>
             <th>IP</th>
           </tr>
@@ -72,19 +81,42 @@ async function loadAuditLogs() {
   await loadPage();
 }
 
+const ACTION_ICONS = {
+  create:       'bi-plus-circle-fill text-success',
+  delete:       'bi-trash-fill text-danger',
+  update:       'bi-pencil-fill text-primary',
+  import:       'bi-file-earmark-arrow-up-fill text-info',
+  import_bulk:  'bi-file-earmark-arrow-up-fill text-info',
+  cache_clear:  'bi-trash2-fill text-warning',
+  login:        'bi-box-arrow-in-right text-success',
+  delete_bulk:  'bi-trash-fill text-danger',
+};
+const ACTION_LABEL = {
+  create: 'Crear', delete: 'Eliminar', update: 'Actualizar',
+  import: 'Importar', import_bulk: 'Importar conjunto', cache_clear: 'Caché',
+  login: 'Ingreso', delete_bulk: 'Eliminar conjunto',
+};
+
+let lastLogs = [];
+
 async function loadPage() {
   const offset = currentPage * pageSize;
   const username = document.getElementById('usernameFilter').value.trim();
   const endpoint = document.getElementById('endpointFilter').value.trim();
+  const dateFrom = document.getElementById('dateFromFilter').value;
+  const dateTo = document.getElementById('dateToFilter').value;
 
   const params = new URLSearchParams({ limit: pageSize, offset });
   if (username) params.set('username', username);
   if (endpoint) params.set('endpoint', endpoint);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
 
   try {
     const data = await api.get(`/audit/logs?${params.toString()}`);
+    lastLogs = data.logs || [];
 
-    if (!data.logs || data.logs.length === 0) {
+    if (!lastLogs.length) {
       document.getElementById('auditTableBody').innerHTML = `
         <tr>
           <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);"><i class="bi bi-inbox fs-3 d-block mb-2"></i>No hay registros para los filtros aplicados</td>
@@ -96,26 +128,7 @@ async function loadPage() {
       return;
     }
 
-    // Render table
-    document.getElementById('auditTableBody').innerHTML = data.logs.map(log => `
-      <tr>
-        <td style="font-size: 0.85rem;">${new Date(log.timestamp).toLocaleDateString('es-ES')}</td>
-        <td><strong>${log.username}</strong></td>
-        <td>
-          <span style="padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;
-            background: ${getMethodColor(log.method)}; color: white;">
-            ${log.method}
-          </span>
-        </td>
-        <td style="font-family: monospace; font-size: 0.85rem;">${log.endpoint}</td>
-        <td>
-          <span style="color: ${log.status_code >= 200 && log.status_code < 300 ? '#1cc88a' : '#e74a3b'}; font-weight: bold;">
-            ${log.status_code}
-          </span>
-        </td>
-        <td style="font-size: 0.85rem;">${log.ip_address}</td>
-      </tr>
-    `).join('');
+    renderAuditRows();
 
     // Update pagination
     document.getElementById('resultCount').textContent = `Total: ${data.total} registros (página ${currentPage + 1})`;
@@ -138,6 +151,60 @@ async function loadPage() {
       </tr>
     `;
   }
+}
+
+function renderAuditRows() {
+  const technical = document.getElementById('technicalViewToggle').checked;
+  const head = document.getElementById('auditTableHead');
+
+  if (technical) {
+    head.innerHTML = `<tr>
+      <th>Fecha</th><th>Usuario</th><th>Método</th><th>Endpoint</th><th>Estado</th><th>IP</th>
+    </tr>`;
+    document.getElementById('auditTableBody').innerHTML = lastLogs.map(log => `
+      <tr>
+        <td style="font-size: 0.85rem;">${new Date(log.timestamp).toLocaleDateString('es-ES')}</td>
+        <td><strong>${log.username}</strong></td>
+        <td>
+          <span style="padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold;
+            background: ${getMethodColor(log.method)}; color: white;">
+            ${log.method}
+          </span>
+        </td>
+        <td style="font-family: monospace; font-size: 0.85rem;">${log.endpoint}</td>
+        <td>
+          <span style="color: ${log.status_code >= 200 && log.status_code < 300 ? '#1cc88a' : '#e74a3b'}; font-weight: bold;">
+            ${log.status_code}
+          </span>
+        </td>
+        <td style="font-size: 0.85rem;">${log.ip_address}</td>
+      </tr>
+    `).join('');
+    return;
+  }
+
+  head.innerHTML = `<tr>
+    <th>Fecha</th><th>Acción</th><th>Usuario</th><th>Estado</th><th>IP</th>
+  </tr>`;
+  document.getElementById('auditTableBody').innerHTML = lastLogs.map(log => {
+    const icon = ACTION_ICONS[log.action] || 'bi-info-circle text-secondary';
+    const label = ACTION_LABEL[log.action] || log.action;
+    const ok = log.status_code >= 200 && log.status_code < 300;
+    return `
+      <tr>
+        <td style="font-size: 0.85rem; white-space:nowrap;">${new Date(log.timestamp).toLocaleDateString('es-ES')}</td>
+        <td>
+          <i class="bi ${icon} me-1"></i><span class="fw-semibold">${label}</span>
+          <div class="text-muted small text-truncate" style="max-width:360px;" title="${log.endpoint}">${log.endpoint}</div>
+        </td>
+        <td><strong>${log.username}</strong></td>
+        <td>${ok
+          ? '<span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>OK</span>'
+          : `<span class="status-icon status-error"><i class="bi bi-x-circle-fill"></i>${log.status_code}</span>`}
+        </td>
+        <td style="font-size: 0.85rem;">${log.ip_address}</td>
+      </tr>`;
+  }).join('');
 }
 
 async function loadStats() {
@@ -180,15 +247,21 @@ function getMethodColor(method) {
 function clearFilters() {
   document.getElementById('usernameFilter').value = '';
   document.getElementById('endpointFilter').value = '';
+  document.getElementById('dateFromFilter').value = '';
+  document.getElementById('dateToFilter').value = '';
   loadAuditLogs();
 }
 
 async function exportCsv() {
   const username = document.getElementById('usernameFilter').value.trim();
   const endpoint = document.getElementById('endpointFilter').value.trim();
-  const params = new URLSearchParams({ limit: 500, offset: 0 });
+  const dateFrom = document.getElementById('dateFromFilter').value;
+  const dateTo = document.getElementById('dateToFilter').value;
+  const params = new URLSearchParams({ limit: 5000, offset: 0 });
   if (username) params.set('username', username);
   if (endpoint) params.set('endpoint', endpoint);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
 
   try {
     const data = await api.get(`/audit/logs?${params.toString()}`);
@@ -196,11 +269,15 @@ async function exportCsv() {
       toast('No hay registros para exportar', 'warning');
       return;
     }
+    if (data.total > data.logs.length) {
+      toast(`Hay ${data.total} registros con estos filtros — se exportan los primeros ${data.logs.length} (máximo 5000). Acotá el rango de fechas para exportar el resto.`, 'warning');
+    }
     const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const rows = [
-      ['Fecha', 'Usuario', 'Método', 'Endpoint', 'Estado', 'IP'].join(';'),
+      ['Fecha', 'Acción', 'Usuario', 'Método', 'Endpoint', 'Estado', 'IP'].join(';'),
       ...data.logs.map(l => [
         new Date(l.timestamp).toLocaleDateString('es-ES'),
+        ACTION_LABEL[l.action] || l.action,
         l.username, l.method, l.endpoint, l.status_code, l.ip_address
       ].map(esc).join(';'))
     ];

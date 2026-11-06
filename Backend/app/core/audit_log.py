@@ -136,8 +136,11 @@ async def log_activity(
         logger.error(f"Error logging activity: {e}")
 
 
-async def get_audit_logs(limit: int = 100, offset: int = 0, username: str = None, endpoint: str = None):
-    """Get audit logs from database, optionally filtered by username/endpoint (partial match)."""
+async def get_audit_logs(
+    limit: int = 100, offset: int = 0, username: str = None, endpoint: str = None,
+    date_from: str = None, date_to: str = None,
+):
+    """Get audit logs from database, optionally filtered by username/endpoint (partial match) y rango de fechas (YYYY-MM-DD, inclusive)."""
     try:
         def _get(conn):
             cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -150,6 +153,12 @@ async def get_audit_logs(limit: int = 100, offset: int = 0, username: str = None
             if endpoint:
                 where_clauses.append("endpoint ILIKE %s")
                 params.append(f"%{endpoint}%")
+            if date_from:
+                where_clauses.append("timestamp >= %s")
+                params.append(f"{date_from} 00:00:00")
+            if date_to:
+                where_clauses.append("timestamp <= %s")
+                params.append(f"{date_to} 23:59:59")
             where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
             cursor.execute(f"SELECT COUNT(*) FROM audit_logs {where_sql}", params)
