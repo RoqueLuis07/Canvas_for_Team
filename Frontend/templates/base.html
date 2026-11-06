@@ -149,6 +149,11 @@
   <a href="/ui/audit" class="sidebar-link {% block nav_au %}{% endblock %}">
     <i class="bi bi-shield-lock-fill"></i><span>Auditoría</span>
   </a>
+  {% if is_super_admin %}
+  <a href="/ui/admin-users" class="sidebar-link {% block nav_admusr %}{% endblock %}">
+    <i class="bi bi-person-badge-fill"></i><span>Accesos al Sistema</span>
+  </a>
+  {% endif %}
   <div class="sidebar-link-group">
     <a href="/ui/reports" class="sidebar-link {% block nav_rp %}{% endblock %}">
       <i class="bi bi-graph-up-arrow"></i><span>Reportes</span>

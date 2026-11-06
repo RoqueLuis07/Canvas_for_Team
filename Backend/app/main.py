@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 from app.services import auth as auth_service
 from app.core import database, cache as _cache
 from app.routers import (
+    admin_users,
     audit,
     auth,
     canvas,
@@ -72,9 +73,10 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(init_audit_db)
         await asyncio.to_thread(init_jobs_db)
         await asyncio.to_thread(init_actas_db)
+        await auth_service.refresh_admin_users_cache()
     except Exception as e:
         logger.error(f"Failed to initialize databases: {e}")
-        
+
     yield
     from app.services import canvas_client, teams_client
     from app.core import database as db
@@ -223,6 +225,7 @@ async def clear_cache():
 # Include routers with error handling
 routers_to_load = [
     ("Auth", auth.router),
+    ("AdminUsers", admin_users.router),
     ("Canvas", canvas.router),
     ("Excel", excel.router),
     ("Ingreso", ingreso.router),

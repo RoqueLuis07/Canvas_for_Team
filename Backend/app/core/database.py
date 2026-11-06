@@ -174,6 +174,19 @@ async def init_db():
             )
         """)
 
+        # Correos con permiso de inicio de sesión al sistema, agregados desde
+        # la web (ver /admin/users) — adicionales a los de la variable de
+        # entorno ADMIN_ALLOWED_EMAILS, que siguen siendo los únicos que
+        # pueden gestionar esta tabla (ver auth.is_super_admin).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS admin_users (
+                email TEXT PRIMARY KEY,
+                name TEXT,
+                added_by TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         conn.commit()
         logger.info("Database initialized at Supabase PostgreSQL")
 
@@ -624,4 +637,53 @@ async def set_setting(key: str, value: str) -> bool:
         return await _run(_set)
     except Exception as e:
         logger.error(f"Error setting '{key}': {e}")
+        return False
+
+
+async def get_admin_users() -> list:
+    """Devuelve los perfiles agregados desde la web con acceso al sistema
+    (no incluye los de ADMIN_ALLOWED_EMAILS, esos son fijos por variable de
+    entorno — ver auth.is_super_admin)."""
+    try:
+        def _get(conn):
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cursor.execute("SELECT email, name, added_by, created_at FROM admin_users ORDER BY created_at DESC")
+            return [dict(r) for r in cursor.fetchall()]
+        return await _run(_get)
+    except Exception as e:
+        logger.error(f"Error getting admin users: {e}")
+        return []
+
+
+async def add_admin_user(email: str, name: str, added_by: str) -> bool:
+    """Agrega (o actualiza nombre/added_by de) un correo con acceso al sistema."""
+    try:
+        def _add(conn):
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO admin_users (email, name, added_by, created_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (email) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    added_by = EXCLUDED.added_by
+            """, (email, name, added_by, datetime.utcnow()))
+            conn.commit()
+            return True
+        return await _run(_add)
+    except Exception as e:
+        logger.error(f"Error adding admin user '{email}': {e}")
+        return False
+
+
+async def remove_admin_user(email: str) -> bool:
+    """Quita el acceso de un correo agregado desde la web."""
+    try:
+        def _del(conn):
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM admin_users WHERE email = %s", (email,))
+            conn.commit()
+            return cursor.rowcount > 0
+        return await _run(_del)
+    except Exception as e:
+        logger.error(f"Error removing admin user '{email}': {e}")
         return False

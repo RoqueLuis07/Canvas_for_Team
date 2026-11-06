@@ -164,9 +164,39 @@ def exchange_code(code: str, request: Request = None) -> dict[str, Any]:
     }
 
 
-def is_email_allowed(email: str) -> bool:
-    """Solo el personal de TI en ADMIN_ALLOWED_EMAILS puede iniciar sesión."""
+# Correos agregados desde /admin/users (tabla admin_users), cacheados en
+# memoria para no pegarle a la base de datos en CADA request autenticado
+# (is_email_allowed/get_user_from_request se llaman en el middleware y en
+# casi todas las rutas). Se refresca al arrancar la app y cada vez que se
+# agrega/quita un perfil desde la web — si la base de datos falla al
+# refrescar, se mantiene la cache anterior en vez de vaciarla, para no
+# dejar a nadie afuera por un hiccup pasajero de Supabase.
+_db_allowed_emails: set[str] = set()
+
+
+async def refresh_admin_users_cache() -> None:
+    from app.core import database
+    try:
+        rows = await database.get_admin_users()
+        global _db_allowed_emails
+        _db_allowed_emails = {r["email"].strip().lower() for r in rows if r.get("email")}
+    except Exception:
+        pass
+
+
+def is_super_admin(email: str) -> bool:
+    """Solo estos correos (variable de entorno ADMIN_ALLOWED_EMAILS) pueden
+    agregar o quitar otros perfiles — ver /admin/users."""
     return bool(email) and email.strip().lower() in settings.admin_allowed_emails_set
+
+
+def is_email_allowed(email: str) -> bool:
+    """Puede iniciar sesión: el personal de TI fijo en ADMIN_ALLOWED_EMAILS,
+    o cualquier perfil agregado desde /admin/users (ver is_super_admin)."""
+    if not email:
+        return False
+    email = email.strip().lower()
+    return email in settings.admin_allowed_emails_set or email in _db_allowed_emails
 
 
 def get_user_from_request(request: Request) -> dict[str, Any] | None:

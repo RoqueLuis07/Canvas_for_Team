@@ -17,8 +17,10 @@ def _current_user(request: Request):
 
 
 def _r(request: Request, template: str, **ctx):
-    ctx.setdefault("user", _current_user(request))
+    user = _current_user(request)
+    ctx.setdefault("user", user)
     ctx.setdefault("request", request)
+    ctx.setdefault("is_super_admin", bool(user) and auth_service.is_super_admin(user.get("email", "")))
     return templates.TemplateResponse(template, ctx)
 
 
@@ -65,11 +67,13 @@ async def teams_teams(request: Request):
 @router.get("/egreso", response_class=HTMLResponse, summary="UI: Desvinculación Unificada")
 async def ui_offboarding(request: Request):
     """Página de desvinculación unificada de usuarios (Canvas + Teams)."""
+    user = _current_user(request)
     return templates.TemplateResponse(
         "unified_offboarding.html",
         {
             "request": request,
-            "user": _current_user(request),
+            "user": user,
+            "is_super_admin": bool(user) and auth_service.is_super_admin(user.get("email", "")),
             "page_title": "Desvinculación Unificada",
             "active_page": "egreso"
         }
@@ -129,6 +133,16 @@ async def jobs_page(request: Request):
 @router.get("/ui/reports", response_class=HTMLResponse)
 async def reports_page(request: Request):
     return _r(request, "reports.html")
+
+
+@router.get("/ui/admin-users", response_class=HTMLResponse)
+async def admin_users_page(request: Request):
+    user = _current_user(request)
+    if not user:
+        return RedirectResponse(url="/ui/login", status_code=302)
+    if not auth_service.is_super_admin(user.get("email", "")):
+        return RedirectResponse(url="/ui/home", status_code=302)
+    return _r(request, "admin_users.html")
 
 
 @router.get("/ui/unified-users", response_class=HTMLResponse)
