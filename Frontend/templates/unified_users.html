@@ -10,30 +10,24 @@
   </div>
 </div>
 
-<div class="row justify-content-center mb-4">
-  <div class="col-12 col-xl-10">
-    <div class="card shadow-sm border-0">
-      <!-- Search Header -->
-      <div class="card-header bg-body p-4 border-bottom">
-        <label class="form-label fw-semibold text-muted small text-uppercase">Buscar Perfil de Usuario</label>
-        <div class="input-group input-group-lg">
-          <span class="input-group-text bg-body-tertiary border-end-0"><i class="bi bi-search text-muted"></i></span>
-          <input type="text" id="unifiedSearchInput" class="form-control bg-body-tertiary border-start-0 ps-0 shadow-none"
-            placeholder="Ingrese correo electrónico, C.I. o ID y presione Enter..." onkeydown="if(event.key==='Enter') searchUnified()">
-          <button class="btn btn-primary px-4" type="button" onclick="searchUnified()">Buscar</button>
-        </div>
-      </div>
-
-      <!-- Results Container -->
-      <div class="card-body p-0 bg-body-secondary position-relative" id="unifiedDetailPane" style="min-height: 400px;">
-        <!-- Estado inicial -->
-        <div class="d-flex align-items-center justify-content-center h-100 w-100 text-muted flex-column opacity-50 py-5" style="min-height: 400px;">
-          <i class="bi bi-person-lines-fill" style="font-size: 4rem;"></i>
-          <h5 class="mt-3">Búsqueda de Perfiles</h5>
-          <p class="small text-center">Busca un usuario para ver y gestionar<br>sus detalles en Canvas LMS y Microsoft Teams.</p>
-        </div>
-      </div>
+<div class="card shadow-sm border-0 mb-4">
+  <!-- Search Header -->
+  <div class="card-header bg-body p-3 border-bottom">
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <span class="fw-semibold text-muted small text-uppercase">Buscar Perfil de Usuario</span>
+      <span class="badge bg-light text-dark border"><i class="bi bi-mortarboard-fill text-warning me-1"></i>Canvas</span>
+      <span class="badge bg-light text-dark border"><i class="bi bi-microsoft-teams me-1" style="color:#6264a7"></i>Teams</span>
     </div>
+    <div class="input-group" style="max-width: 640px;">
+      <span class="input-group-text bg-body-tertiary border-end-0"><i class="bi bi-search text-muted"></i></span>
+      <input type="text" id="unifiedSearchInput" class="form-control bg-body-tertiary border-start-0 ps-0 shadow-none"
+        placeholder="Correo electrónico, C.I. o ID y presioná Enter..." onkeydown="if(event.key==='Enter') searchUnified()">
+      <button class="btn btn-primary px-4" type="button" onclick="searchUnified()">Buscar</button>
+    </div>
+  </div>
+
+  <!-- Results Container -->
+  <div class="card-body p-0 bg-body-secondary position-relative" id="unifiedDetailPane" style="min-height: 400px;">
   </div>
 </div>
 
@@ -49,10 +43,54 @@
 
   const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+  // ==========================================
+  // BÚSQUEDAS RECIENTES (localStorage)
+  // ==========================================
+  const RECENT_KEY = 'unified_search_recent';
+  const RECENT_MAX = 8;
+
+  function getRecentSearches() {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch (e) { return []; }
+  }
+
+  function saveRecentSearch(query) {
+    try {
+      let recent = getRecentSearches().filter(q => q.toLowerCase() !== query.toLowerCase());
+      recent.unshift(query);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(recent.slice(0, RECENT_MAX)));
+    } catch (e) { /* localStorage puede fallar (ventana privada, etc.) — no es crítico */ }
+  }
+
+  function renderEmptyState() {
+    const recent = getRecentSearches();
+    const chipsHtml = recent.length
+      ? `
+        <div class="pt-2">
+          <div class="small text-muted mb-2 text-uppercase fw-semibold">Búsquedas recientes</div>
+          <div class="d-flex flex-wrap gap-2 justify-content-center">
+            ${recent.map(q => `<button type="button" class="btn btn-sm btn-outline-secondary rounded-pill" onclick="_searchFromChip('${esc(q).replace(/'/g, "\\'")}')"><i class="bi bi-clock-history me-1"></i>${esc(q)}</button>`).join('')}
+          </div>
+        </div>`
+      : `<p class="small text-center text-muted">Todavía no buscaste a nadie en esta sesión.</p>`;
+
+    document.getElementById('unifiedDetailPane').innerHTML = `
+    <div class="d-flex align-items-center justify-content-center h-100 w-100 flex-column py-5" style="min-height: 400px;">
+      <i class="bi bi-person-lines-fill text-muted opacity-50 mb-2" style="font-size: 2.5rem;"></i>
+      ${chipsHtml}
+    </div>`;
+  }
+
+  function _searchFromChip(query) {
+    document.getElementById('unifiedSearchInput').value = query;
+    searchUnified();
+  }
+
   const _qParam = new URLSearchParams(location.search).get('q');
   if (_qParam) {
     document.getElementById('unifiedSearchInput').value = _qParam;
     searchUnified();
+  } else {
+    document.addEventListener('DOMContentLoaded', renderEmptyState);
   }
 
   // ==========================================
@@ -68,6 +106,7 @@
     try {
       currentData = await api.get('/profile/lookup?email=' + encodeURIComponent(query));
       renderDetail(currentData, query);
+      saveRecentSearch(query);
     } catch (e) {
       showErrorState(e.message);
     }
@@ -98,10 +137,10 @@
         ${fuzzyWarningHtml}
         ${headerHtml}
         <div class="row g-4 mt-1">
-          <div class="col-12">
+          <div class="col-12 col-xl-6">
             ${canvasHtml}
           </div>
-          <div class="col-12">
+          <div class="col-12 col-xl-6">
             ${teamsHtml}
           </div>
         </div>
