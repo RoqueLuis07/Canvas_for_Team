@@ -304,8 +304,10 @@ async function downloadAsExcel() {
 // Event listeners
 document.getElementById('courseSearch').addEventListener('input', renderCourseCards);
 
-// Cargar reportes al iniciar
-loadAttendanceReports();
+// Cargar reportes al iniciar — diferido a DOMContentLoaded: este <script>
+// se parsea antes que main.js (que define `api`), así que llamar acá
+// directo fallaba con "api is not defined" en cada carga de la página.
+document.addEventListener('DOMContentLoaded', loadAttendanceReports);
 </script>
 
 <style>

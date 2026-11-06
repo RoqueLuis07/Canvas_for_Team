@@ -589,8 +589,12 @@ async function cargarListaEE() {
   `).join('');
 }
 
-// Init
-cargarListaST();
-cargarListaEE();
+// Init — diferido a DOMContentLoaded: este <script> se parsea antes que
+// main.js (que define `toast`), igual que el resto de las páginas que
+// cargan datos al entrar.
+document.addEventListener('DOMContentLoaded', () => {
+    cargarListaST();
+    cargarListaEE();
+});
 </script>
 {% endblock %}
