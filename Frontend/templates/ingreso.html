@@ -112,10 +112,19 @@
               <button type="button" class="btn-pill-outline" onclick="addNewRowDoc()" title="Agregar una fila nueva a esta planilla">
                 <i class="bi bi-plus-lg me-1"></i>Agregar fila
               </button>
+              <button type="button" class="btn-pill-outline px-2" onclick="toggleAddRowsPanel('doc')" title="Agregar varias filas a la vez">
+                <i class="bi bi-chevron-down"></i>
+              </button>
               <button type="button" class="btn-pill" id="btnProcessSelectedDocentes" onclick="processSelectedDocentes()" disabled>
                 <i class="bi bi-check-circle me-1"></i>Procesar seleccionadas (<span id="docSelectedCount">0</span>)
               </button>
             </div>
+          </div>
+          <div id="docAddRowsPanel" class="d-none p-2 mb-2 border rounded bg-light d-inline-flex align-items-center gap-2">
+            <label class="small fw-bold mb-0">Agregar</label>
+            <input type="number" min="1" max="50" value="5" class="form-control form-control-sm" style="width:70px;" id="docAddRowCount">
+            <span class="small text-muted">filas de una vez</span>
+            <button type="button" class="btn btn-sm btn-primary" onclick="addNewRowDoc(document.getElementById('docAddRowCount').value); toggleAddRowsPanel('doc')">Agregar</button>
           </div>
           <div class="toolbar-pill" id="docDoneBulkBar" style="display:none;">
             <span class="text-muted small"><i class="bi bi-check2-circle me-1"></i>Procesadas seleccionadas: <strong id="docDoneSelectedCount">0</strong></span>
@@ -249,10 +258,19 @@
                       <button type="button" class="btn-pill-outline" onclick="addNewRowDiplomado()" title="Agregar una fila nueva a esta planilla">
                         <i class="bi bi-plus-lg me-1"></i>Agregar fila
                       </button>
+                      <button type="button" class="btn-pill-outline px-2" onclick="toggleAddRowsPanel('dipl')" title="Agregar varias filas a la vez">
+                        <i class="bi bi-chevron-down"></i>
+                      </button>
                       <button type="button" class="btn-pill" id="btnProcessSelectedDiplomados" onclick="processSelectedDiplomados()" disabled>
                         <i class="bi bi-check-circle me-1"></i>Procesar seleccionadas (<span id="diplomadoSelectedCount">0</span>)
                       </button>
                     </div>
+                  </div>
+                  <div id="diplAddRowsPanel" class="d-none p-2 mb-2 border rounded bg-light d-inline-flex align-items-center gap-2">
+                    <label class="small fw-bold mb-0">Agregar</label>
+                    <input type="number" min="1" max="50" value="5" class="form-control form-control-sm" style="width:70px;" id="diplAddRowCount">
+                    <span class="small text-muted">filas de una vez</span>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="addNewRowDiplomado(document.getElementById('diplAddRowCount').value); toggleAddRowsPanel('dipl')">Agregar</button>
                   </div>
                   <!-- Acciones en lote SOLO para filas ya procesadas (cuentas
                        reales) — a propósito separadas de "Procesar
@@ -367,10 +385,19 @@
                       <button type="button" class="btn-pill-outline" onclick="addNewRowMasivo()" title="Agregar una fila nueva a esta planilla">
                         <i class="bi bi-plus-lg me-1"></i>Agregar fila
                       </button>
+                      <button type="button" class="btn-pill-outline px-2" onclick="toggleAddRowsPanel('masivo')" title="Agregar varias filas a la vez">
+                        <i class="bi bi-chevron-down"></i>
+                      </button>
                       <button type="button" class="btn-pill" id="btnProcessSelectedMasivo" onclick="processSelectedMasivo()" disabled>
                         <i class="bi bi-check-circle me-1"></i>Procesar seleccionadas (<span id="masivoSelectedCount">0</span>)
                       </button>
                     </div>
+                  </div>
+                  <div id="masivoAddRowsPanel" class="d-none p-2 mb-2 border rounded bg-light d-inline-flex align-items-center gap-2">
+                    <label class="small fw-bold mb-0">Agregar</label>
+                    <input type="number" min="1" max="50" value="5" class="form-control form-control-sm" style="width:70px;" id="masivoAddRowCount">
+                    <span class="small text-muted">filas de una vez</span>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="addNewRowMasivo(document.getElementById('masivoAddRowCount').value); toggleAddRowsPanel('masivo')">Agregar</button>
                   </div>
                   <div class="toolbar-pill" id="masivoDoneBulkBar" style="display:none;">
                     <span class="text-muted small"><i class="bi bi-check2-circle me-1"></i>Procesadas seleccionadas: <strong id="masivoDoneSelectedCount">0</strong></span>
@@ -660,16 +687,20 @@ const _rowEditRerender = {
     masivo: () => { const t = _masivoTabs[_masivoActiveTabId]; if (t) renderMasivoTable(t.pending, t.done, t.originalValues); },
 };
 
-function _addNewRowGeneric(cfg) {
+function _addNewRowGeneric(cfg, count) {
     const tab = cfg.tab();
     if (!tab) return toast('Cargá una pestaña (URL + hoja) antes de agregar una fila.', 'warning');
 
-    const syntheticId = _rowNewSeq--;
-    const row = { row_idx: syntheticId };
-    cfg.fields.forEach(f => { row[f] = f === 'plataforma' ? 'both' : ''; });
-
-    tab.pending.unshift(row);
-    cfg.originalValues[syntheticId] = Object.fromEntries(cfg.fields.map(f => [f, row[f]]));
+    count = Math.min(Math.max(parseInt(count, 10) || 1, 1), 50);
+    let firstId = null;
+    for (let i = 0; i < count; i++) {
+        const syntheticId = _rowNewSeq--;
+        if (firstId === null) firstId = syntheticId;
+        const row = { row_idx: syntheticId };
+        cfg.fields.forEach(f => { row[f] = f === 'plataforma' ? 'both' : ''; });
+        tab.pending.unshift(row);
+        cfg.originalValues[syntheticId] = Object.fromEntries(cfg.fields.map(f => [f, row[f]]));
+    }
 
     // Re-renderizar desde el array tab.pending (no armar el <tr> a mano
     // acá aparte) para que esta fila sin guardar se dibuje con el mismo
@@ -677,8 +708,14 @@ function _addNewRowGeneric(cfg) {
     // dos formas distintas de mostrarla que puedan desincronizarse (ver
     // _unsavedRowHtml, que es el único lugar que la dibuja).
     _rowEditRerender[cfg.prefix]();
-    const tr = document.querySelector(`[data-row-idx="${syntheticId}"][data-new="1"]`);
+    const tr = document.querySelector(`[data-row-idx="${firstId}"][data-new="1"]`);
     if (tr) tr.querySelector('[data-field="nombre"]').focus();
+    if (count > 1) toast(`${count} filas agregadas.`, 'success');
+}
+
+function toggleAddRowsPanel(prefix) {
+    const panel = document.getElementById(prefix + 'AddRowsPanel');
+    if (panel) panel.classList.toggle('d-none');
 }
 
 // Fila nueva sin guardar todavía (row_idx sintético negativo) — usado tanto
@@ -1391,7 +1428,7 @@ function _docRemoveFromActiveTabDone(rowIdx) {
     if (tab) tab.done = tab.done.filter(r => r.row_idx !== rowIdx);
 }
 
-function addNewRowDoc() {
+function addNewRowDoc(count) {
     _addNewRowGeneric({
         tbody: 'docRowsTbody', prefix: 'doc', fieldClass: 'doc-field',
         checkClass: 'doc-row-check', onChange: 'updateDocSelectedCount()',
@@ -1399,7 +1436,7 @@ function addNewRowDoc() {
         colCount: 8,
         tab: () => _docTabs[_docActiveTabId],
         originalValues: _docOriginalValues,
-    });
+    }, count);
 }
 
 async function deleteDocRow(rowIdx) {
@@ -1864,14 +1901,14 @@ function _diplRemoveFromActiveTabDone(rowIdx) {
     if (tab) tab.done = tab.done.filter(r => r.row_idx !== rowIdx);
 }
 
-function addNewRowDiplomado() {
+function addNewRowDiplomado(count) {
     _addNewRowGeneric({
         tbody: 'diplomadoRowsTbody', prefix: 'dipl', fieldClass: 'dipl-field',
         checkClass: 'dipl-row-check', onChange: 'updateDiplomadoSelectedCount()',
         fields: ['fecha', 'nombre', 'cedula', 'correo', 'telefono', 'vendedor'],
         tab: () => _diplomadosTabs[_diplomadosActiveTabId],
         originalValues: _diplomadosOriginalValues,
-    });
+    }, count);
 }
 
 async function removeFromGroupDiplomadoRow(rowIdx) {
@@ -2342,14 +2379,14 @@ function _masivoRemoveFromActiveTabDone(rowIdx) {
     if (tab) tab.done = tab.done.filter(r => r.row_idx !== rowIdx);
 }
 
-function addNewRowMasivo() {
+function addNewRowMasivo(count) {
     _addNewRowGeneric({
         tbody: 'masivoRowsTbody', prefix: 'masivo', fieldClass: 'masivo-field',
         checkClass: 'masivo-row-check', onChange: 'updateMasivoSelectedCount()',
         fields: ['nombre', 'cedula', 'correo'],
         tab: () => _masivoTabs[_masivoActiveTabId],
         originalValues: _masivoOriginalValues,
-    });
+    }, count);
 }
 
 async function deleteMasivoRow(rowIdx) {
