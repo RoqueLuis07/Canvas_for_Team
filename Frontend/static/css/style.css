@@ -254,6 +254,13 @@ body {
 .sidebar-group.collapsing { display: flex; flex-direction: column; }
 .sidebar-group.collapse:not(.show):not(.collapsing) { display: none; }
 
+/* "Modo simple" del sidebar: oculta por defecto las herramientas técnicas
+   (Sincronización, Actas de Equipos IT, Auditoría) que la mayoría de los
+   académicos nunca necesita — se revelan con el switch "Herramientas
+   técnicas" del pie del sidebar (ver base.html), guardado en localStorage. */
+.sidebar-link[data-advanced="true"] { display: none; }
+html.sidebar-advanced .sidebar-link[data-advanced="true"] { display: flex; }
+
 /* Nav links */
 .sidebar-link {
   display: flex; align-items: center; gap: 12px;

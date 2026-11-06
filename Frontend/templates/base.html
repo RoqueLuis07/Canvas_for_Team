@@ -9,7 +9,16 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="/static/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link href="/static/vendor/bootstrap-icons/font/bootstrap-icons.min.css" rel="stylesheet">
-  <link href="/static/css/style.css?v=27" rel="stylesheet">
+  <link href="/static/css/style.css?v=28" rel="stylesheet">
+  <script>
+    // Corre antes de pintar el sidebar, para que quien ya activó "Herramientas
+    // técnicas" no vea un parpadeo de esos links apareciendo recién después.
+    try {
+      if (localStorage.getItem('sidebar_advanced') === '1') {
+        document.documentElement.classList.add('sidebar-advanced');
+      }
+    } catch (e) { /* localStorage puede fallar (ventana privada, etc.) */ }
+  </script>
 </head>
 <body>
 
@@ -137,16 +146,16 @@
     <span>Administración</span><i class="bi bi-chevron-down"></i>
   </button>
   <div class="collapse show sidebar-group" id="grupoAdministracion">
-  <a href="/ui/actas" class="sidebar-link {% block nav_actas %}{% endblock %}">
+  <a href="/ui/actas" class="sidebar-link {% block nav_actas %}{% endblock %}" data-advanced="true">
     <i class="bi bi-file-earmark-text-fill"></i><span>Actas de Equipos (IT)</span>
   </a>
-  <a href="/ui/sync" class="sidebar-link {% block nav_sy %}{% endblock %}">
+  <a href="/ui/sync" class="sidebar-link {% block nav_sy %}{% endblock %}" data-advanced="true">
     <i class="bi bi-arrow-left-right"></i><span>Sincronización</span>
   </a>
   <a href="/ui/jobs" class="sidebar-link {% block nav_jh %}{% endblock %}">
     <i class="bi bi-clipboard-data-fill"></i><span>Historial Trabajos</span>
   </a>
-  <a href="/ui/audit" class="sidebar-link {% block nav_au %}{% endblock %}">
+  <a href="/ui/audit" class="sidebar-link {% block nav_au %}{% endblock %}" data-advanced="true">
     <i class="bi bi-shield-lock-fill"></i><span>Auditoría</span>
   </a>
   {% if is_super_admin %}
@@ -194,6 +203,15 @@
   <a href="/ui/profile" class="sidebar-link {% block nav_pf %}{% endblock %}">
     <i class="bi bi-person-circle"></i><span>Mi Perfil</span>
   </a>
+  </div>
+
+  <div class="px-3 py-2 border-top" style="border-color:rgba(255,255,255,.08)!important;">
+    <div class="form-check form-switch mb-0">
+      <input class="form-check-input" type="checkbox" id="sidebarAdvancedToggle" onchange="toggleSidebarAdvanced(this.checked)">
+      <label class="form-check-label small" for="sidebarAdvancedToggle" style="color:var(--sidebar-text);cursor:pointer;" title="Muestra Sincronización, Actas de Equipos (IT) y Auditoría — herramientas técnicas que la mayoría de los académicos no necesita.">
+        Herramientas técnicas
+      </label>
+    </div>
   </div>
 
   <div class="sidebar-footer">
@@ -381,7 +399,7 @@
 
 <script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 <script src="/static/vendor/xlsx/xlsx.full.min.js"></script>
-<script src="/static/js/main.js?v=12"></script>
+<script src="/static/js/main.js?v=13"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

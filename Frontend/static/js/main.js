@@ -77,13 +77,32 @@ function initSidebarGroups() {
   });
 }
 
+/* ── Modo simple del sidebar (oculta Sincronización/Actas/Auditoría) ──
+   El <html class="sidebar-advanced"> ya se aplicó en <head> (base.html,
+   script bloqueante) si estaba guardado, para que no haya parpadeo — acá
+   solo se sincroniza el estado visual del switch con esa clase. */
+function initSidebarAdvancedToggle() {
+  const toggle = document.getElementById('sidebarAdvancedToggle');
+  if (!toggle) return;
+  try {
+    toggle.checked = document.documentElement.classList.contains('sidebar-advanced');
+  } catch (e) { /* no-op */ }
+}
+
+function toggleSidebarAdvanced(advanced) {
+  document.documentElement.classList.toggle('sidebar-advanced', advanced);
+  try { localStorage.setItem('sidebar_advanced', advanced ? '1' : '0'); } catch (e) { /* no-op */ }
+}
+
 // Init on DOM ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initThemeToggle);
   document.addEventListener('DOMContentLoaded', initSidebarGroups);
+  document.addEventListener('DOMContentLoaded', initSidebarAdvancedToggle);
 } else {
   initThemeToggle();
   initSidebarGroups();
+  initSidebarAdvancedToggle();
 }
 
 /* ── Copy to clipboard ── */
