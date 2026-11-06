@@ -40,7 +40,7 @@
     <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
       <h5 class="mb-0"><i class="bi bi-person-x-fill me-2"></i>Cuentas de Teams Inactivas</h5>
       <div class="d-flex gap-2 align-items-center">
-        <input type="number" id="inactiveDays" value="60" min="1" class="form-control form-control-sm" style="width:90px;" title="Días sin iniciar sesión">
+        <input type="number" id="inactiveDays" value="60" min="1" max="730" class="form-control form-control-sm" style="width:90px;" title="Días sin iniciar sesión (máximo 730)">
         <button class="btn btn-outline-secondary btn-sm" onclick="loadInactiveUsers()"><i class="bi bi-arrow-clockwise me-1"></i>Consultar</button>
       </div>
     </div>
@@ -246,7 +246,17 @@ async function _freeSelectedLicensesConfirmed(ids) {
 }
 
 async function loadInactiveUsers() {
-    const days = document.getElementById('inactiveDays').value || 60;
+    const daysInput = document.getElementById('inactiveDays');
+    // El backend rechaza días > 730 (dos años) — se clampea acá para no
+    // mandarle al usuario el mensaje crudo de validación de la API
+    // ("days: Input should be less than or equal to 730") si escribe un
+    // número mayor a mano (el atributo max del input no lo bloquea solo).
+    let days = parseInt(daysInput.value, 10) || 60;
+    if (days > 730) {
+        days = 730;
+        daysInput.value = 730;
+        toast('El máximo es 730 días (2 años) — se ajustó automáticamente.', 'warning');
+    }
     try {
         const res = await api.get(`/reports/inactive-teams-users?days=${days}`);
         const body = document.getElementById('inactiveUsersBody');
