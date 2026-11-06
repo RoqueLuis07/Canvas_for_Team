@@ -85,6 +85,15 @@
                   <input type="url" class="form-control" id="coursesOdUrl" placeholder="https://...sharepoint.com/..." required>
                   <button class="btn btn-primary" type="button" id="btnLoadCoursesSheets" onclick="fetchCoursesSheets()">Cargar Pestañas</button>
                 </div>
+                <details class="small text-muted mt-n2 mb-2">
+                  <summary style="cursor:pointer;" class="d-inline">¿Cómo consigo este link?</summary>
+                  <div class="mt-1">
+                    1. Abrí el archivo en OneDrive.<br>
+                    2. Clic en "Compartir" (arriba, o clic derecho sobre el archivo).<br>
+                    3. Elegí "Cualquier persona con el vínculo" → "Puede editar".<br>
+                    4. Copiá el link y pegalo acá.
+                  </div>
+                </details>
                 <label class="form-label fw-bold mt-2">URL del Excel Maestro de Reportes (Opcional)</label>
                 <div class="input-group mb-3">
                   <span class="input-group-text"><i class="bi bi-journal-bookmark-fill"></i></span>
@@ -239,6 +248,15 @@
                         <input type="url" class="form-control border-danger" id="deleteOdUrl" placeholder="https://...sharepoint.com/...">
                         <button class="btn btn-danger" type="button" id="btnLoadDeleteSheets" onclick="fetchDeleteSheets()">Cargar Pestañas</button>
                     </div>
+                    <details class="small text-muted mb-2">
+                      <summary style="cursor:pointer;" class="d-inline">¿Cómo consigo este link?</summary>
+                      <div class="mt-1">
+                        1. Abrí el archivo en OneDrive.<br>
+                        2. Clic en "Compartir" (arriba, o clic derecho sobre el archivo).<br>
+                        3. Elegí "Cualquier persona con el vínculo" → "Puede editar".<br>
+                        4. Copiá el link y pegalo acá.
+                      </div>
+                    </details>
 
                     <label class="form-label fw-bold">Nombre de la Pestaña</label>
                     <select class="form-select border-danger mb-4" id="deleteOdSheet" onchange="previewDeleteOd()">
@@ -439,6 +457,15 @@
                     <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
                   </button>
                 </div>
+                <details class="small text-muted mb-2">
+                  <summary style="cursor:pointer;" class="d-inline">¿Cómo consigo este link?</summary>
+                  <div class="mt-1">
+                    1. Abrí el archivo en OneDrive.<br>
+                    2. Clic en "Compartir" (arriba, o clic derecho sobre el archivo).<br>
+                    3. Elegí "Cualquier persona con el vínculo" → "Puede editar".<br>
+                    4. Copiá el link y pegalo acá.
+                  </div>
+                </details>
                 <label class="form-label fw-bold">Pestaña</label>
                 <select class="form-select mb-3" id="fixCoordRoleSheet">
                   <option value="">Selecciona una pestaña...</option>
@@ -532,6 +559,15 @@
                   <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
                 </button>
               </div>
+              <details class="small text-muted mb-2">
+                <summary style="cursor:pointer;" class="d-inline">¿Cómo consigo este link?</summary>
+                <div class="mt-1">
+                  1. Abrí el archivo en OneDrive.<br>
+                  2. Clic en "Compartir" (arriba, o clic derecho sobre el archivo).<br>
+                  3. Elegí "Cualquier persona con el vínculo" → "Puede editar".<br>
+                  4. Copiá el link y pegalo acá.
+                </div>
+              </details>
               <label class="form-label fw-bold">Pestaña</label>
               <select class="form-select mb-3" id="fixSisIdSheet">
                 <option value="">Selecciona una pestaña...</option>
