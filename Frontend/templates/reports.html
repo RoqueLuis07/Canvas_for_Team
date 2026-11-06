@@ -46,7 +46,6 @@
     </div>
     <p class="px-3 pt-2 mb-0 small text-muted">
       Cuentas habilitadas sin inicio de sesión en los últimos N días (o que nunca iniciaron sesión).
-      Usa el permiso de aplicación <code>AuditLog.Read.All</code> ya concedido en Azure Portal.
     </p>
     <div class="table-scroll">
       <table class="table table-sm mb-0">
@@ -71,9 +70,8 @@
       </div>
     </div>
     <p class="px-3 pt-2 mb-0 small text-muted">
-      Usa el permiso de aplicación <code>Reports.Read.All</code> ya concedido en Azure Portal. Si el tenant tiene
-      activado el ocultamiento de datos de reportes, hay que desactivarlo en el Admin Center para ver nombres/correos
-      reales.
+      Muestra chats, reuniones y llamadas por usuario en el período elegido. Si los nombres/correos aparecen
+      ocultos, hay que desactivar esa opción de privacidad en el panel de administración de Microsoft 365.
     </p>
     <div class="table-scroll">
       <table class="table table-sm mb-0">
@@ -89,9 +87,8 @@
       <h5 class="mb-0"><i class="bi bi-envelope-check me-2"></i>Verificar Envío Real (Outlook)</h5>
     </div>
     <p class="px-3 pt-2 mb-0 small text-muted">
-      Confirma en la carpeta "Enviados" del buzón SMTP si un correo de credenciales realmente salió, más allá de que el
-      sistema lo haya marcado como enviado. Usa <code>Mail.ReadWrite</code> (ya concedido para otro flujo), que como
-      permiso de aplicación ya incluye lectura — no debería hacer falta pedir <code>Mail.Read</code> aparte.
+      Confirma en la carpeta "Enviados" del buzón institucional si un correo de credenciales realmente salió, más
+      allá de que el sistema lo haya marcado como enviado.
     </p>
     <div class="p-3">
       <div class="row g-2">
@@ -155,10 +152,8 @@
       <button class="btn btn-outline-secondary btn-sm" id="btnScanSinglePlatform" onclick="loadSinglePlatform()"><i class="bi bi-search me-1"></i>Cruzar Cuentas</button>
     </div>
     <p class="px-3 pt-2 mb-0 small text-muted">
-      Solo lectura — no modifica nada. Cuenta cuántas cuentas institucionales existen en Canvas <em>o</em> en
-      Teams/Azure AD pero no en ambas. Es la precondición que el equipo dejó pendiente en el backlog para
-      automatizar la reconciliación entre plataformas: mientras este caso no exista en la práctica, construir
-      esa lógica resolvería un problema que todavía no pasa.
+      Solo lectura — no modifica nada. Muestra qué cuentas institucionales existen en Canvas <em>o</em> en
+      Teams pero no en ambas, para detectar altas incompletas que conviene revisar.
     </p>
     <div id="singlePlatformSummary" class="px-3 py-3 small text-muted">Presioná "Cruzar Cuentas" para calcular.</div>
     <div id="singlePlatformDetail" style="display:none;">
