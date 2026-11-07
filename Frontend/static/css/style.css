@@ -1650,6 +1650,21 @@ html.dark-mode .tab-bar { background: rgba(255,255,255,.05); }
 .tab-bar-btn.active i { opacity: 1; }
 .tab-bar-btn:focus-visible { outline: 2px solid var(--usil-blue-dark); outline-offset: 2px; }
 
+/* Variantes de riesgo — mismo criterio que .sidebar-sublink.risk-high/
+   risk-medium: la pestaña sigue siendo monocromática en su contenedor,
+   pero el texto/ícono de acciones destructivas o irreversibles se marca
+   en color para que no se confundan con una acción segura a simple
+   vista. Al quedar "active" (fondo azul sólido) el texto pasa a blanco
+   igual que cualquier otra pestaña — el color de riesgo solo importa
+   en reposo, que es cuando hay que decidir cuál tocar. */
+.tab-bar-btn.risk-safe    { color: var(--canvas-green); }
+.tab-bar-btn.risk-high    { color: var(--canvas-red); }
+.tab-bar-btn.risk-medium  { color: var(--canvas-yellow); }
+.tab-bar-btn.active.risk-safe,
+.tab-bar-btn.active.risk-high,
+.tab-bar-btn.active.risk-medium { color: #fff; }
+.tab-bar-sep { width: 1px; align-self: stretch; margin: 4px 2px; background: var(--card-border); }
+
 /* ── 46. Status icon — estados sin amarillo/rojo/verde ──
    Pendiente/Procesado/Error se distinguen por ÍCONO y peso tipográfico,
    no por color de fondo. Un único acento (azul) para "activo/hecho";

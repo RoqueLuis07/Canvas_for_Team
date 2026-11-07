@@ -12,44 +12,36 @@
   </div>
 </div>
 
-<!-- Tabs: agrupadas por riesgo — creación (segura) primero, después un
+<!-- Pestañas agrupadas por riesgo — creación (segura) primero, después un
      separador visual y las operaciones destructivas/irreversibles marcadas
      con ⚠, después las correctivas (más acotadas en alcance). No depender
-     solo del color: a simple vista + lector de pantalla también se nota. -->
-<ul class="nav nav-tabs mb-4 align-items-center" id="coursesTabs" role="tablist">
-  <li class="nav-item" role="presentation">
-    <button class="nav-link active fw-bold text-success" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab" aria-controls="create" aria-selected="true">
-      <i class="bi bi-plus-circle-fill me-2"></i>Creación Masiva
-    </button>
-  </li>
-  <li class="nav-item d-flex align-items-center px-2" aria-hidden="true"><span class="vr" style="height:1.5rem"></span></li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-danger" id="delete-tab" data-bs-toggle="tab" data-bs-target="#delete" type="button" role="tab" aria-controls="delete" aria-selected="false" title="Acción destructiva: elimina cursos y equipos asociados">
-      <i class="bi bi-exclamation-triangle-fill me-1"></i><i class="bi bi-trash3-fill me-2"></i>Eliminación Masiva
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-warning" id="release-sis-tab" data-bs-toggle="tab" data-bs-target="#release-sis" type="button" role="tab" aria-controls="release-sis" aria-selected="false" title="Acción irreversible sobre cursos ya creados">
-      <i class="bi bi-exclamation-triangle-fill me-1"></i><i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-warning" id="release-term-sis-tab" data-bs-toggle="tab" data-bs-target="#release-term-sis" type="button" role="tab" aria-controls="release-term-sis" aria-selected="false" title="Acción irreversible sobre cursos ya creados">
-      <i class="bi bi-exclamation-triangle-fill me-1"></i><i class="bi bi-unlock-fill me-2"></i>Liberar Período
-    </button>
-  </li>
-  <li class="nav-item d-flex align-items-center px-2" aria-hidden="true"><span class="vr" style="height:1.5rem"></span></li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-primary" id="fix-coord-role-tab" data-bs-toggle="tab" data-bs-target="#fix-coord-role" type="button" role="tab" aria-controls="fix-coord-role" aria-selected="false">
-      <i class="bi bi-person-gear me-2"></i>Corregir Rol Coordinador
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-primary" id="fix-sis-id-tab" data-bs-toggle="tab" data-bs-target="#fix-sis-id" type="button" role="tab" aria-controls="fix-sis-id" aria-selected="false">
-      <i class="bi bi-pencil-square me-2"></i>Corregir SIS ID
-    </button>
-  </li>
-</ul>
+     solo del color: a simple vista + lector de pantalla también se nota.
+     Mismo .tab-bar que el resto de la app (ingreso.html, Matriculaciones)
+     en vez de nav-tabs de Bootstrap — todas las pestañas visibles siempre,
+     con el mismo look, sin el salto de línea descolocado que daba
+     nav-tabs con 6 botones. -->
+<div class="tab-bar mb-4" id="coursesTabs" role="tablist">
+  <button class="tab-bar-btn active risk-safe" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab" aria-controls="create" aria-selected="true">
+    <i class="bi bi-plus-circle-fill"></i>Creación Masiva
+  </button>
+  <span class="tab-bar-sep" aria-hidden="true"></span>
+  <button class="tab-bar-btn risk-high" id="delete-tab" data-bs-toggle="tab" data-bs-target="#delete" type="button" role="tab" aria-controls="delete" aria-selected="false" title="Acción destructiva: elimina cursos y equipos asociados">
+    <i class="bi bi-exclamation-triangle-fill"></i><i class="bi bi-trash3-fill"></i>Eliminación Masiva
+  </button>
+  <button class="tab-bar-btn risk-medium" id="release-sis-tab" data-bs-toggle="tab" data-bs-target="#release-sis" type="button" role="tab" aria-controls="release-sis" aria-selected="false" title="Acción irreversible sobre cursos ya creados">
+    <i class="bi bi-exclamation-triangle-fill"></i><i class="bi bi-unlock-fill"></i>Liberar SIS ID
+  </button>
+  <button class="tab-bar-btn risk-medium" id="release-term-sis-tab" data-bs-toggle="tab" data-bs-target="#release-term-sis" type="button" role="tab" aria-controls="release-term-sis" aria-selected="false" title="Acción irreversible sobre cursos ya creados">
+    <i class="bi bi-exclamation-triangle-fill"></i><i class="bi bi-unlock-fill"></i>Liberar Período
+  </button>
+  <span class="tab-bar-sep" aria-hidden="true"></span>
+  <button class="tab-bar-btn" id="fix-coord-role-tab" data-bs-toggle="tab" data-bs-target="#fix-coord-role" type="button" role="tab" aria-controls="fix-coord-role" aria-selected="false">
+    <i class="bi bi-person-gear"></i>Corregir Rol Coordinador
+  </button>
+  <button class="tab-bar-btn" id="fix-sis-id-tab" data-bs-toggle="tab" data-bs-target="#fix-sis-id" type="button" role="tab" aria-controls="fix-sis-id" aria-selected="false">
+    <i class="bi bi-pencil-square"></i>Corregir SIS ID
+  </button>
+</div>
 
 <div class="tab-content" id="coursesTabsContent">
   <!-- Tab: Creación Masiva -->
@@ -124,69 +116,52 @@
 
 </div>
 
-<div class="row g-3">
-  <div class="col-lg-9">
-    <div class="table-card">
-      <div class="card-header flex-wrap gap-2">
-        <div class="toolbar-pill flex-grow-1 mb-0">
-          <div class="search-box">
-            <i class="bi bi-search"></i>
-            <input type="text" id="searchCourse" class="form-control" placeholder="ID, nombre, código, SIS..." oninput="applyFilters()">
-          </div>
-          <select id="stateFilter" class="form-select filter-select-sm" title="Filtrar por estado" onchange="applyFilters()">
-            <option value="">Todos los estados</option>
-            <option value="available">✅ Publicado</option>
-            <option value="unpublished">⬜ No publicado</option>
-            <option value="completed">🔵 Concluido</option>
-            <option value="deleted">🔴 Eliminado</option>
-            <option value="created">📝 Borrador</option>
-          </select>
-          <select id="termFilter" class="form-select filter-select-md" title="Filtrar por período" onchange="applyFilters()">
-            <option value="">Todos los períodos</option>
-          </select>
-          <span class="text-muted small" id="courseCount"></span>
-          <div class="btn-group-end">
-            <button type="button" class="btn-pill-outline" onclick="exportTableToExcel('tableWrap','canvas_cursos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down me-1"></i>Exportar</button>
-            <button type="button" class="btn-pill" onclick="loadCourses()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
-          </div>
-        </div>
+<!-- Resumen calculado en el cliente a partir del mismo array que ya llena
+     la tabla (_allCourses, de GET /canvas/courses en loadCourses()) —
+     ningún dato nuevo ni llamada extra al backend. Franja horizontal en
+     vez de columna lateral (mismo patrón que Matriculaciones, .stat-strip
+     — ver style.css): una columna angosta al costado de una tabla de 1986
+     cursos quedaba con espacio vacío arriba y abajo. -->
+<div class="stat-strip mb-3">
+  <div class="stat-strip-label"><i class="bi bi-bar-chart-fill me-1"></i>Resumen de Cursos</div>
+  <div class="stat-strip-items" id="courseSummaryPanel">
+    <div class="stat-strip-item"><span class="ssi-label">Publicados</span><span class="ssi-value" id="sum-course-available">—</span></div>
+    <div class="stat-strip-item"><span class="ssi-label">No publicados</span><span class="ssi-value" id="sum-course-unpublished">—</span></div>
+    <div class="stat-strip-item"><span class="ssi-label">Concluidos</span><span class="ssi-value" id="sum-course-completed">—</span></div>
+    <div class="stat-strip-item"><span class="ssi-label">Eliminados</span><span class="ssi-value" id="sum-course-deleted">—</span></div>
+    <div class="stat-strip-item total"><span class="ssi-label">Total</span><span class="ssi-value" id="sum-course-total">—</span></div>
+  </div>
+</div>
+
+<div class="table-card">
+  <div class="card-header flex-wrap gap-2">
+    <div class="toolbar-pill flex-grow-1 mb-0">
+      <div class="search-box">
+        <i class="bi bi-search"></i>
+        <input type="text" id="searchCourse" class="form-control" placeholder="ID, nombre, código, SIS..." oninput="applyFilters()">
       </div>
-      <div id="tableWrap" class="table-responsive">
-        <div class="text-center py-5"><span class="spinner-border"></span></div>
+      <select id="stateFilter" class="form-select filter-select-sm" title="Filtrar por estado" onchange="applyFilters()">
+        <option value="">Todos los estados</option>
+        <option value="available">✅ Publicado</option>
+        <option value="unpublished">⬜ No publicado</option>
+        <option value="completed">🔵 Concluido</option>
+        <option value="deleted">🔴 Eliminado</option>
+        <option value="created">📝 Borrador</option>
+      </select>
+      <select id="termFilter" class="form-select filter-select-md" title="Filtrar por período" onchange="applyFilters()">
+        <option value="">Todos los períodos</option>
+      </select>
+      <span class="text-muted small" id="courseCount"></span>
+      <div class="btn-group-end">
+        <button type="button" class="btn-pill-outline" onclick="exportTableToExcel('tableWrap','canvas_cursos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down me-1"></i>Exportar</button>
+        <button type="button" class="btn-pill" onclick="loadCourses()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
       </div>
     </div>
   </div>
-  <div class="col-lg-3">
-    <!-- Resumen calculado en el cliente a partir del mismo array que ya
-         llena la tabla (_allCourses, de GET /canvas/courses en loadCourses())
-         — ningún dato nuevo ni llamada extra al backend. -->
-    <div class="side-panel">
-      <div class="side-panel-header"><i class="bi bi-bar-chart-fill me-1"></i>Resumen de Cursos</div>
-      <div class="side-panel-body" id="courseSummaryPanel">
-        <div class="side-panel-row">
-          <span class="spr-label">Publicados</span>
-          <span class="spr-value" id="sum-course-available">—</span>
-        </div>
-        <div class="side-panel-row">
-          <span class="spr-label">No publicados</span>
-          <span class="spr-value" id="sum-course-unpublished">—</span>
-        </div>
-        <div class="side-panel-row">
-          <span class="spr-label">Concluidos</span>
-          <span class="spr-value" id="sum-course-completed">—</span>
-        </div>
-        <div class="side-panel-row">
-          <span class="spr-label">Eliminados</span>
-          <span class="spr-value" id="sum-course-deleted">—</span>
-        </div>
-        <div class="side-panel-row total">
-          <span class="spr-label">Total</span>
-          <span class="spr-value" id="sum-course-total">—</span>
-        </div>
-      </div>
-    </div>
+  <div id="tableWrap" class="table-responsive">
+    <div class="text-center py-5"><span class="spinner-border"></span></div>
   </div>
-  </div> <!-- End row -->
+</div>
   </div> <!-- End Tab Creación Masiva -->
 
   <!-- Tab: Eliminación Masiva -->
