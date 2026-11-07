@@ -135,7 +135,10 @@
       <i class="bi bi-diagram-3-fill"></i><span>CPEL por Carrera</span>
     </a>
   </div>
-  <a href="/ui/canvas/attendance" class="sidebar-link {% block nav_ca %}{% endblock %}">
+  <!-- Oculta detrás de "Herramientas técnicas" hasta nuevo aviso — la
+       página tenía un problema de rendimiento serio con la cantidad real
+       de cursos de la institución (~1900), en revisión. -->
+  <a href="/ui/canvas/attendance" class="sidebar-link {% block nav_ca %}{% endblock %}" data-advanced="true">
     <i class="bi bi-clipboard-check-fill"></i><span>Asistencias</span>
   </a>
   </div>
