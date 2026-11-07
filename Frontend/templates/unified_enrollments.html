@@ -12,52 +12,31 @@
   <div><div class="page-title">Matriculaciones</div><div class="page-subtitle">Unificada y CPEL por Carrera — en un mismo lugar</div></div>
 </div>
 
-<!-- Matriculación Unificada y CPEL por Carrera, cada una con su propio ítem
-     de sidebar históricamente, unificadas en una sola página con tabs: son
-     variantes del mismo concepto (matricular gente en cursos/equipos) con
-     distinto origen de datos, y no hace falta navegar entre páginas
-     distintas para usarlas. (La modalidad "Por Materias" — planilla por
-     alumno con matching automático de curso — se sacó por ser redundante
-     con las otras dos.)
-
-     Las modalidades quedan como pestañas siempre visibles (.tab-bar) —
-     mismos botones con data-bs-toggle="tab" de siempre, así que el
-     deep-link ?tab=... (ver activateTabFromQuery más abajo) sigue
-     funcionando sin cambios: solo cambió el contenedor visual. -->
-<div class="tab-bar" id="matricTabs" role="tablist">
-  <button class="tab-bar-btn active" id="unificada-tab" data-bs-toggle="tab" data-bs-target="#unificada" type="button" role="tab" aria-controls="unificada" aria-selected="true">
-    <i class="bi bi-person-lines-fill"></i>Matriculación Unificada
-  </button>
-  <button class="tab-bar-btn" id="cpel-tab" data-bs-toggle="tab" data-bs-target="#cpel" type="button" role="tab" aria-controls="cpel" aria-selected="false">
-    <i class="bi bi-diagram-3-fill"></i>CPEL por Carrera
-  </button>
+<!-- Matriculación Individual, Masiva (OneDrive) y CPEL por Carrera, cada
+     una con su propio ítem de sidebar históricamente, unificadas en una
+     sola franja de pestañas — mismo patrón plano que ingreso.html (Alta
+     Unificada), sin niveles anidados (antes había un tab-bar externo
+     Unificada/CPEL y, adentro de Unificada, un segundo tab-bar
+     Individual/Masiva). Los ids de los paneles (collapseMatriculacionInd/
+     collapseMatriculaciones/cpel) se mantienen sin cambios porque el resto
+     del script los referencia, y el deep-link ?tab=... (ver
+     activateTabFromQuery más abajo) sigue funcionando igual. -->
+<div class="d-flex justify-content-between align-items-start mb-3 gap-2 flex-wrap">
+  <div class="tab-bar" id="matricTabs" role="tablist">
+    <button class="tab-bar-btn active" id="matriculacion-ind-tab" data-bs-toggle="tab" data-bs-target="#collapseMatriculacionInd" type="button" role="tab" aria-controls="collapseMatriculacionInd" aria-selected="true">
+      <i class="bi bi-person-check-fill"></i>Matriculación Individual
+    </button>
+    <button class="tab-bar-btn" id="matriculacion-masiva-tab" data-bs-toggle="tab" data-bs-target="#collapseMatriculaciones" type="button" role="tab" aria-controls="collapseMatriculaciones" aria-selected="false">
+      <i class="bi bi-file-earmark-excel"></i>Matriculación Masiva (OneDrive)
+    </button>
+    <button class="tab-bar-btn" id="cpel-tab" data-bs-toggle="tab" data-bs-target="#cpel" type="button" role="tab" aria-controls="cpel" aria-selected="false">
+      <i class="bi bi-diagram-3-fill"></i>CPEL por Carrera
+    </button>
+  </div>
+  <a href="/template/unified-enrollment" class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
 </div>
 
 <div class="tab-content" id="matricTabsContent">
-
-  <!-- ══════════════ Tab: Matriculación Unificada ══════════════ -->
-  <div class="tab-pane fade show active" id="unificada" role="tabpanel" aria-labelledby="unificada-tab">
-
-    <div class="d-flex justify-content-between align-items-start mb-3 gap-2 flex-wrap">
-      <!-- Antes 2 botones independientes cada uno togglaba su propio
-           accordion de 1 solo ítem (podían quedar los 2 abiertos a la vez).
-           Convertidos a .tab-bar — mismo patrón que ingreso.html — para que
-           sea exactamente uno de los dos métodos visible, nunca ambos ni
-           ninguno. Los ids de los paneles (collapseMatriculacionInd/
-           collapseMatriculaciones) se mantienen sin cambios porque el resto
-           del script los referencia. -->
-      <div class="tab-bar" id="matMetodoTabs" role="tablist">
-        <button class="tab-bar-btn active" id="matriculacion-ind-tab" data-bs-toggle="tab" data-bs-target="#collapseMatriculacionInd" type="button" role="tab" aria-controls="collapseMatriculacionInd" aria-selected="true">
-          <i class="bi bi-person-check-fill"></i>Matriculación Individual
-        </button>
-        <button class="tab-bar-btn" id="matriculacion-masiva-tab" data-bs-toggle="tab" data-bs-target="#collapseMatriculaciones" type="button" role="tab" aria-controls="collapseMatriculaciones" aria-selected="false">
-          <i class="bi bi-file-earmark-excel"></i>Matriculación Masiva (OneDrive)
-        </button>
-      </div>
-      <a href="/template/unified-enrollment" class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
-    </div>
-
-    <div class="tab-content" id="matMetodoTabsContent">
 
     <!-- Panel Matriculación Individual (pestaña activa por defecto, igual
          que antes con el accordion-collapse "show") -->
@@ -237,11 +216,6 @@
             </div>
     </div>
     <!-- fin Panel Matriculación Masiva -->
-
-    </div>
-    <!-- fin tab-content matMetodoTabsContent -->
-
-  </div>
 
   <!-- ══════════════ Tab: CPEL por Carrera ══════════════ -->
   <div class="tab-pane fade" id="cpel" role="tabpanel" aria-labelledby="cpel-tab">
