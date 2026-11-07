@@ -260,7 +260,15 @@ def _safe_set_cell(ws, row: int, column: int, value):
     columna donde el sistema necesita escribir (ej. el ID del equipo de
     Teams), openpyxl lanza AttributeError al intentar asignar `.value` en
     una MergedCell. Deshacemos el merge puntual para evitar el crash.
+
+    row/column < 1 no son posiciones válidas en una planilla real — pasa
+    si llega un row_idx sintético (negativo, de una fila "Agregar fila"
+    nunca guardada) por error desde el frontend. Se ignora en silencio en
+    vez de dejar que openpyxl tire ValueError y rompa todo el procesamiento.
     """
+    if row < 1 or column < 1:
+        logger.warning(f"_safe_set_cell: row={row} column={column} inválido, se ignora (fila sin guardar?)")
+        return None
     cell = ws.cell(row=row, column=column)
     if isinstance(cell, MergedCell):
         for merged_range in list(ws.merged_cells.ranges):
@@ -4249,11 +4257,11 @@ async def import_docentes_onedrive(req: DocentesProcessEditedRequest) -> BulkRes
     # Correcciones hechas desde la tabla editable del frontend — mismo
     # patrón aditivo que /excel/diplomados/process-edited.
     for r_idx, vals in {o["row_idx"]: {k: v for k, v in o.items() if k != "row_idx"} for o in req.overrides if "row_idx" in o}.items():
-        if "nombre" in vals and col_nombre: ws.cell(row=r_idx, column=col_nombre, value=vals["nombre"])
-        if "cedula" in vals and col_cedula: ws.cell(row=r_idx, column=col_cedula, value=vals["cedula"])
-        if "correo" in vals and col_correo: ws.cell(row=r_idx, column=col_correo, value=vals["correo"])
-        if "telefono" in vals and col_telefono: ws.cell(row=r_idx, column=col_telefono, value=vals["telefono"])
-        if "plataforma" in vals and col_plat: ws.cell(row=r_idx, column=col_plat, value=vals["plataforma"])
+        if "nombre" in vals and col_nombre: _safe_set_cell(ws, r_idx, col_nombre, vals["nombre"])
+        if "cedula" in vals and col_cedula: _safe_set_cell(ws, r_idx, col_cedula, vals["cedula"])
+        if "correo" in vals and col_correo: _safe_set_cell(ws, r_idx, col_correo, vals["correo"])
+        if "telefono" in vals and col_telefono: _safe_set_cell(ws, r_idx, col_telefono, vals["telefono"])
+        if "plataforma" in vals and col_plat: _safe_set_cell(ws, r_idx, col_plat, vals["plataforma"])
 
     col_cc = get_col_idx("cc", "copia")
     sheet_cc_list = []
@@ -5443,11 +5451,11 @@ async def import_masivo_onedrive(req: MasivoProcessEditedRequest) -> BulkResult:
     # siempre lee de ws.cell(...) — el resto de esta función no necesita
     # saber que hubo una edición.
     for r_idx, vals in {o["row_idx"]: {k: v for k, v in o.items() if k != "row_idx"} for o in req.overrides if "row_idx" in o}.items():
-        if "nombre" in vals and col_nombre: ws.cell(row=r_idx, column=col_nombre, value=vals["nombre"])
-        if "cedula" in vals and col_cedula: ws.cell(row=r_idx, column=col_cedula, value=vals["cedula"])
-        if "correo" in vals and col_correo: ws.cell(row=r_idx, column=col_correo, value=vals["correo"])
-        if "telefono" in vals and col_telefono: ws.cell(row=r_idx, column=col_telefono, value=vals["telefono"])
-        if "plataforma" in vals and col_plataforma: ws.cell(row=r_idx, column=col_plataforma, value=vals["plataforma"])
+        if "nombre" in vals and col_nombre: _safe_set_cell(ws, r_idx, col_nombre, vals["nombre"])
+        if "cedula" in vals and col_cedula: _safe_set_cell(ws, r_idx, col_cedula, vals["cedula"])
+        if "correo" in vals and col_correo: _safe_set_cell(ws, r_idx, col_correo, vals["correo"])
+        if "telefono" in vals and col_telefono: _safe_set_cell(ws, r_idx, col_telefono, vals["telefono"])
+        if "plataforma" in vals and col_plataforma: _safe_set_cell(ws, r_idx, col_plataforma, vals["plataforma"])
 
     next_col = ws.max_column + 1
     if not col_usuario:

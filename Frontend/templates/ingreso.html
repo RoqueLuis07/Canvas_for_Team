@@ -1392,7 +1392,7 @@ function renderDocTable(pending, done, originalValues) {
 }
 
 function toggleAllDocRows(checkbox) {
-    document.querySelectorAll('#docRowsTbody .doc-row-check').forEach(cb => { cb.checked = checkbox.checked; });
+    document.querySelectorAll('#docRowsTbody .doc-row-check:not(:disabled)').forEach(cb => { cb.checked = checkbox.checked; });
     updateDocSelectedCount();
 }
 
@@ -1856,7 +1856,7 @@ function renderDiplomadosTable(pending, done, originalValues) {
 }
 
 function toggleAllDiplomadoRows(checkbox) {
-    document.querySelectorAll('#diplomadoRowsTbody .dipl-row-check').forEach(cb => { cb.checked = checkbox.checked; });
+    document.querySelectorAll('#diplomadoRowsTbody .dipl-row-check:not(:disabled)').forEach(cb => { cb.checked = checkbox.checked; });
     updateDiplomadoSelectedCount();
 }
 
@@ -2343,7 +2343,7 @@ function renderMasivoTable(pending, done, originalValues) {
 }
 
 function toggleAllMasivoRows(checkbox) {
-    document.querySelectorAll('#masivoRowsTbody .masivo-row-check').forEach(cb => { cb.checked = checkbox.checked; });
+    document.querySelectorAll('#masivoRowsTbody .masivo-row-check:not(:disabled)').forEach(cb => { cb.checked = checkbox.checked; });
     updateMasivoSelectedCount();
 }
 
