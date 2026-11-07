@@ -3194,6 +3194,7 @@ async def fix_sis_id_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTas
 
 
 async def _process_fix_sis_id_bg(job_id: int, req: DiplomadosUrlRequest, contents: bytes, encoded_url: str):
+    import json
     await jobs.start_job(job_id)
 
     try:
@@ -3239,6 +3240,7 @@ async def _process_fix_sis_id_bg(job_id: int, req: DiplomadosUrlRequest, content
 
     success_count = 0
     error_count = 0
+    results_list = []
 
     async def fix_one(r_idx: int, canvas_id: str, new_sis: str):
         nonlocal success_count, error_count
@@ -3248,29 +3250,36 @@ async def _process_fix_sis_id_bg(job_id: int, req: DiplomadosUrlRequest, content
         except Exception as e:
             ws.cell(row=r_idx, column=col_estado, value=f"❌ Error: curso {canvas_id} no encontrado ({e})").font = Font(color="FF0000", bold=True)
             error_count += 1
+            results_list.append({"curso": canvas_id, "sis_id": new_sis, "status": f"❌ Error: curso no encontrado ({e})"})
             return
 
         if current_sis == new_sis:
             ws.cell(row=r_idx, column=col_estado, value="✅ Ya estaba correcto").font = Font(color="00B050", bold=True)
             success_count += 1
+            results_list.append({"curso": canvas_id, "sis_id": new_sis, "status": "✅ Ya estaba correcto"})
             return
 
         try:
             await canvas.put(f"/courses/{canvas_id}", {"course": {"sis_course_id": new_sis}})
             ws.cell(row=r_idx, column=col_estado, value="✅ SIS corregido").font = Font(color="00B050", bold=True)
             success_count += 1
+            results_list.append({"curso": canvas_id, "sis_id": new_sis, "status": "✅ SIS corregido"})
         except Exception as e:
             err = getattr(e, "detail", None) or str(e)
             if "sis" in str(err).lower() and "already" in str(err).lower():
                 err = f"{err} — el SIS ID '{new_sis}' ya está en uso por otro curso; corregí primero ese curso para liberarlo."
             ws.cell(row=r_idx, column=col_estado, value=f"❌ Error: {err}").font = Font(color="FF0000", bold=True)
             error_count += 1
+            results_list.append({"curso": canvas_id, "sis_id": new_sis, "status": f"❌ Error: {err}"})
 
     batch_size = 5
     for i in range(0, len(rows), batch_size):
         chunk = rows[i:i + batch_size]
         await asyncio.gather(*(fix_one(*r) for r in chunk))
-        await jobs.update_job_progress(job_id, success_count, error_count)
+        await jobs.update_job_progress(
+            job_id, success_count, error_count,
+            data_json=json.dumps({"total_to_process": len(rows), "processed": success_count + error_count, "results": results_list}),
+        )
 
     out_io = io.BytesIO()
     wb.save(out_io)
@@ -4895,13 +4904,14 @@ async def _process_rollback_bg(job_id: int, req: DiplomadosUrlRequest, contents:
 
     success_count = 0
     error_count = 0
+    results_list = []
 
     async def process_rollback_row(r_idx):
         nonlocal success_count, error_count
         login_id = str(ws.cell(row=r_idx, column=col_usuario).value or "").strip()
         id_curso = str(ws.cell(row=r_idx, column=col_curso).value or "").strip() if col_curso else ""
         id_equipo = str(ws.cell(row=r_idx, column=col_equipo).value or "").strip() if col_equipo else ""
-        
+
         error = ""
         uid = None
         try:
@@ -4909,7 +4919,7 @@ async def _process_rollback_bg(job_id: int, req: DiplomadosUrlRequest, contents:
             if user_data and user_data.get("id"):
                 uid = user_data["id"]
         except: pass
-        
+
         # Canvas Rollback — coincidencia EXACTA de login_id/email/SIS ID, no
         # "el primero que aparezca" de una búsqueda difusa: eso podría
         # desmatricular a otro alumno con correo/nombre parecido en vez del
@@ -4921,7 +4931,7 @@ async def _process_rollback_bg(job_id: int, req: DiplomadosUrlRequest, contents:
                     await canvas.remove_user_from_course(id_curso, str(match["id"]))
             except Exception as e:
                 error += f"CanvasUnenroll: {e} | "
-        
+
         # Teams Rollback
         if id_equipo and id_equipo != "None" and uid:
             try:
@@ -4929,27 +4939,29 @@ async def _process_rollback_bg(job_id: int, req: DiplomadosUrlRequest, contents:
                 await graph.remove_owner_from_group(id_equipo, uid)
             except Exception as e:
                 error += f"TeamsUnenroll: {e} | "
-                
+
         if error:
             error_count += 1
+            results_list.append({"usuario": login_id, "status": f"❌ {error}"})
         else:
             ws.cell(row=r_idx, column=col_enviado, value="")
             if col_contra:
                 ws.cell(row=r_idx, column=col_contra, value="")
             ws.cell(row=r_idx, column=col_usuario, value="")
             success_count += 1
+            results_list.append({"usuario": login_id, "status": "✅ Revertido"})
 
-    import asyncio
+    import asyncio, json
     batch_size = 5
     for i in range(0, len(valid_rows), batch_size):
         chunk = valid_rows[i:i+batch_size]
         await asyncio.gather(*(process_rollback_row(r) for r in chunk))
-        
+
         await jobs.update_job_progress(
-            job_id, 
-            success_count, 
-            error_count, 
-            data_json=f'{{"total_to_process": {len(valid_rows)}, "processed": {success_count + error_count}}}'
+            job_id,
+            success_count,
+            error_count,
+            data_json=json.dumps({"total_to_process": len(valid_rows), "processed": success_count + error_count, "results": results_list}),
         )
 
     out_io = io.BytesIO()

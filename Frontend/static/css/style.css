@@ -260,6 +260,12 @@ body {
    técnicas" del pie del sidebar (ver base.html), guardado en localStorage. */
 .sidebar-link[data-advanced="true"] { display: none; }
 html.sidebar-advanced .sidebar-link[data-advanced="true"] { display: flex; }
+/* Variante para un ítem con submenú (ej. Reportes): el link-group entero
+   (link + flechita) y su submenú se ocultan juntos, no solo el link. */
+.sidebar-link-group[data-advanced="true"],
+.collapse[data-advanced="true"] { display: none !important; }
+html.sidebar-advanced .sidebar-link-group[data-advanced="true"] { display: flex !important; }
+html.sidebar-advanced .collapse[data-advanced="true"].show { display: block !important; }
 
 /* Nav links */
 .sidebar-link {

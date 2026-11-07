@@ -166,7 +166,7 @@
     <i class="bi bi-person-badge-fill"></i><span>Accesos al Sistema</span>
   </a>
   {% endif %}
-  <div class="sidebar-link-group">
+  <div class="sidebar-link-group" data-advanced="true">
     <a href="/ui/reports" class="sidebar-link {% block nav_rp %}{% endblock %}">
       <i class="bi bi-graph-up-arrow"></i><span>Reportes</span>
     </a>
@@ -176,7 +176,7 @@
       <i class="bi bi-chevron-down"></i>
     </button>
   </div>
-  <div class="collapse {% block nav_rp_show %}{% endblock %}" id="submenuReportes">
+  <div class="collapse {% block nav_rp_show %}{% endblock %}" id="submenuReportes" data-advanced="true">
     <a href="/ui/reports#licencias-huerfanas" class="sidebar-sublink">
       <i class="bi bi-key-fill"></i><span>Licencias Huérfanas</span>
     </a>
