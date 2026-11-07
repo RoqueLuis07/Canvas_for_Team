@@ -21,7 +21,13 @@ def _r(request: Request, template: str, **ctx):
     ctx.setdefault("user", user)
     ctx.setdefault("request", request)
     ctx.setdefault("is_super_admin", bool(user) and auth_service.is_super_admin(user.get("email", "")))
-    return templates.TemplateResponse(template, ctx)
+    response = templates.TemplateResponse(template, ctx)
+    # Sin esto el navegador puede servir una copia vieja de la página (con
+    # el <script> inline anterior) después de un deploy — vimos en
+    # producción un caso real donde seguía corriendo lógica ya reemplazada
+    # varios minutos después de que el deploy nuevo ya estaba arriba.
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -68,7 +74,7 @@ async def teams_teams(request: Request):
 async def ui_offboarding(request: Request):
     """Página de desvinculación unificada de usuarios (Canvas + Teams)."""
     user = _current_user(request)
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         "unified_offboarding.html",
         {
             "request": request,
@@ -78,6 +84,8 @@ async def ui_offboarding(request: Request):
             "active_page": "egreso"
         }
     )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.get("/ui/ingreso", response_class=HTMLResponse)
