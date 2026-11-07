@@ -102,18 +102,28 @@ async function loadAttendanceReports() {
 
     allReports = [];
 
-    // Cargar reportes de asistencia para cada curso
-    const reportPromises = courses.map(async (course) => {
+    // Cargar reportes de asistencia en lotes chicos, no todos los cursos a
+    // la vez: disparar hasta 100 requests simultáneas saturaba la API de
+    // Canvas (429 Too Many Requests) y la conexión compartida a la base de
+    // datos (statement timeout), haciendo que el cliente diera timeout
+    // antes de que terminara. Mismo tamaño de lote que las cargas masivas
+    // de Excel (ver excel.py, batch_size = 5).
+    const loadOne = async (course) => {
       try {
         const report = await api.get(`/canvas/attendance/from-csv/${course.id}`);
         return { ...report, courseId: course.id };
       } catch (e) {
-        // Ignorar cursos sin reporte
+        return null; // Ignorar cursos sin reporte
       }
-      return null;
-    });
+    };
 
-    const results = await Promise.all(reportPromises);
+    const results = [];
+    const batchSize = 5;
+    for (let i = 0; i < courses.length; i += batchSize) {
+      const batch = courses.slice(i, i + batchSize);
+      const batchResults = await Promise.all(batch.map(loadOne));
+      results.push(...batchResults);
+    }
     allReports = results.filter(r => r !== null);
 
     if (allReports.length === 0) {
