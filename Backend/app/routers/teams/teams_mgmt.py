@@ -17,7 +17,7 @@ from app.models.teams import (
     TeamsTeamUpdate,
 )
 from app.services import teams_client as graph
-from app.services.teams_client import create_team_via_group
+from app.services.teams_client import create_team_via_group, remove_member_from_group
 
 router = APIRouter(prefix="/teams/teams", tags=["Teams · Teams"])
 
@@ -404,6 +404,31 @@ async def remove_member(team_id: str, membership_id: str):
     try:
         await graph.delete(f"/teams/{team_id}/members/{membership_id}")
         return {"removed": membership_id}
+    except StarletteHTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+class RemoveMemberByUpnRequest(BaseModel):
+    group_id: str
+    upn: str
+
+
+@router.post("/remove-member-by-upn", summary="Quitar un miembro de un grupo/Team por su UPN, sin necesitar el membership_id")
+async def remove_member_by_upn(body: RemoveMemberByUpnRequest):
+    """Atajo para pantallas que solo tienen el correo institucional de la
+    persona (ej. la tabla editable de Diplomados) y no el membership_id que
+    exige /{team_id}/members/{membership_id} — resuelve el UPN a su ID de
+    Azure AD y quita la membresía a nivel de grupo M365 (no deshabilita ni
+    borra la cuenta, solo la saca de ese equipo puntual)."""
+    try:
+        user = await graph.get(f"/users/{body.upn}", params={"$select": "id"})
+        user_id = user.get("id") if user else None
+        if not user_id:
+            raise HTTPException(status_code=404, detail=f"No se encontró un usuario en Azure AD con UPN '{body.upn}'.")
+        removed = await remove_member_from_group(body.group_id, user_id)
+        return {"removed": removed}
     except StarletteHTTPException:
         raise
     except Exception as exc:

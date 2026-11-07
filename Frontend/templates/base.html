@@ -9,7 +9,16 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="/static/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link href="/static/vendor/bootstrap-icons/font/bootstrap-icons.min.css" rel="stylesheet">
-  <link href="/static/css/style.css?v=27" rel="stylesheet">
+  <link href="/static/css/style.css?v=29" rel="stylesheet">
+  <script>
+    // Corre antes de pintar el sidebar, para que quien ya activó "Herramientas
+    // técnicas" no vea un parpadeo de esos links apareciendo recién después.
+    try {
+      if (localStorage.getItem('sidebar_advanced') === '1') {
+        document.documentElement.classList.add('sidebar-advanced');
+      }
+    } catch (e) { /* localStorage puede fallar (ventana privada, etc.) */ }
+  </script>
 </head>
 <body>
 
@@ -18,7 +27,7 @@
 
   <!-- Brand -->
   <a href="/ui/home" class="sidebar-brand sidebar-brand-link" title="Inicio">
-    <img src="/static/img/usil-logo-white.svg"
+    <img src="/static/img/usil-mono-white.png"
          alt="Universidad San Ignacio de Loyola"
          class="sidebar-brand-logo">
   </a>
@@ -83,15 +92,17 @@
     <a href="/ui/canvas/courses?tab=create" class="sidebar-sublink" data-tab="create">
       <i class="bi bi-plus-circle-fill"></i><span>Creación Masiva</span>
     </a>
-    <a href="/ui/canvas/courses?tab=delete" class="sidebar-sublink" data-tab="delete">
+    <div class="sidebar-sublink-divider" aria-hidden="true"></div>
+    <a href="/ui/canvas/courses?tab=delete" class="sidebar-sublink risk-high" data-tab="delete" title="Acción destructiva">
       <i class="bi bi-trash3-fill"></i><span>Eliminación Masiva</span>
     </a>
-    <a href="/ui/canvas/courses?tab=release-sis" class="sidebar-sublink" data-tab="release-sis">
+    <a href="/ui/canvas/courses?tab=release-sis" class="sidebar-sublink risk-medium" data-tab="release-sis" title="Acción irreversible">
       <i class="bi bi-unlock-fill"></i><span>Liberar SIS ID</span>
     </a>
-    <a href="/ui/canvas/courses?tab=release-term-sis" class="sidebar-sublink" data-tab="release-term-sis">
+    <a href="/ui/canvas/courses?tab=release-term-sis" class="sidebar-sublink risk-medium" data-tab="release-term-sis" title="Acción irreversible">
       <i class="bi bi-unlock-fill"></i><span>Liberar Período</span>
     </a>
+    <div class="sidebar-sublink-divider" aria-hidden="true"></div>
     <a href="/ui/canvas/courses?tab=fix-coord-role" class="sidebar-sublink" data-tab="fix-coord-role">
       <i class="bi bi-person-gear"></i><span>Corregir Rol Coordinador</span>
     </a>
@@ -99,20 +110,36 @@
   <a href="/ui/teams/teams" class="sidebar-link {% block nav_tt %}{% endblock %}">
     <i class="bi bi-microsoft-teams"></i><span>Equipos (Teams)</span>
   </a>
-  <a href="/ui/unified-enrollments" class="sidebar-link {% block nav_ue %}{% endblock %}">
-    <i class="bi bi-person-lines-fill"></i><span>Matriculaciones</span>
-  </a>
-  <a href="/ui/materias" class="sidebar-link {% block nav_mm %}{% endblock %}">
-    <i class="bi bi-journal-check"></i><span>Matriculación por Materias</span>
-  </a>
-  <a href="/ui/cpel" class="sidebar-link {% block nav_cpel %}{% endblock %}">
-    <i class="bi bi-diagram-3-fill"></i><span>Matriculación CPEL por Carrera</span>
-  </a>
-  <a href="/ui/canvas/attendance" class="sidebar-link {% block nav_ca %}{% endblock %}">
+  <!-- Matriculaciones: antes 3 ítems de sidebar (Unificada/Materias/CPEL),
+       cada uno con su propia página. Se unificaron en una sola página con
+       tabs (unified_enrollments.html) — acá queda 1 link + submenú con las
+       3 modalidades como sublinks, mismo patrón que Cursos/Egreso. -->
+  <div class="sidebar-link-group">
+    <a href="/ui/unified-enrollments" class="sidebar-link {% block nav_ue %}{% endblock %}">
+      <i class="bi bi-person-lines-fill"></i><span>Matriculaciones</span>
+    </a>
+    <button type="button" class="sidebar-caret-btn" data-bs-toggle="collapse" data-bs-target="#submenuMatriculaciones"
+            aria-expanded="{% block nav_ue_expanded %}false{% endblock %}" aria-controls="submenuMatriculaciones"
+            aria-label="Mostrar modalidades de Matriculación">
+      <i class="bi bi-chevron-down"></i>
+    </button>
+  </div>
+  <div class="collapse {% block nav_ue_show %}{% endblock %}" id="submenuMatriculaciones">
+    <a href="/ui/unified-enrollments?tab=matriculacion-ind" class="sidebar-sublink" data-tab="matriculacion-ind">
+      <i class="bi bi-person-check-fill"></i><span>Individual</span>
+    </a>
+    <a href="/ui/unified-enrollments?tab=matriculacion-masiva" class="sidebar-sublink" data-tab="matriculacion-masiva">
+      <i class="bi bi-file-earmark-excel"></i><span>Masiva (OneDrive)</span>
+    </a>
+    <a href="/ui/unified-enrollments?tab=cpel" class="sidebar-sublink" data-tab="cpel">
+      <i class="bi bi-diagram-3-fill"></i><span>CPEL por Carrera</span>
+    </a>
+  </div>
+  <!-- Oculta detrás de "Herramientas técnicas" hasta nuevo aviso — la
+       página tenía un problema de rendimiento serio con la cantidad real
+       de cursos de la institución (~1900), en revisión. -->
+  <a href="/ui/canvas/attendance" class="sidebar-link {% block nav_ca %}{% endblock %}" data-advanced="true">
     <i class="bi bi-clipboard-check-fill"></i><span>Asistencias</span>
-  </a>
-  <a href="/ui/sync" class="sidebar-link {% block nav_sy %}{% endblock %}">
-    <i class="bi bi-arrow-left-right"></i><span>Sincronización</span>
   </a>
   </div>
 
@@ -122,15 +149,23 @@
     <span>Administración</span><i class="bi bi-chevron-down"></i>
   </button>
   <div class="collapse show sidebar-group" id="grupoAdministracion">
-  <a href="/ui/actas" class="sidebar-link {% block nav_actas %}{% endblock %}">
-    <i class="bi bi-file-earmark-text-fill"></i><span>Actas</span>
+  <a href="/ui/actas" class="sidebar-link {% block nav_actas %}{% endblock %}" data-advanced="true">
+    <i class="bi bi-file-earmark-text-fill"></i><span>Actas de Equipos (IT)</span>
+  </a>
+  <a href="/ui/sync" class="sidebar-link {% block nav_sy %}{% endblock %}" data-advanced="true">
+    <i class="bi bi-arrow-left-right"></i><span>Sincronización</span>
   </a>
   <a href="/ui/jobs" class="sidebar-link {% block nav_jh %}{% endblock %}">
     <i class="bi bi-clipboard-data-fill"></i><span>Historial Trabajos</span>
   </a>
-  <a href="/ui/audit" class="sidebar-link {% block nav_au %}{% endblock %}">
+  <a href="/ui/audit" class="sidebar-link {% block nav_au %}{% endblock %}" data-advanced="true">
     <i class="bi bi-shield-lock-fill"></i><span>Auditoría</span>
   </a>
+  {% if is_super_admin %}
+  <a href="/ui/admin-users" class="sidebar-link {% block nav_admusr %}{% endblock %}">
+    <i class="bi bi-person-badge-fill"></i><span>Accesos al Sistema</span>
+  </a>
+  {% endif %}
   <div class="sidebar-link-group">
     <a href="/ui/reports" class="sidebar-link {% block nav_rp %}{% endblock %}">
       <i class="bi bi-graph-up-arrow"></i><span>Reportes</span>
@@ -157,6 +192,9 @@
     <a href="/ui/reports#cuentas-sin-uso" class="sidebar-sublink">
       <i class="bi bi-person-slash"></i><span>Cuentas sin Uso</span>
     </a>
+    <a href="/ui/reports#una-plataforma" class="sidebar-sublink">
+      <i class="bi bi-shuffle"></i><span>Una Sola Plataforma</span>
+    </a>
   </div>
   </div>
 
@@ -168,6 +206,15 @@
   <a href="/ui/profile" class="sidebar-link {% block nav_pf %}{% endblock %}">
     <i class="bi bi-person-circle"></i><span>Mi Perfil</span>
   </a>
+  </div>
+
+  <div class="px-3 py-2 border-top" style="border-color:rgba(255,255,255,.08)!important;">
+    <div class="form-check form-switch mb-0">
+      <input class="form-check-input" type="checkbox" id="sidebarAdvancedToggle" onchange="toggleSidebarAdvanced(this.checked)">
+      <label class="form-check-label small" for="sidebarAdvancedToggle" style="color:var(--sidebar-text);cursor:pointer;" title="Muestra Sincronización, Actas de Equipos (IT) y Auditoría — herramientas técnicas que la mayoría de los académicos no necesita.">
+        Herramientas técnicas
+      </label>
+    </div>
   </div>
 
   <div class="sidebar-footer">
@@ -355,7 +402,7 @@
 
 <script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 <script src="/static/vendor/xlsx/xlsx.full.min.js"></script>
-<script src="/static/js/main.js?v=12"></script>
+<script src="/static/js/main.js?v=13"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

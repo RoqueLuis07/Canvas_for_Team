@@ -346,3 +346,38 @@ async def reset_password(body: ResetPasswordPayload, current_user: dict = Depend
         }
     }
     return await graph.patch(f"/users/{user['id']}", payload)
+
+
+class DraftEmailRequest(BaseModel):
+    to_email: str
+    subject: str
+    html_body: str
+    cc: list[str] | None = None
+
+
+@router.post("/mail/draft", summary="Crear un borrador en el Outlook del admin logueado (sin enviarlo)")
+async def create_my_draft(body: DraftEmailRequest, current_user: dict = Depends(get_current_user)):
+    """Crea el correo como borrador en la bandeja de Borradores del admin
+    que está logueado ahora mismo (current_user["email"]) — nunca lo envía,
+    queda ahí para que lo revise y lo mande él mismo. Usa las mismas
+    credenciales de aplicación (Mail.Send + Mail.ReadWrite con
+    consentimiento de administrador) que ya usa el resto del sistema para
+    enviar correos de credenciales."""
+    try:
+        draft = await graph.create_draft_email(
+            mailbox=current_user["email"], subject=body.subject,
+            html_body=body.html_body, to_email=body.to_email, cc=body.cc,
+        )
+    except HTTPException as exc:
+        if exc.status_code == 403:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "Falta el permiso de aplicación 'Mail.ReadWrite' (con consentimiento de administrador) "
+                    "en Azure Portal → App Registrations → API Permissions. Detalle original: " + str(exc.detail)
+                ),
+            )
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"No se pudo crear el borrador: {exc}")
+    return {"status": "success", "id": draft.get("id"), "web_link": draft.get("webLink")}

@@ -47,7 +47,6 @@
       </div>
       <div class="canvas-tile-footer">
         <a href="/ui/canvas/courses"     class="tile-link"><i class="bi bi-book me-1"></i>Cursos</a>
-        <a href="/ui/canvas/attendance"  class="tile-link"><i class="bi bi-clipboard-check me-1"></i>Asistencias</a>
       </div>
     </div>
   </div>
@@ -85,7 +84,7 @@
   <!-- Herramientas tile -->
   <div class="col-md-6 col-xl-4">
     <div class="canvas-tile">
-      <div class="canvas-tile-header tile-header-orange">
+      <div class="canvas-tile-header tile-header-slate">
         <i class="bi bi-tools tile-bg-icon"></i>
         <div class="tile-title">Herramientas</div>
         <div class="tile-sub">Gestión y administración</div>
@@ -206,47 +205,55 @@
         <span class="text-muted small ms-2 d-none d-lg-inline">Tareas frecuentes de un clic</span>
       </div>
       <div class="p-3">
-        <div class="row g-2">
-          <div class="col-6 col-md-4 col-lg-2">
-            <a href="/ui/ingreso" class="quick-action">
-              <i class="bi bi-person-fill-add text-canvas-green"></i>
-              <span>Nuevo Ingreso</span>
-            </a>
-          </div>
-          <div class="col-6 col-md-4 col-lg-2">
-            <a href="/ui/unified-enrollments" class="quick-action">
-              <i class="bi bi-pencil-square text-canvas-blue"></i>
-              <span>Matriculaciones</span>
-            </a>
-          </div>
-          <div class="col-6 col-md-4 col-lg-2">
-            <a href="/ui/canvas/courses" class="quick-action">
-              <i class="bi bi-book-fill text-canvas-teal"></i>
-              <span>Cursos</span>
-            </a>
-          </div>
+        <div class="action-tile-grid">
+          <a href="/ui/unified-users" class="quick-action">
+            <i class="bi bi-search text-canvas-purple"></i>
+            <span>Buscar Usuarios</span>
+          </a>
+          <a href="/ui/ingreso" class="quick-action">
+            <i class="bi bi-person-fill-add text-canvas-green"></i>
+            <span>Nuevo Ingreso</span>
+          </a>
+          <a href="/ui/envio-credenciales" class="quick-action">
+            <i class="bi bi-envelope-check-fill text-canvas-yellow"></i>
+            <span>Envío de Credenciales</span>
+          </a>
+          <a href="/ui/unified-enrollments" class="quick-action">
+            <i class="bi bi-pencil-square text-canvas-blue"></i>
+            <span>Matriculaciones</span>
+          </a>
+          <a href="/ui/canvas/courses" class="quick-action">
+            <i class="bi bi-book-fill text-canvas-teal"></i>
+            <span>Cursos</span>
+          </a>
+          <a href="/egreso" class="quick-action">
+            <i class="bi bi-person-dash-fill text-canvas-red"></i>
+            <span>Egreso</span>
+          </a>
         </div>
       </div>
     </div>
   </div>
 
   <div class="col-md-4">
-    <div class="canvas-panel p-3 h-100">
-      <div class="fw-semibold small text-muted mb-3">
+    <div class="side-panel h-100">
+      <div class="side-panel-header">
         <i class="bi bi-activity me-1"></i>Estado del sistema
       </div>
-      <div class="d-flex flex-column gap-2 mb-3">
-        <span id="health-canvas" class="badge bg-secondary badge-inline d-flex align-items-center gap-1">
-          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Canvas
-        </span>
-        <span id="health-azure" class="badge bg-secondary badge-inline d-flex align-items-center gap-1">
-          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Azure AD
-        </span>
-        <span id="cache-stats" class="text-muted small"></span>
+      <div class="side-panel-body">
+        <div class="d-flex flex-column gap-2 mb-3">
+          <span id="health-canvas" class="badge bg-secondary-subtle text-secondary-emphasis badge-inline d-flex align-items-center gap-1">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Canvas
+          </span>
+          <span id="health-azure" class="badge bg-secondary-subtle text-secondary-emphasis badge-inline d-flex align-items-center gap-1">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Azure AD
+          </span>
+          <span id="cache-stats" class="text-muted small"></span>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="clearCache()">
+          <i class="bi bi-trash2 me-1"></i>Limpiar caché
+        </button>
       </div>
-      <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="clearCache()">
-        <i class="bi bi-trash2 me-1"></i>Limpiar caché
-      </button>
     </div>
   </div>
 
@@ -284,9 +291,23 @@ function timeAgo(ts) {
 async function loadStats() {
   try {
     const s = await api.get('/stats');
-    document.getElementById('cnt-cu').textContent = s.canvas_users   || '0';
-    document.getElementById('cnt-cc').textContent = s.canvas_courses || '0';
-    document.getElementById('cnt-tu').textContent = s.azure_users    || '0';
+
+    // El backend ahora siempre responde (nunca cuelga), pero si tuvo que
+    // cortar por timeout devuelve ceros + s.error en vez de propagar un
+    // error HTTP — sin este chequeo se veía como "0 usuarios" real.
+    if (s.error) {
+      ['cnt-cu','cnt-cc','cnt-tu'].forEach(id => {
+        document.getElementById(id).innerHTML =
+          '<span class="text-danger" style="font-size:.95rem" title="No se pudieron cargar los contadores">—</span>';
+      });
+      document.getElementById('sync-badge').innerHTML =
+        '<span class="text-danger">No se pudo cargar</span> ' +
+        '<a href="#" class="ms-1" onclick="event.preventDefault(); loadStats();">Reintentar</a>';
+    } else {
+      document.getElementById('cnt-cu').textContent = s.canvas_users   || '0';
+      document.getElementById('cnt-cc').textContent = s.canvas_courses || '0';
+      document.getElementById('cnt-tu').textContent = s.azure_users    || '0';
+    }
 
     if (s.last_sync) {
       const mins = Math.round((Date.now() / 1000 - s.last_sync) / 60);
@@ -304,7 +325,11 @@ async function loadStats() {
       const rows = teams.slice(0, 8).map(t => {
         const initial = (t.displayName || '?')[0].toUpperCase();
         const vis     = t.visibility;
-        const visCls  = vis === 'Public' ? 'bg-success' : vis === 'Private' ? 'bg-warning text-dark' : 'bg-secondary';
+        // Etiqueta de clasificación (no un estado ok/pendiente/error), así
+        // que se queda como badge compacto (el .status-icon con ícono+texto
+        // no entra bien en esta fila tan angosta de micro-avatar) — solo se
+        // le sacan los colores amarillo/verde de Bootstrap.
+        const visCls  = vis === 'Public' ? 'bg-primary-subtle text-primary-emphasis' : 'bg-secondary-subtle text-secondary-emphasis';
         return `<div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
           <div class="micro-avatar micro-avatar-purple">${initial}</div>
           <div class="flex-grow-1 overflow-hidden">
@@ -328,7 +353,7 @@ async function loadStats() {
       
       const rows = courses.slice(0, 8).map(c => {
         const state   = c.workflow_state;
-        const statCls = state === 'available' ? 'bg-success' : state === 'completed' ? 'bg-secondary' : 'bg-warning text-dark';
+        const statCls = state === 'available' ? 'bg-primary-subtle text-primary-emphasis' : 'bg-secondary-subtle text-secondary-emphasis';
         const statLbl = state === 'available' ? 'Publicado' : state === 'completed' ? 'Completado' : state || '—';
         return `<div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom">
           <div class="flex-grow-1 overflow-hidden">
@@ -349,6 +374,9 @@ async function loadStats() {
     ['cnt-cu','cnt-cc','cnt-tu','cnt-tt'].forEach(id => {
       document.getElementById(id).textContent = '—';
     });
+    document.getElementById('sync-badge').innerHTML =
+      `<span class="text-danger">${e.message || 'No se pudo cargar'}</span> ` +
+      '<a href="#" class="ms-1" onclick="event.preventDefault(); loadStats();">Reintentar</a>';
   }
 }
 
@@ -431,7 +459,7 @@ async function loadAudit() {
           <div class="small">
             <span class="fw-semibold">${label}</span>
             <span class="text-muted"> ${e.resource}</span>
-            ${e.status !== 'ok' ? '<span class="badge bg-danger ms-1 badge-xs">error</span>' : ''}
+            ${e.status !== 'ok' ? '<span class="status-icon status-error ms-1"><i class="bi bi-x-circle-fill"></i>error</span>' : ''}
           </div>
           ${e.detail ? `<div class="text-muted text-truncate small">${e.detail}</div>` : ''}
           <div class="text-muted small">${e.user} · ${timeAgo(e.ts)}</div>
@@ -461,13 +489,13 @@ async function loadHealth() {
       const ok = i === 0 ? cv : az;
       const lbl = i === 0 ? 'Canvas' : 'Azure AD';
       const el  = document.getElementById(id);
-      el.className = `badge bg-${ok ? 'success' : 'danger'} badge-inline d-flex align-items-center gap-1`;
+      el.className = `badge bg-${ok ? 'success' : 'danger'}-subtle text-${ok ? 'success' : 'danger'}-emphasis badge-inline d-flex align-items-center gap-1`;
       el.innerHTML = `<i class="bi bi-${ok ? 'check' : 'x'}-circle"></i>${lbl}`;
     });
   } catch(_) {
     [['health-canvas','Canvas'], ['health-azure','Azure AD']].forEach(([id, lbl]) => {
       const el = document.getElementById(id);
-      el.className = 'badge bg-secondary badge-inline';
+      el.className = 'badge bg-secondary-subtle text-secondary-emphasis badge-inline';
       el.textContent = `${lbl} —`;
     });
   }

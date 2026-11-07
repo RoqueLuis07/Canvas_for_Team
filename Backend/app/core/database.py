@@ -14,11 +14,23 @@ logger = logging.getLogger(__name__)
 _conn = None
 _db_lock = asyncio.Lock()
 
+# Tiempo máximo para abrir la conexión y para que una query corra del lado
+# del servidor. Sin esto, una conexión/consulta colgada (red caída, DB sin
+# responder) bloquea `_db_lock` para siempre y TODA la app se cuelga, porque
+# cada llamada a `database.*` pasa por este mismo lock.
+_CONNECT_TIMEOUT = 5
+_STATEMENT_TIMEOUT_MS = 8000
+_RUN_TIMEOUT = 10  # > _STATEMENT_TIMEOUT_MS/1000, le da margen a Postgres a cortar primero
+
 from app.core.config import settings
 def _get_conn():
     global _conn
     if _conn is None or _conn.closed:
-        _conn = psycopg2.connect(settings.supabase_database_url)
+        _conn = psycopg2.connect(
+            settings.supabase_database_url,
+            connect_timeout=_CONNECT_TIMEOUT,
+            options=f"-c statement_timeout={_STATEMENT_TIMEOUT_MS}",
+        )
     return _conn
 
 async def close_db():
@@ -36,6 +48,15 @@ async def _run(fn):
     cualquier error, y como se reutiliza en todas las llamadas siguientes,
     UNA sola consulta fallida rompía todas las operaciones de base de datos
     del resto de la app hasta reiniciar el proceso.
+
+    Además, la ejecución entera tiene un timeout (`_RUN_TIMEOUT`): si el hilo
+    no vuelve a tiempo (conexión/consulta colgada), se libera `_db_lock` igual
+    (lo hace `async with` al cancelarse) y se descarta `_conn` para que la
+    próxima llamada abra una conexión nueva, en vez de dejar bloqueadas todas
+    las operaciones de base de datos del resto de la app indefinidamente. El
+    hilo colgado se abandona (Python no puede cancelar una llamada bloqueante
+    de psycopg2 a mitad de camino), pero como ya no comparte la conexión
+    global con nadie más, no corrompe las siguientes llamadas.
     """
     def _wrapped():
         conn = _get_conn()
@@ -53,7 +74,13 @@ async def _run(fn):
             raise
 
     async with _db_lock:
-        return await asyncio.to_thread(_wrapped)
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(_wrapped), timeout=_RUN_TIMEOUT)
+        except asyncio.TimeoutError:
+            global _conn
+            logger.error(f"DB operation timed out after {_RUN_TIMEOUT}s, discarding connection")
+            _conn = None
+            raise
 
 
 async def init_db():
@@ -111,9 +138,18 @@ async def init_db():
                 display_name TEXT NOT NULL,
                 mail TEXT UNIQUE,
                 user_principal_name TEXT,
+                mobile_phone TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+        """)
+
+        # Migración: instalaciones ya existentes no tienen la columna de
+        # teléfono — antes ninguna función pedía mobilePhone a Graph, así
+        # que nunca llegaba ni a esta tabla ni al frontend. Idempotente,
+        # igual que la migración de canvas_enrollments de arriba.
+        cursor.execute("""
+            ALTER TABLE azure_users ADD COLUMN IF NOT EXISTS mobile_phone TEXT;
         """)
 
         cursor.execute("""
@@ -135,6 +171,19 @@ async def init_db():
                 key TEXT PRIMARY KEY,
                 value TEXT,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Correos con permiso de inicio de sesión al sistema, agregados desde
+        # la web (ver /admin/users) — adicionales a los de la variable de
+        # entorno ADMIN_ALLOWED_EMAILS, que siguen siendo los únicos que
+        # pueden gestionar esta tabla (ver auth.is_super_admin).
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS admin_users (
+                email TEXT PRIMARY KEY,
+                name TEXT,
+                added_by TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
@@ -419,18 +468,20 @@ async def upsert_azure_users(users: list) -> int:
                 try:
                     cursor.execute("""
                         INSERT INTO azure_users
-                            (id, display_name, mail, user_principal_name, updated_at)
-                        VALUES (%s, %s, %s, %s, %s)
+                            (id, display_name, mail, user_principal_name, mobile_phone, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE SET
                             display_name = EXCLUDED.display_name,
                             mail = EXCLUDED.mail,
                             user_principal_name = EXCLUDED.user_principal_name,
+                            mobile_phone = EXCLUDED.mobile_phone,
                             updated_at = EXCLUDED.updated_at
                     """, (
                         user.get('id'),
                         user.get('displayName', ''),
                         user.get('mail') or None,
                         user.get('userPrincipalName', ''),
+                        user.get('mobilePhone') or None,
                         datetime.utcnow()
                     ))
                     count += 1
@@ -446,14 +497,26 @@ async def upsert_azure_users(users: list) -> int:
 
 
 async def get_azure_users(search: str | None = None) -> list:
-    """Return Azure AD users from local DB, optionally filtered by search term."""
+    """Return Azure AD users from local DB, optionally filtered by search term.
+
+    Devuelve las claves en camelCase (displayName/userPrincipalName/
+    mobilePhone), igual que los objetos que vienen directo de Microsoft
+    Graph — el frontend (ej. autocomplete de `/teams/users` en teams.html,
+    que lee `u.displayName`/`u.userPrincipalName`) no distingue si la
+    respuesta vino de acá o de Graph en vivo, así que ambos caminos tienen
+    que tener la misma forma. Antes esta función devolvía las columnas tal
+    cual (snake_case: display_name/user_principal_name), lo que rompía
+    silenciosamente esos campos en el frontend cada vez que la caché local
+    atendía el pedido en vez de Graph — un bug preexistente, no introducido
+    acá, que se corrige de paso porque el teléfono necesitaba el mismo
+    tratamiento para no repetir el mismo problema."""
     try:
         def _get(conn):
             cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             if search:
                 q = f"%{search.lower()}%"
                 cursor.execute("""
-                    SELECT id, display_name, mail, user_principal_name
+                    SELECT id, display_name, mail, user_principal_name, mobile_phone
                     FROM azure_users
                     WHERE lower(display_name) LIKE %s
                        OR lower(user_principal_name) LIKE %s
@@ -462,10 +525,19 @@ async def get_azure_users(search: str | None = None) -> list:
                 """, (q, q, q))
             else:
                 cursor.execute("""
-                    SELECT id, display_name, mail, user_principal_name
+                    SELECT id, display_name, mail, user_principal_name, mobile_phone
                     FROM azure_users ORDER BY display_name
                 """)
-            return [dict(r) for r in cursor.fetchall()]
+            return [
+                {
+                    "id": r["id"],
+                    "displayName": r["display_name"],
+                    "mail": r["mail"],
+                    "userPrincipalName": r["user_principal_name"],
+                    "mobilePhone": r["mobile_phone"],
+                }
+                for r in cursor.fetchall()
+            ]
         return await _run(_get)
     except Exception as e:
         logger.error(f"Error getting Azure users: {e}")
@@ -565,4 +637,53 @@ async def set_setting(key: str, value: str) -> bool:
         return await _run(_set)
     except Exception as e:
         logger.error(f"Error setting '{key}': {e}")
+        return False
+
+
+async def get_admin_users() -> list:
+    """Devuelve los perfiles agregados desde la web con acceso al sistema
+    (no incluye los de ADMIN_ALLOWED_EMAILS, esos son fijos por variable de
+    entorno — ver auth.is_super_admin)."""
+    try:
+        def _get(conn):
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            cursor.execute("SELECT email, name, added_by, created_at FROM admin_users ORDER BY created_at DESC")
+            return [dict(r) for r in cursor.fetchall()]
+        return await _run(_get)
+    except Exception as e:
+        logger.error(f"Error getting admin users: {e}")
+        return []
+
+
+async def add_admin_user(email: str, name: str, added_by: str) -> bool:
+    """Agrega (o actualiza nombre/added_by de) un correo con acceso al sistema."""
+    try:
+        def _add(conn):
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO admin_users (email, name, added_by, created_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (email) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    added_by = EXCLUDED.added_by
+            """, (email, name, added_by, datetime.utcnow()))
+            conn.commit()
+            return True
+        return await _run(_add)
+    except Exception as e:
+        logger.error(f"Error adding admin user '{email}': {e}")
+        return False
+
+
+async def remove_admin_user(email: str) -> bool:
+    """Quita el acceso de un correo agregado desde la web."""
+    try:
+        def _del(conn):
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM admin_users WHERE email = %s", (email,))
+            conn.commit()
+            return cursor.rowcount > 0
+        return await _run(_del)
+    except Exception as e:
+        logger.error(f"Error removing admin user '{email}': {e}")
         return False

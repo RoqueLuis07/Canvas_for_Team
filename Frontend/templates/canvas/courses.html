@@ -12,39 +12,36 @@
   </div>
 </div>
 
-<!-- Tabs -->
-<ul class="nav nav-tabs mb-4" id="coursesTabs" role="tablist">
-  <li class="nav-item" role="presentation">
-    <button class="nav-link active fw-bold text-success" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab" aria-controls="create" aria-selected="true">
-      <i class="bi bi-plus-circle-fill me-2"></i>Creación Masiva
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-danger" id="delete-tab" data-bs-toggle="tab" data-bs-target="#delete" type="button" role="tab" aria-controls="delete" aria-selected="false">
-      <i class="bi bi-trash3-fill me-2"></i>Eliminación Masiva
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-warning" id="release-sis-tab" data-bs-toggle="tab" data-bs-target="#release-sis" type="button" role="tab" aria-controls="release-sis" aria-selected="false">
-      <i class="bi bi-unlock-fill me-2"></i>Liberar SIS ID
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-warning" id="release-term-sis-tab" data-bs-toggle="tab" data-bs-target="#release-term-sis" type="button" role="tab" aria-controls="release-term-sis" aria-selected="false">
-      <i class="bi bi-unlock-fill me-2"></i>Liberar Período
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-primary" id="fix-coord-role-tab" data-bs-toggle="tab" data-bs-target="#fix-coord-role" type="button" role="tab" aria-controls="fix-coord-role" aria-selected="false">
-      <i class="bi bi-person-gear me-2"></i>Corregir Rol Coordinador
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link fw-bold text-primary" id="fix-sis-id-tab" data-bs-toggle="tab" data-bs-target="#fix-sis-id" type="button" role="tab" aria-controls="fix-sis-id" aria-selected="false">
-      <i class="bi bi-pencil-square me-2"></i>Corregir SIS ID
-    </button>
-  </li>
-</ul>
+<!-- Pestañas agrupadas por riesgo — creación (segura) primero, después un
+     separador visual y las operaciones destructivas/irreversibles marcadas
+     con ⚠, después las correctivas (más acotadas en alcance). No depender
+     solo del color: a simple vista + lector de pantalla también se nota.
+     Mismo .tab-bar que el resto de la app (ingreso.html, Matriculaciones)
+     en vez de nav-tabs de Bootstrap — todas las pestañas visibles siempre,
+     con el mismo look, sin el salto de línea descolocado que daba
+     nav-tabs con 6 botones. -->
+<div class="tab-bar mb-4" id="coursesTabs" role="tablist">
+  <button class="tab-bar-btn active risk-safe" id="create-tab" data-bs-toggle="tab" data-bs-target="#create" type="button" role="tab" aria-controls="create" aria-selected="true">
+    <i class="bi bi-plus-circle-fill"></i>Creación Masiva
+  </button>
+  <span class="tab-bar-sep" aria-hidden="true"></span>
+  <button class="tab-bar-btn risk-high" id="delete-tab" data-bs-toggle="tab" data-bs-target="#delete" type="button" role="tab" aria-controls="delete" aria-selected="false" title="Acción destructiva: elimina cursos y equipos asociados">
+    <i class="bi bi-exclamation-triangle-fill"></i><i class="bi bi-trash3-fill"></i>Eliminación Masiva
+  </button>
+  <button class="tab-bar-btn risk-medium" id="release-sis-tab" data-bs-toggle="tab" data-bs-target="#release-sis" type="button" role="tab" aria-controls="release-sis" aria-selected="false" title="Acción irreversible sobre cursos ya creados">
+    <i class="bi bi-exclamation-triangle-fill"></i><i class="bi bi-unlock-fill"></i>Liberar SIS ID
+  </button>
+  <button class="tab-bar-btn risk-medium" id="release-term-sis-tab" data-bs-toggle="tab" data-bs-target="#release-term-sis" type="button" role="tab" aria-controls="release-term-sis" aria-selected="false" title="Acción irreversible sobre cursos ya creados">
+    <i class="bi bi-exclamation-triangle-fill"></i><i class="bi bi-unlock-fill"></i>Liberar Período
+  </button>
+  <span class="tab-bar-sep" aria-hidden="true"></span>
+  <button class="tab-bar-btn" id="fix-coord-role-tab" data-bs-toggle="tab" data-bs-target="#fix-coord-role" type="button" role="tab" aria-controls="fix-coord-role" aria-selected="false">
+    <i class="bi bi-person-gear"></i>Corregir Rol Coordinador
+  </button>
+  <button class="tab-bar-btn" id="fix-sis-id-tab" data-bs-toggle="tab" data-bs-target="#fix-sis-id" type="button" role="tab" aria-controls="fix-sis-id" aria-selected="false">
+    <i class="bi bi-pencil-square"></i>Corregir SIS ID
+  </button>
+</div>
 
 <div class="tab-content" id="coursesTabsContent">
   <!-- Tab: Creación Masiva -->
@@ -52,16 +49,14 @@
 
 
 
-<!-- Accordion Creación Masiva (OneDrive) -->
-<div class="accordion mb-4" id="accordionCoursesOneDrive">
-  <div class="accordion-item border-warning shadow-sm">
-    <h2 class="accordion-header" id="headingCoursesOd">
-      <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCoursesOd" aria-expanded="true" aria-controls="collapseCoursesOd" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(217, 119, 6, 0.1));">
-        <i class="bi bi-cloud-arrow-up me-2 text-warning"></i> Carga de Cursos desde Planilla (OneDrive)
-      </button>
-    </h2>
-    <div id="collapseCoursesOd" class="accordion-collapse collapse show" aria-labelledby="headingCoursesOd" data-bs-parent="#accordionCoursesOneDrive">
-      <div class="accordion-body p-4">
+<!-- Antes un accordion de un solo ítem (siempre expandido por defecto,
+     "collapse show" — nada dependía de poder colapsarlo: no hay ningún otro
+     panel para alternar y ningún JS referenciaba collapseCoursesOd). Ya está
+     dentro de la pestaña "create" de arriba, así que envolverlo en otro
+     nivel de acordeón/pestañas no aporta nada — queda como un encabezado
+     simple, mismo criterio que Creación Individual en ingreso.html. -->
+<div class="mb-4">
+      <h5 class="mb-3 text-secondary"><i class="bi bi-cloud-arrow-up me-2"></i>Carga de Cursos desde Planilla (OneDrive)</h5>
         
         <div id="coursesOdFormWrap">
             <div class="alert alert-info">
@@ -82,6 +77,15 @@
                   <input type="url" class="form-control" id="coursesOdUrl" placeholder="https://...sharepoint.com/..." required>
                   <button class="btn btn-primary" type="button" id="btnLoadCoursesSheets" onclick="fetchCoursesSheets()">Cargar Pestañas</button>
                 </div>
+                <details class="small text-muted mt-n2 mb-2">
+                  <summary style="cursor:pointer;" class="d-inline">¿Cómo consigo este link?</summary>
+                  <div class="mt-1">
+                    1. Abrí el archivo en OneDrive.<br>
+                    2. Clic en "Compartir" (arriba, o clic derecho sobre el archivo).<br>
+                    3. Elegí "Cualquier persona con el vínculo" → "Puede editar".<br>
+                    4. Copiá el link y pegalo acá.
+                  </div>
+                </details>
                 <label class="form-label fw-bold mt-2">URL del Excel Maestro de Reportes (Opcional)</label>
                 <div class="input-group mb-3">
                   <span class="input-group-text"><i class="bi bi-journal-bookmark-fill"></i></span>
@@ -110,28 +114,49 @@
             </div>
         </div>
 
-      </div>
-    </div>
+</div>
+
+<!-- Resumen calculado en el cliente a partir del mismo array que ya llena
+     la tabla (_allCourses, de GET /canvas/courses en loadCourses()) —
+     ningún dato nuevo ni llamada extra al backend. Franja horizontal en
+     vez de columna lateral (mismo patrón que Matriculaciones, .stat-strip
+     — ver style.css): una columna angosta al costado de una tabla de 1986
+     cursos quedaba con espacio vacío arriba y abajo. -->
+<div class="stat-strip mb-3">
+  <div class="stat-strip-label"><i class="bi bi-bar-chart-fill me-1"></i>Resumen de Cursos</div>
+  <div class="stat-strip-items" id="courseSummaryPanel">
+    <div class="stat-strip-item"><span class="ssi-label">Publicados</span><span class="ssi-value" id="sum-course-available">—</span></div>
+    <div class="stat-strip-item"><span class="ssi-label">No publicados</span><span class="ssi-value" id="sum-course-unpublished">—</span></div>
+    <div class="stat-strip-item"><span class="ssi-label">Concluidos</span><span class="ssi-value" id="sum-course-completed">—</span></div>
+    <div class="stat-strip-item"><span class="ssi-label">Eliminados</span><span class="ssi-value" id="sum-course-deleted">—</span></div>
+    <div class="stat-strip-item total"><span class="ssi-label">Total</span><span class="ssi-value" id="sum-course-total">—</span></div>
   </div>
 </div>
 
 <div class="table-card">
   <div class="card-header flex-wrap gap-2">
-    <input type="text" id="searchCourse" class="form-control search-box" placeholder="🔍 ID, nombre, código, SIS..." oninput="applyFilters()">
-    <select id="stateFilter" class="form-select filter-select-sm" title="Filtrar por estado" onchange="applyFilters()">
-      <option value="">Todos los estados</option>
-      <option value="available">✅ Publicado</option>
-      <option value="unpublished">⬜ No publicado</option>
-      <option value="completed">🔵 Concluido</option>
-      <option value="deleted">🔴 Eliminado</option>
-      <option value="created">📝 Borrador</option>
-    </select>
-    <select id="termFilter" class="form-select filter-select-md" title="Filtrar por período" onchange="applyFilters()">
-      <option value="">Todos los períodos</option>
-    </select>
-    <span class="ms-auto text-muted small" id="courseCount"></span>
-    <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToExcel('tableWrap','canvas_cursos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadCourses()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise"></i></button>
+    <div class="toolbar-pill flex-grow-1 mb-0">
+      <div class="search-box">
+        <i class="bi bi-search"></i>
+        <input type="text" id="searchCourse" class="form-control" placeholder="ID, nombre, código, SIS..." oninput="applyFilters()">
+      </div>
+      <select id="stateFilter" class="form-select filter-select-sm" title="Filtrar por estado" onchange="applyFilters()">
+        <option value="">Todos los estados</option>
+        <option value="available">✅ Publicado</option>
+        <option value="unpublished">⬜ No publicado</option>
+        <option value="completed">🔵 Concluido</option>
+        <option value="deleted">🔴 Eliminado</option>
+        <option value="created">📝 Borrador</option>
+      </select>
+      <select id="termFilter" class="form-select filter-select-md" title="Filtrar por período" onchange="applyFilters()">
+        <option value="">Todos los períodos</option>
+      </select>
+      <span class="text-muted small" id="courseCount"></span>
+      <div class="btn-group-end">
+        <button type="button" class="btn-pill-outline" onclick="exportTableToExcel('tableWrap','canvas_cursos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down me-1"></i>Exportar</button>
+        <button type="button" class="btn-pill" onclick="loadCourses()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+      </div>
+    </div>
   </div>
   <div id="tableWrap" class="table-responsive">
     <div class="text-center py-5"><span class="spinner-border"></span></div>
@@ -198,6 +223,15 @@
                         <input type="url" class="form-control border-danger" id="deleteOdUrl" placeholder="https://...sharepoint.com/...">
                         <button class="btn btn-danger" type="button" id="btnLoadDeleteSheets" onclick="fetchDeleteSheets()">Cargar Pestañas</button>
                     </div>
+                    <details class="small text-muted mb-2">
+                      <summary style="cursor:pointer;" class="d-inline">¿Cómo consigo este link?</summary>
+                      <div class="mt-1">
+                        1. Abrí el archivo en OneDrive.<br>
+                        2. Clic en "Compartir" (arriba, o clic derecho sobre el archivo).<br>
+                        3. Elegí "Cualquier persona con el vínculo" → "Puede editar".<br>
+                        4. Copiá el link y pegalo acá.
+                      </div>
+                    </details>
 
                     <label class="form-label fw-bold">Nombre de la Pestaña</label>
                     <select class="form-select border-danger mb-4" id="deleteOdSheet" onchange="previewDeleteOd()">
@@ -209,7 +243,7 @@
                         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                             <label class="form-label fw-semibold mb-0 text-danger"><i class="bi bi-table me-2"></i>Previsualización</label>
                             <div>
-                                <span class="badge bg-danger me-2" id="deleteToProcess">0 a procesar</span>
+                                <span class="status-icon status-error me-2"><i class="bi bi-exclamation-triangle-fill"></i><span id="deleteToProcess">0 a procesar</span></span>
                                 <span class="badge bg-secondary" id="deleteAlreadyProcessed">0 ignorados</span>
                             </div>
                         </div>
@@ -398,6 +432,15 @@
                     <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
                   </button>
                 </div>
+                <details class="small text-muted mb-2">
+                  <summary style="cursor:pointer;" class="d-inline">¿Cómo consigo este link?</summary>
+                  <div class="mt-1">
+                    1. Abrí el archivo en OneDrive.<br>
+                    2. Clic en "Compartir" (arriba, o clic derecho sobre el archivo).<br>
+                    3. Elegí "Cualquier persona con el vínculo" → "Puede editar".<br>
+                    4. Copiá el link y pegalo acá.
+                  </div>
+                </details>
                 <label class="form-label fw-bold">Pestaña</label>
                 <select class="form-select mb-3" id="fixCoordRoleSheet">
                   <option value="">Selecciona una pestaña...</option>
@@ -491,6 +534,15 @@
                   <i class="bi bi-arrow-repeat me-1"></i>Cargar pestañas
                 </button>
               </div>
+              <details class="small text-muted mb-2">
+                <summary style="cursor:pointer;" class="d-inline">¿Cómo consigo este link?</summary>
+                <div class="mt-1">
+                  1. Abrí el archivo en OneDrive.<br>
+                  2. Clic en "Compartir" (arriba, o clic derecho sobre el archivo).<br>
+                  3. Elegí "Cualquier persona con el vínculo" → "Puede editar".<br>
+                  4. Copiá el link y pegalo acá.
+                </div>
+              </details>
               <label class="form-label fw-bold">Pestaña</label>
               <select class="form-select mb-3" id="fixSisIdSheet">
                 <option value="">Selecciona una pestaña...</option>
@@ -795,6 +847,25 @@ function renderCoursesTable(courses) {
   );
 }
 
+// Resumen lateral calculado desde el mismo array que ya llena la tabla
+// (workflow_state ya viene en cada curso de GET /canvas/courses) — sin
+// pedir datos nuevos al backend.
+function updateCourseSummaryPanel(courses) {
+  const counts = { available: 0, unpublished: 0, completed: 0, deleted: 0 };
+  courses.forEach(c => {
+    const st = c.workflow_state;
+    if (st === 'available') counts.available++;
+    else if (st === 'completed') counts.completed++;
+    else if (st === 'deleted') counts.deleted++;
+    else counts.unpublished++;
+  });
+  document.getElementById('sum-course-available').textContent   = counts.available;
+  document.getElementById('sum-course-unpublished').textContent = counts.unpublished;
+  document.getElementById('sum-course-completed').textContent   = counts.completed;
+  document.getElementById('sum-course-deleted').textContent     = counts.deleted;
+  document.getElementById('sum-course-total').textContent       = courses.length;
+}
+
 async function loadCourses() {
   document.getElementById('tableWrap').innerHTML =
     '<div class="text-center py-5"><span class="spinner-border"></span><div class="text-muted small mt-2">Cargando todos los cursos…</div></div>';
@@ -814,6 +885,7 @@ async function loadCourses() {
 
     document.getElementById('courseCount').textContent = courses.length + ' cursos';
     pgInit('tableWrap', _allCourses, renderCoursesTable);
+    updateCourseSummaryPanel(courses);
   } catch(e) {
     document.getElementById('tableWrap').innerHTML = `
       <div class="text-center py-5 text-muted">
@@ -936,8 +1008,8 @@ async function loadAttendanceData(courseId) {
       <div class="d-flex gap-2 align-items-center mb-3 flex-wrap">
         <span class="badge bg-primary">${students.length} estudiantes</span>
         ${hasData
-          ? `<span class="badge bg-success">${dates.length} fechas registradas</span>`
-          : `<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Sin datos de Roll Call</span>`
+          ? `<span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>${dates.length} fechas registradas</span>`
+          : `<span class="status-icon status-pending"><i class="bi bi-exclamation-triangle"></i>Sin datos de Roll Call</span>`
         }
         ${data.course?.instructor ? `<span class="text-muted small ms-2"><i class="bi bi-person-fill me-1"></i>${data.course.instructor}</span>` : ''}
       </div>
@@ -1002,7 +1074,7 @@ function downloadAttendanceExcel(courseId, courseName) {
   const rows = [
     [`Reporte de Asistencias — ${courseName}`],
     data.course?.instructor ? [`Docente: ${data.course.instructor}`] : [],
-    [`Generado: ${new Date().toLocaleString('es-PY')}`],
+    [`Generado: ${new Date().toLocaleDateString('es-PY')}`],
     [],
     ['ID', 'Estudiante', 'Login', ...dates, 'Total P', 'Porcentaje'],
   ];
@@ -1098,7 +1170,7 @@ async function doBulkAttendanceDownload() {
       const dates = Object.keys(data.dates || {}).sort();
       const rows = [
         ['Reporte de Asistencias', course.name],
-        ['Generado:', new Date().toLocaleString()],
+        ['Generado:', new Date().toLocaleDateString()],
         [],
         ['Estudiante', 'ID', 'Total', ...dates.map(() => '')],
       ];
@@ -1420,11 +1492,11 @@ async function previewDeleteOd() {
                 let cellVal = r[h] || '';
                 if (h.toLowerCase().includes('estado') || h.toLowerCase().includes('enviado') || h.toLowerCase().includes('eliminado')) {
                     if (cellVal.toLowerCase() === 'ok' || cellVal.toLowerCase().includes('eliminado') || cellVal.toLowerCase().includes('baja')) {
-                        cellVal = `<span class="badge bg-warning text-dark">${cellVal}</span>`;
+                        cellVal = `<span class="status-icon status-pending"><i class="bi bi-circle"></i>${cellVal}</span>`;
                     } else if (cellVal.toLowerCase().includes('error')) {
-                        cellVal = `<span class="badge bg-danger">${cellVal}</span><span class="badge bg-success ms-1">Reintento</span>`;
+                        cellVal = `<span class="status-icon status-error"><i class="bi bi-x-circle-fill"></i>${cellVal}</span><span class="status-icon status-pending ms-1"><i class="bi bi-arrow-clockwise"></i>Reintento</span>`;
                     } else {
-                        cellVal = `<span class="badge bg-danger">A eliminar</span>`;
+                        cellVal = `<span class="status-icon status-error"><i class="bi bi-exclamation-triangle-fill"></i>A eliminar</span>`;
                     }
                 }
                 rowHtml += `<td>${cellVal}</td>`;
@@ -2217,8 +2289,8 @@ async function previewFixSisId() {
             <tr>
                 <td>${r.nombre || '<span class="text-muted">—</span>'}</td>
                 <td>${r.canvas_id}</td>
-                <td><span class="badge bg-danger">${r.sis_actual}</span></td>
-                <td><span class="badge bg-success">${r.sis_nuevo}</span></td>
+                <td><span class="status-icon status-error"><i class="bi bi-x-circle-fill"></i>${r.sis_actual}</span></td>
+                <td><span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>${r.sis_nuevo}</span></td>
             </tr>
         `).join('') || '<tr><td colspan="4" class="text-center text-muted p-3">No hay cursos pendientes de corrección.</td></tr>';
 

@@ -4,22 +4,34 @@
 {% block nav_tt %}active{% endblock %}
 {% block content %}
 <div class="d-flex align-items-center mb-4 gap-3 flex-wrap">
-  <div><div class="page-title">Microsoft Teams</div><div class="page-subtitle">Gestión de equipos y miembros del tenant</div></div>
-  <div class="ms-auto d-flex gap-2 flex-wrap">
-    <button class="btn btn-primary" onclick="openExcelMembers()"><i class="bi bi-file-earmark-excel-fill me-1"></i>Añadir miembros Excel</button>
-    <a href="/excel/template/teams-members" class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Plantilla Excel</a>
-    <button class="btn btn-outline-danger" onclick="openTeamsIdDeleteModal()"><i class="bi bi-list-ol me-1"></i>Eliminación Masiva</button>
-    <button class="btn btn-outline-warning" onclick="openDeletedGroupsModal()"><i class="bi bi-recycle me-1"></i>Grupos Eliminados (Papelera)</button>
-    <button class="btn btn-outline-info" onclick="openGroupMembersModal()"><i class="bi bi-person-plus-fill me-1"></i>Agregar a Grupo por ID</button>
+  <div><div class="page-title">Microsoft Teams</div><div class="page-subtitle">Gestión de equipos y miembros de la organización</div></div>
+  <div class="ms-auto d-flex gap-2 flex-wrap align-items-center">
+    <div class="dropdown">
+      <button class="btn-pill-outline dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Acciones de riesgo o para power users">
+        <i class="bi bi-gear-fill me-1"></i>Avanzado
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><button class="dropdown-item text-danger" onclick="openTeamsIdDeleteModal()" title="Acción destructiva"><i class="bi bi-list-ol me-2"></i>Eliminación Masiva</button></li>
+        <li><button class="dropdown-item" onclick="openDeletedGroupsModal()"><i class="bi bi-recycle me-2"></i>Grupos Eliminados (Papelera)</button></li>
+        <li><button class="dropdown-item" onclick="openGroupMembersModal()" title="Requiere el ID de Azure AD del grupo"><i class="bi bi-person-plus-fill me-2"></i>Agregar a Grupo por ID</button></li>
+      </ul>
+    </div>
   </div>
 </div>
 
 <div class="table-card">
   <div class="card-header flex-wrap gap-2">
-    <input type="text" id="searchTeam" class="form-control search-box" placeholder="🔍 Buscar Team por nombre..." oninput="debouncedLoadTeams(this.value)">
-    <span class="ms-auto text-muted small" id="teamCount"></span>
-    <button type="button" class="btn btn-sm btn-outline-success" onclick="exportTableToExcel('tableWrap','teams_equipos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down"></i></button>
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadTeams()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise"></i></button>
+    <div class="toolbar-pill flex-grow-1 mb-0">
+      <div class="search-box">
+        <i class="bi bi-search"></i>
+        <input type="text" id="searchTeam" class="form-control" placeholder="Buscar Team por nombre..." oninput="debouncedLoadTeams(this.value)">
+      </div>
+      <span class="text-muted small" id="teamCount"></span>
+      <div class="btn-group-end">
+        <button type="button" class="btn-pill-outline" onclick="exportTableToExcel('tableWrap','teams_equipos.xlsx')" title="Exportar a Excel" aria-label="Exportar a Excel"><i class="bi bi-file-earmark-arrow-down me-1"></i>Exportar</button>
+        <button type="button" class="btn-pill" onclick="loadTeams()" title="Recargar" aria-label="Recargar lista"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+      </div>
+    </div>
   </div>
   <div id="tableWrap" class="table-responsive">
     <div class="text-center py-5"><span class="spinner-border"></span></div>
@@ -207,71 +219,81 @@ function debouncedLoadTeams(query) {
   _teamSearchTimer = setTimeout(() => loadTeams(query), 400);
 }
 
+let _allTeams = [];
+
+// Antes esto renderizaba las 772 filas de golpe en el DOM, sin paginar
+// (el backend sigue devolviendo la lista completa — graph.paginate sigue
+// TODOS los @odata.nextLink de Graph independientemente de ?top=, eso solo
+// fija el tamaño de página interno — así que la paginación real se hace acá,
+// igual que ya se hace con los ~2000 cursos en canvas/courses.html).
+function renderTeamsTable(pageTeams) {
+  const html = `<table class="table table-sm table-hover mb-0">
+    <thead style="background:var(--card-border);position:sticky;top:0;z-index:10">
+      <tr>
+        <th>Nombre</th>
+        <th>Descripción</th>
+        <th>Visibilidad</th>
+        <th style="width:180px">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${pageTeams.map(row => `
+        <tr>
+          <td>
+            <div class="fw-semibold small" style="color:var(--sidebar-accent)">${row.displayName}</div>
+            <div class="d-flex align-items-center gap-1" title="${row.id}">
+              <span class="small text-muted" style="font-size:0.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${row.id.substring(0, 20)}...</span>
+              <button type="button" class="btn btn-sm btn-link p-0 copy-btn" style="color:var(--text-muted);padding:0!important;flex-shrink:0" title="Copiar ID" data-copy-id="${row.id}" data-copy-label="Team ID"><i class="bi bi-files"></i></button>
+            </div>
+          </td>
+          <td class="small text-muted">${(row.description || '').substring(0, 50)}${(row.description || '').length > 50 ? '...' : ''}</td>
+          <td class="small"><span class="badge ${row.visibility === 'Public' ? 'bg-success' : 'bg-warning text-dark'}">${row.visibility || '—'}</span></td>
+          <td>
+            <button class="btn btn-sm btn-outline-info me-1 view-team-btn" title="Miembros" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-people"></i></button>
+            <button class="btn btn-sm btn-outline-secondary me-1 channels-btn" title="Canales" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-hash"></i></button>
+            <button class="btn btn-sm btn-outline-danger delete-team-btn" title="Eliminar" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-trash"></i></button>
+          </td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>`;
+
+  document.getElementById('tableWrap').innerHTML = html;
+
+  // Attach event listeners
+  document.querySelectorAll('#tableWrap .copy-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      copyToClipboard(btn.dataset.copyId, btn.dataset.copyLabel);
+    });
+  });
+
+  document.querySelectorAll('#tableWrap .view-team-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      viewTeamDetail(btn.dataset.teamId, btn.dataset.teamName);
+    });
+  });
+
+  document.querySelectorAll('#tableWrap .channels-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      viewChannels(btn.dataset.teamId, btn.dataset.teamName);
+    });
+  });
+
+  document.querySelectorAll('#tableWrap .delete-team-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      deleteTeam(btn.dataset.teamId, btn.dataset.teamName);
+    });
+  });
+}
+
 async function loadTeams(query = '') {
   try {
     document.getElementById('tableWrap').innerHTML = '<div class="text-center py-5"><span class="spinner-border text-primary"></span></div>';
     const url = query ? `/teams/teams?search_term=${encodeURIComponent(query)}&top=100` : '/teams/teams?top=100';
-    const teams = await api.get(url);
-    document.getElementById('teamCount').textContent = teams.length + ' Teams';
-
-    const html = `<table class="table table-sm table-hover mb-0">
-      <thead style="background:var(--card-border);position:sticky;top:0;z-index:10">
-        <tr>
-          <th style="max-width:150px">ID</th>
-          <th>Nombre</th>
-          <th>Descripción</th>
-          <th>Visibilidad</th>
-          <th style="width:180px">Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${teams.map(row => `
-          <tr>
-            <td style="display:flex;align-items:center;gap:0.5rem;flex-wrap:nowrap" title="${row.id}">
-              <span class="small text-muted" style="min-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><strong>${row.id.substring(0, 20)}...</strong></span>
-              <button type="button" class="btn btn-sm btn-link p-0 copy-btn" style="color:var(--text-muted);padding:0!important;flex-shrink:0" title="Copiar ID" data-copy-id="${row.id}" data-copy-label="Team ID"><i class="bi bi-files"></i></button>
-            </td>
-            <td class="fw-semibold small" style="color:var(--sidebar-accent)">${row.displayName}</td>
-            <td class="small text-muted">${(row.description || '').substring(0, 50)}${(row.description || '').length > 50 ? '...' : ''}</td>
-            <td class="small"><span class="badge ${row.visibility === 'Public' ? 'bg-success' : 'bg-warning text-dark'}">${row.visibility || '—'}</span></td>
-            <td>
-              <button class="btn btn-sm btn-outline-info me-1 view-team-btn" title="Miembros" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-people"></i></button>
-              <button class="btn btn-sm btn-outline-secondary me-1 channels-btn" title="Canales" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-hash"></i></button>
-              <button class="btn btn-sm btn-outline-danger delete-team-btn" title="Eliminar" data-team-id="${row.id}" data-team-name="${row.displayName}"><i class="bi bi-trash"></i></button>
-            </td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>`;
-
-    document.getElementById('tableWrap').innerHTML = html;
-
-    // Attach event listeners
-    document.querySelectorAll('#tableWrap .copy-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        copyToClipboard(btn.dataset.copyId, btn.dataset.copyLabel);
-      });
-    });
-
-    document.querySelectorAll('#tableWrap .view-team-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        viewTeamDetail(btn.dataset.teamId, btn.dataset.teamName);
-      });
-    });
-
-    document.querySelectorAll('#tableWrap .channels-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        viewChannels(btn.dataset.teamId, btn.dataset.teamName);
-      });
-    });
-
-    document.querySelectorAll('#tableWrap .delete-team-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        deleteTeam(btn.dataset.teamId, btn.dataset.teamName);
-      });
-    });
-
+    _allTeams = await api.get(url);
+    document.getElementById('teamCount').textContent = _allTeams.length + ' Teams';
+    pgInit('tableWrap', _allTeams, renderTeamsTable, 50);
   } catch(e) {
     document.getElementById('tableWrap').innerHTML = `
       <div class="text-center py-5 text-muted">
@@ -598,7 +620,7 @@ async function loadDeletedGroups() {
       <tr>
         <td><input class="form-check-input deleted-group-checkbox" type="checkbox" value="${g.id}" onchange="updateSelectedDeletedGroupsCount()"></td>
         <td>${g.displayName || '—'}</td>
-        <td class="small text-muted">${g.deletedDateTime ? new Date(g.deletedDateTime).toLocaleString('es-ES') : '—'}</td>
+        <td class="small text-muted">${g.deletedDateTime ? new Date(g.deletedDateTime).toLocaleDateString('es-ES') : '—'}</td>
       </tr>
     `).join('');
   } catch (e) {
@@ -638,7 +660,7 @@ async function executeRestoreAndCheck() {
       }
       const hasExtra = (r.members_count ?? 0) > (r.owners_count ?? 0);
       const badge = hasExtra
-        ? '<span class="badge bg-success">Sí — tenía gente matriculada</span>'
+        ? '<span class="status-icon status-pending"><i class="bi bi-exclamation-triangle"></i>Sí — tenía gente matriculada</span>'
         : '<span class="badge bg-secondary">No — solo owners (parece duplicado vacío)</span>';
       return `
         <tr>

@@ -17,9 +17,17 @@ def _current_user(request: Request):
 
 
 def _r(request: Request, template: str, **ctx):
-    ctx.setdefault("user", _current_user(request))
+    user = _current_user(request)
+    ctx.setdefault("user", user)
     ctx.setdefault("request", request)
-    return templates.TemplateResponse(template, ctx)
+    ctx.setdefault("is_super_admin", bool(user) and auth_service.is_super_admin(user.get("email", "")))
+    response = templates.TemplateResponse(template, ctx)
+    # Sin esto el navegador puede servir una copia vieja de la página (con
+    # el <script> inline anterior) después de un deploy — vimos en
+    # producción un caso real donde seguía corriendo lógica ya reemplazada
+    # varios minutos después de que el deploy nuevo ya estaba arriba.
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -65,15 +73,19 @@ async def teams_teams(request: Request):
 @router.get("/egreso", response_class=HTMLResponse, summary="UI: Desvinculación Unificada")
 async def ui_offboarding(request: Request):
     """Página de desvinculación unificada de usuarios (Canvas + Teams)."""
-    return templates.TemplateResponse(
+    user = _current_user(request)
+    response = templates.TemplateResponse(
         "unified_offboarding.html",
         {
             "request": request,
-            "user": _current_user(request),
+            "user": user,
+            "is_super_admin": bool(user) and auth_service.is_super_admin(user.get("email", "")),
             "page_title": "Desvinculación Unificada",
             "active_page": "egreso"
         }
     )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @router.get("/ui/ingreso", response_class=HTMLResponse)
@@ -131,6 +143,16 @@ async def reports_page(request: Request):
     return _r(request, "reports.html")
 
 
+@router.get("/ui/admin-users", response_class=HTMLResponse)
+async def admin_users_page(request: Request):
+    user = _current_user(request)
+    if not user:
+        return RedirectResponse(url="/ui/login", status_code=302)
+    if not auth_service.is_super_admin(user.get("email", "")):
+        return RedirectResponse(url="/ui/home", status_code=302)
+    return _r(request, "admin_users.html")
+
+
 @router.get("/ui/unified-users", response_class=HTMLResponse)
 async def unified_users_page(request: Request):
     return _r(request, "unified_users.html")
@@ -144,14 +166,19 @@ async def unified_enrollments_page(request: Request):
     return _r(request, "unified_enrollments.html")
 
 
+# CPEL se unificó con Matriculación Individual/Masiva en una sola página
+# con tabs (unified_enrollments.html) — se mantiene como redirect por si
+# queda algún enlace o marcador viejo apuntando a la URL anterior. "Por
+# Materias" se sacó por redundante, así que /ui/materias ya no tiene una
+# pestaña propia a la que apuntar — cae en la pestaña por defecto.
 @router.get("/ui/materias", response_class=HTMLResponse)
 async def materias_page(request: Request):
-    return _r(request, "materias.html")
+    return RedirectResponse(url="/ui/unified-enrollments", status_code=302)
 
 
 @router.get("/ui/cpel", response_class=HTMLResponse)
 async def cpel_page(request: Request):
-    return _r(request, "cpel.html")
+    return RedirectResponse(url="/ui/unified-enrollments?tab=cpel", status_code=302)
 
 
 @router.get("/ui/actas", response_class=HTMLResponse)

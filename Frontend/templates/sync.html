@@ -12,16 +12,22 @@
     <div class="table-card h-100">
       <div class="card-header"><i class="bi bi-arrow-left-right text-primary me-2"></i><strong>Sincronizar curso Canvas → Team</strong></div>
       <div class="p-4">
-        <p class="text-muted small">Selecciona un curso Canvas y crea un Team de Microsoft Teams equivalente, con el nombre y descripción del curso.</p>
+        <p class="text-muted small">Buscá un curso Canvas por nombre y creá un Team de Microsoft Teams equivalente, con el nombre y descripción del curso.</p>
         <div class="mb-3">
           <label class="form-label fw-semibold">Curso Canvas</label>
-          <select id="syncCourseSelect" class="form-select">
-            <option value="">— Cargando cursos... —</option>
-          </select>
+          <div class="autocomplete-container">
+            <input type="text" class="form-control" id="syncCourseSearch" placeholder="Buscar curso por nombre..." autocomplete="off">
+            <input type="hidden" id="syncCourseId">
+            <div class="autocomplete-dropdown" id="syncCourseResults"></div>
+          </div>
         </div>
         <div class="mb-3">
-          <label class="form-label fw-semibold">ID del Owner del Team *</label>
-          <input class="form-control" id="syncOwnerId" placeholder="ID de usuario Azure AD que será dueño del Team">
+          <label class="form-label fw-semibold">Dueño del Team (owner) *</label>
+          <div class="autocomplete-container">
+            <input type="text" class="form-control" id="syncOwnerSearch" placeholder="Buscar por nombre o correo..." autocomplete="off">
+            <input type="hidden" id="syncOwnerId">
+            <div class="autocomplete-dropdown" id="syncOwnerResults"></div>
+          </div>
         </div>
         <div class="mb-3">
           <label class="form-label fw-semibold">Plantilla del Team</label>
@@ -43,14 +49,22 @@
     <div class="table-card h-100">
       <div class="card-header"><i class="bi bi-people-fill text-success me-2"></i><strong>Matricular miembros de curso en Team</strong></div>
       <div class="p-4">
-        <p class="text-muted small">Dado un curso Canvas y un Team existente, añade como miembros del Team a todos los usuarios matriculados en el curso (usando su ID de usuario Azure AD).</p>
+        <p class="text-muted small">Buscá un curso Canvas y un Team existente: se añade como miembro del Team a cada persona matriculada en el curso.</p>
         <div class="mb-3">
-          <label class="form-label fw-semibold">ID Curso Canvas</label>
-          <input class="form-control" id="syncCourseId" placeholder="ID del curso Canvas">
+          <label class="form-label fw-semibold">Curso Canvas</label>
+          <div class="autocomplete-container">
+            <input type="text" class="form-control" id="syncEnrollCourseSearch" placeholder="Buscar curso por nombre..." autocomplete="off">
+            <input type="hidden" id="syncEnrollCourseId">
+            <div class="autocomplete-dropdown" id="syncEnrollCourseResults"></div>
+          </div>
         </div>
         <div class="mb-3">
-          <label class="form-label fw-semibold">ID del Team</label>
-          <input class="form-control" id="syncTeamId" placeholder="ID del Team de Microsoft Teams">
+          <label class="form-label fw-semibold">Team de Microsoft Teams</label>
+          <div class="autocomplete-container">
+            <input type="text" class="form-control" id="syncTeamSearch" placeholder="Buscar equipo por nombre..." autocomplete="off">
+            <input type="hidden" id="syncTeamId">
+            <div class="autocomplete-dropdown" id="syncTeamResults"></div>
+          </div>
         </div>
         <button class="btn btn-success w-100" id="enrollSyncBtn" onclick="doEnrollSync()">
           <i class="bi bi-people-fill me-1"></i>Sincronizar miembros
@@ -66,7 +80,7 @@
     <div class="table-card">
       <div class="card-header"><i class="bi bi-clock-history text-secondary me-2"></i><strong>Sincronización conjunta desde Excel</strong></div>
       <div class="p-4">
-        <p class="text-muted small">Sube un Excel con pares <code>canvas_course_id, owner_id</code> para crear múltiples Teams de una vez.</p>
+        <p class="text-muted small">Subí un Excel con las columnas <strong>ID de curso Canvas</strong> y <strong>ID del dueño del Team</strong> para crear varios Teams de una vez — útil para hacerlo de a muchos; si es uno o dos, usá el formulario de arriba.</p>
         <div class="row g-3 align-items-end">
           <div class="col-md-6">
             <div class="drop-zone" id="dz"><i class="bi bi-file-earmark-excel-fill mb-2"></i><br>Arrastra tu Excel aquí o haz clic</div>
@@ -87,32 +101,37 @@
 
 {% block scripts %}
 <script>
-async function loadCourseOptions() {
-  try {
-    const courses = await api.get('/canvas/courses?per_page=100');
-    const sel = document.getElementById('syncCourseSelect');
-    sel.innerHTML = '<option value="">— Selecciona un curso —</option>';
-    courses.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.id;
-      opt.dataset.name = c.name;
-      opt.dataset.desc = c.course_code || '';
-      opt.textContent = `[${c.id}] ${c.name}`;
-      sel.appendChild(opt);
-    });
-  } catch(e) { toast('Error cargando cursos: ' + e.message, 'danger'); }
-}
+document.addEventListener('DOMContentLoaded', () => {
+  setupAutocomplete('syncCourseSearch', 'syncCourseId', 'syncCourseResults', '/canvas/courses',
+    (c) => `<div class="autocomplete-title">${c.name}</div><div class="autocomplete-sub">SIS: ${c.sis_course_id || '-'} ${c.course_code ? '· ' + c.course_code : ''}</div>`,
+    (c, input, hidden) => { input.value = c.name; hidden.value = c.id; hidden.dataset.name = c.name; hidden.dataset.desc = c.course_code || ''; }
+  );
+
+  setupAutocomplete('syncOwnerSearch', 'syncOwnerId', 'syncOwnerResults', '/teams/users',
+    (u) => `<div class="autocomplete-title">${u.displayName}</div><div class="autocomplete-sub">${u.userPrincipalName || 'Sin correo'}</div>`,
+    (u, input, hidden) => { input.value = u.displayName; hidden.value = u.id; }
+  );
+
+  setupAutocomplete('syncEnrollCourseSearch', 'syncEnrollCourseId', 'syncEnrollCourseResults', '/canvas/courses',
+    (c) => `<div class="autocomplete-title">${c.name}</div><div class="autocomplete-sub">SIS: ${c.sis_course_id || '-'} ${c.course_code ? '· ' + c.course_code : ''}</div>`,
+    (c, input, hidden) => { input.value = c.name; hidden.value = c.id; }
+  );
+
+  setupAutocomplete('syncTeamSearch', 'syncTeamId', 'syncTeamResults', '/teams/teams',
+    (t) => `<div class="autocomplete-title">${t.displayName}</div><div class="autocomplete-sub">${t.description ? t.description.slice(0, 60) : 'Sin descripción'}</div>`,
+    (t, input, hidden) => { input.value = t.displayName; hidden.value = t.id; }
+  );
+});
 
 async function doSync() {
   const btn = document.getElementById('syncBtn');
-  const sel = document.getElementById('syncCourseSelect');
-  const courseId = sel.value;
+  const hidden = document.getElementById('syncCourseId');
+  const courseId = hidden.value;
   const ownerId = document.getElementById('syncOwnerId').value.trim();
   const template = document.getElementById('syncTemplate').value;
-  if (!courseId || !ownerId) { toast('Selecciona un curso e ingresa el ID del owner', 'warning'); return; }
-  const opt = sel.options[sel.selectedIndex];
-  const teamName = opt.dataset.name;
-  const teamDesc = opt.dataset.desc;
+  if (!courseId || !ownerId) { toast('Buscá y seleccioná un curso, y un dueño para el Team', 'warning'); return; }
+  const teamName = hidden.dataset.name;
+  const teamDesc = hidden.dataset.desc;
   setLoading(btn, true);
   document.getElementById('syncResult').innerHTML = '<div class="alert alert-info py-2">Creando Team (puede tardar 30-60 segundos)...</div>';
   try {
@@ -121,7 +140,7 @@ async function doSync() {
       visibility: 'Private', owner_id: ownerId, template,
     });
     document.getElementById('syncResult').innerHTML =
-      `<div class="alert alert-success py-2"><strong>Team creado:</strong> ${result.displayName || teamName} — ID: ${result.id || '(ver Teams)'}</div>`;
+      `<div class="alert alert-success py-2"><strong>Team creado:</strong> ${result.displayName || teamName}</div>`;
     toast('Team creado correctamente', 'success');
   } catch(e) {
     document.getElementById('syncResult').innerHTML = `<div class="alert alert-danger py-2">${e.message}</div>`;
@@ -132,9 +151,9 @@ async function doSync() {
 
 async function doEnrollSync() {
   const btn = document.getElementById('enrollSyncBtn');
-  const courseId = document.getElementById('syncCourseId').value.trim();
+  const courseId = document.getElementById('syncEnrollCourseId').value.trim();
   const teamId = document.getElementById('syncTeamId').value.trim();
-  if (!courseId || !teamId) { toast('Ingresa el ID del curso y del Team', 'warning'); return; }
+  if (!courseId || !teamId) { toast('Buscá y seleccioná el curso y el Team', 'warning'); return; }
   setLoading(btn, true);
   document.getElementById('enrollSyncResult').innerHTML = '<div class="alert alert-info py-2">Sincronizando...</div>';
   try {
@@ -161,11 +180,17 @@ function doBulkSync() {
 
 initDropZone('dz', 'excelFile', file => {
   readExcel(file, rows => {
-    document.getElementById('previewArea').innerHTML =
-      `<div class="alert alert-info py-2 small">${rows.length} filas detectadas. Primeras 3: <code>${JSON.stringify(rows.slice(0,3))}</code></div>`;
+    const sample = rows.slice(0, 3);
+    const cols = sample.length ? Object.keys(sample[0]) : [];
+    const table = sample.length ? `
+      <table class="table table-sm mb-0">
+        <thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+        <tbody>${sample.map(r => `<tr>${cols.map(c => `<td>${r[c] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table>` : '';
+    document.getElementById('previewArea').innerHTML = `
+      <div class="alert alert-info py-2 small mb-2">${rows.length} fila(s) detectadas. Primeras ${sample.length}:</div>
+      ${table}`;
   });
 });
-
-loadCourseOptions();
 </script>
 {% endblock %}

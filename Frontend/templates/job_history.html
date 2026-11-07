@@ -13,37 +13,38 @@
   </div>
 
   <!-- Filters -->
-  <div class="table-card" style="margin-bottom: 24px; padding: 16px;">
-    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
-      <input type="date" id="dateFrom" class="form-control" style="max-width: 150px;" placeholder="Desde...">
-      <input type="date" id="dateTo" class="form-control" style="max-width: 150px;" placeholder="Hasta...">
-      <select id="jobType" class="form-control" style="max-width: 240px;">
-        <option value="">Todos los tipos</option>
-        <option value="matriculacion_individual">Matriculación Individual</option>
-        <option value="matriculacion_masiva_json">Matriculación Masiva (Excel)</option>
-        <option value="matriculacion_masiva_onedrive">Matriculación Masiva (OneDrive)</option>
-        <option value="rollback_masivo_json">Rollback Masivo (Excel)</option>
-        <option value="rollback_masivo_onedrive">Rollback Masivo (OneDrive)</option>
-        <option value="creacion_cursos_onedrive">Creación de Cursos (OneDrive)</option>
-        <option value="fix_sis_id_onedrive">Corrección de SIS ID</option>
-        <option value="diplomados_onedrive">Alta de Diplomados (OneDrive)</option>
-        <option value="materias_masivo">Matriculación por Materias</option>
-        <option value="cpel_carrera_masivo">Matriculación CPEL por Carrera</option>
-        <option value="reenvio_credenciales_onedrive">Reenvío de Credenciales</option>
-        <option value="envio_credenciales_altas_onedrive">Envío de Credenciales (Altas)</option>
-      </select>
-      <input type="text" id="usernameFilter" placeholder="Filtrar por usuario..." class="form-control" style="max-width: 200px;">
-      <button class="btn btn-primary" onclick="loadJobs()">
-        <i class="bi bi-search"></i> Buscar
-      </button>
+  <div class="toolbar-pill mb-2">
+    <input type="date" id="dateFrom" class="form-control" style="max-width: 150px;" placeholder="Desde...">
+    <input type="date" id="dateTo" class="form-control" style="max-width: 150px;" placeholder="Hasta...">
+    <select id="jobType" class="form-select filter-select-md">
+      <option value="">Todos los tipos</option>
+      <option value="matriculacion_individual">Matriculación Individual</option>
+      <option value="matriculacion_masiva_json">Matriculación Masiva (Excel)</option>
+      <option value="matriculacion_masiva_onedrive">Matriculación Masiva (OneDrive)</option>
+      <option value="rollback_masivo_json">Reversión de Matriculación (Excel)</option>
+      <option value="rollback_masivo_onedrive">Reversión de Matriculación (OneDrive)</option>
+      <option value="creacion_cursos_onedrive">Creación de Cursos (OneDrive)</option>
+      <option value="fix_sis_id_onedrive">Corrección de SIS ID</option>
+      <option value="diplomados_onedrive">Alta de Diplomados (OneDrive)</option>
+      <option value="materias_masivo">Matriculación por Materias</option>
+      <option value="cpel_carrera_masivo">Matriculación CPEL por Carrera</option>
+      <option value="reenvio_credenciales_onedrive">Reenvío de Credenciales</option>
+      <option value="envio_credenciales_altas_onedrive">Envío de Credenciales (Altas)</option>
+    </select>
+    <div class="search-box">
+      <i class="bi bi-person"></i>
+      <input type="text" id="usernameFilter" placeholder="Filtrar por usuario..." class="form-control">
     </div>
-    <div style="display: flex; gap: 8px;">
-      <button class="btn btn-sm btn-outline-secondary" onclick="setToday()">Hoy</button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="setThisWeek()">Esta semana</button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="setThisMonth()">Este mes</button>
-      <button class="btn btn-sm btn-outline-secondary" onclick="clearFilters()">Limpiar filtros</button>
-      <button class="btn btn-sm btn-success ms-auto" onclick="exportJobs()"><i class="bi bi-file-earmark-excel me-1"></i>Exportar a Excel</button>
+    <button type="button" class="btn-pill" onclick="loadJobs()"><i class="bi bi-search me-1"></i>Buscar</button>
+    <div class="btn-group-end">
+      <button type="button" class="btn-pill-outline" onclick="exportJobs()"><i class="bi bi-file-earmark-excel me-1"></i>Exportar a Excel</button>
     </div>
+  </div>
+  <div class="toolbar-pill mb-4">
+    <button type="button" class="btn-pill-outline" onclick="setToday()">Hoy</button>
+    <button type="button" class="btn-pill-outline" onclick="setThisWeek()">Esta semana</button>
+    <button type="button" class="btn-pill-outline" onclick="setThisMonth()">Este mes</button>
+    <button type="button" class="btn-pill-outline" onclick="clearFilters()">Limpiar filtros</button>
   </div>
 
   <!-- Table -->
@@ -55,7 +56,7 @@
       <table class="table table-sm">
         <thead>
           <tr>
-            <th>Fecha/Hora</th>
+            <th>Fecha</th>
             <th>Tipo de Trabajo</th>
             <th>Operación</th>
             <th>Usuario</th>
@@ -124,8 +125,7 @@ async function loadPage() {
   if (username) params.append('username', username);
 
   try {
-    const response = await fetch(`/jobs/list?${params}`);
-    const data = await response.json();
+    const data = await api.get(`/jobs/list?${params}`);
 
     if (!data.jobs || data.jobs.length === 0) {
       document.getElementById('jobsTableBody').innerHTML = `
@@ -140,7 +140,7 @@ async function loadPage() {
 
     // Render table
     document.getElementById('jobsTableBody').innerHTML = data.jobs.map(job => {
-      const createdDate = new Date(job.created_at).toLocaleString('es-ES');
+      const createdDate = new Date(job.created_at).toLocaleDateString('es-ES');
       const statusBadge = getStatusBadge(job.status);
       const jobTypeLabel = getJobTypeLabel(job.job_type);
       const actionCell = buildJobActions(job);
@@ -186,7 +186,10 @@ async function loadPage() {
     console.error('Error cargando trabajos:', error);
     document.getElementById('jobsTableBody').innerHTML = `
       <tr>
-        <td colspan="8" style="text-align: center; color: red; padding: 40px;">Error cargando datos</td>
+        <td colspan="8" style="text-align: center; color: red; padding: 40px;">
+          ${error.message || 'Error cargando datos'}
+          <br><a href="#" onclick="event.preventDefault(); loadPage();">Reintentar</a>
+        </td>
       </tr>
     `;
   }
@@ -198,8 +201,7 @@ async function loadStats(dateFrom, dateTo) {
   if (dateTo) params.append('date_to', dateTo);
 
   try {
-    const response = await fetch(`/jobs/stats?${params}`);
-    const stats = await response.json();
+    const stats = await api.get(`/jobs/stats?${params}`);
 
     const statsHtml = `
       <div class="stat-card" style="padding: 16px;">
@@ -317,8 +319,8 @@ function viewJobDetail(jobId, encodedDataJson) {
 
   const body = `
     <div class="mb-3 d-flex gap-2">
-      <span class="badge bg-success">${okRows.length} exitoso(s)</span>
-      <span class="badge bg-danger">${errRows.length} con error</span>
+      <span class="status-icon status-ok"><i class="bi bi-check-circle-fill"></i>${okRows.length} exitoso(s)</span>
+      <span class="status-icon status-error"><i class="bi bi-x-circle-fill"></i>${errRows.length} con error</span>
     </div>
     ${errRows.length ? `<h6 class="text-danger">Errores</h6>${errRows.map(r => renderRow(r, true)).join('')}` : ''}
     ${okRows.length ? `<h6 class="${errRows.length ? 'mt-3' : ''}">Exitosos</h6>${okRows.map(r => renderRow(r, false)).join('')}` : ''}
@@ -378,8 +380,8 @@ function getJobTypeLabel(type) {
     'matriculacion_individual': 'Matriculación Individual',
     'matriculacion_masiva_json': 'Matriculación Masiva (Excel)',
     'matriculacion_masiva_onedrive': 'Matriculación Masiva (OneDrive)',
-    'rollback_masivo_json': 'Rollback Masivo (Excel)',
-    'rollback_masivo_onedrive': 'Rollback Masivo (OneDrive)',
+    'rollback_masivo_json': 'Reversión de Matriculación (Excel)',
+    'rollback_masivo_onedrive': 'Reversión de Matriculación (OneDrive)',
     'creacion_cursos_onedrive': 'Creación de Cursos (OneDrive)',
     'fix_sis_id_onedrive': 'Corrección de SIS ID',
     'diplomados_onedrive': 'Alta de Diplomados (OneDrive)',
@@ -449,7 +451,9 @@ function exportJobs() {
   window.location.href = `/jobs/export?${params.toString()}`;
 }
 
-// Load on startup
-loadJobs();
+// Load on startup — diferido a DOMContentLoaded: este <script> se parsea
+// antes que main.js (que define `api`), así que llamar loadJobs() acá
+// directo fallaba con "api is not defined" en cada carga de la página.
+document.addEventListener('DOMContentLoaded', loadJobs);
 </script>
 {% endblock %}

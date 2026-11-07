@@ -17,14 +17,52 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+_CONNECT_TIMEOUT = 5
+_RUN_TIMEOUT = 10
+
+# Conexión persistente y reusada en vez de abrir una psycopg2.connect()
+# nueva en cada operación — mismo motivo que app.core.jobs/audit_log: abrir
+# una conexión por llamada agotaba el límite de conexiones concurrentes del
+# pooler de Supabase en modo sesión (pool_size: 15) bajo carga.
+_conn = None
+_db_lock = asyncio.Lock()
+
+
+def _get_conn():
+    global _conn
+    if _conn is None or _conn.closed:
+        _conn = psycopg2.connect(settings.supabase_database_url, connect_timeout=_CONNECT_TIMEOUT)
+    return _conn
+
+
+async def close_actas_db() -> None:
+    global _conn
+    if _conn is not None and not _conn.closed:
+        _conn.close()
+        _conn = None
+
+
 async def _run(fn):
     def _wrapped():
-        conn = psycopg2.connect(settings.supabase_database_url)
+        conn = _get_conn()
         try:
             return fn(conn)
-        finally:
-            conn.close()
-    return await asyncio.to_thread(_wrapped)
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                global _conn
+                _conn = None
+            raise
+
+    async with _db_lock:
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(_wrapped), timeout=_RUN_TIMEOUT)
+        except asyncio.TimeoutError:
+            global _conn
+            logger.error(f"Actas DB operation timed out after {_RUN_TIMEOUT}s, discarding connection")
+            _conn = None
+            raise
 
 
 def init_actas_db():

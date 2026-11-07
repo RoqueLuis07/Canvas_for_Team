@@ -4,18 +4,19 @@ All templates use Spanish headers; upload endpoints accept both Spanish
 and English column names via the _get() helper that tries multiple keys.
 """
 import asyncio
+import datetime
 import io
 import logging
 import re
 import unicodedata
-from typing import Any
+from typing import Any, Literal
 
 import openpyxl
 from openpyxl.cell.cell import MergedCell
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import pandas as pd
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -25,6 +26,7 @@ from app.models.canvas import BulkResult
 from app.services import canvas_client as canvas
 from app.services import teams_client as graph
 from app.services import user_service
+from app.services.credential_generator import generate_password
 from app.services import email_service
 from app.services.teams_client import create_team_via_group
 from app.core import jobs
@@ -33,12 +35,31 @@ from app.core import database
 def _err(exc: Exception) -> str:
     return getattr(exc, "detail", str(exc))
 
+
+def _cell_str(value: Any) -> str:
+    """Convierte el valor crudo de una celda a texto para mostrar en las
+    tablas del frontend. openpyxl devuelve datetime/date reales cuando la
+    celda de Excel tiene formato de fecha — str() de esos objetos agrega
+    "00:00:00" aunque la celda no tenga hora, así que acá se formatea
+    siempre como dd/mm/aaaa, sin hora."""
+    if value is None:
+        return ""
+    if isinstance(value, datetime.datetime):
+        return value.strftime("%d/%m/%Y")
+    if isinstance(value, datetime.date):
+        return value.strftime("%d/%m/%Y")
+    return str(value).strip()
+
 router = APIRouter(tags=["Excel Import/Export"])
 _ACCOUNT = settings.canvas_account_id
 logger = logging.getLogger(__name__)
 
 # Propietarios que deben agregarse a todo Team de Diplomados nuevo, sin excepción.
 _DIPLOMADO_DEFAULT_OWNERS = ["ldure@usil.edu.py", "jfleitas@usil.edu.py", "ralvarez@usil.edu.py"]
+
+# Propietario adicional exclusivo de los Teams de MBA (se suma a los de
+# arriba, no los reemplaza).
+_MBA_EXTRA_OWNER = "amichelena@usil.edu.py"
 
 # Límites de seguridad
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -57,6 +78,33 @@ def _norm(s: str) -> str:
     s = s.strip().lower()
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
     return re.sub(r"[^a-z0-9]+", "_", s).strip("_")
+
+
+def _match_col_idx(headers: dict, *keys: str) -> int | None:
+    """Encuentra la columna cuyo encabezado corresponde a alguno de los
+    `keys` (ej. "cedula", "ci"), probando primero por COINCIDENCIA EXACTA
+    del encabezado normalizado, y solo si no hay ninguna cayendo a
+    coincidencia parcial (substring) — en ese orden de prioridad.
+
+    Claves cortas tipo "ci" son abreviaturas que también aparecen como
+    substring de un montón de palabras comunes en español ("inscripción",
+    "comercial", "servicio"...). Sin priorizar la coincidencia exacta,
+    una columna de fecha o de cualquier otra cosa puede "ganarle" a la
+    columna real de Cédula/CI y corromper en silencio la contraseña
+    generada (cedula-Iniciales termina siendo fecha-Iniciales) — bug real
+    visto en una planilla de MBA con una columna no relacionada que
+    contenía "ci" en su encabezado antes de llegar a la columna "CI".
+    """
+    norm_keys = [_norm(k) for k in keys]
+    for nk in norm_keys:
+        for h, idx in headers.items():
+            if h == nk:
+                return idx
+    for nk in norm_keys:
+        for h, idx in headers.items():
+            if nk in h:
+                return idx
+    return None
 
 
 def _collision_note(creds: dict) -> str:
@@ -184,7 +232,7 @@ def _find_header_row_and_headers(ws, max_scan_rows=15):
     """
     keywords = ["nombre", "curso", "usuario", "correo", "cedula", "cédula", "documento", "id canvas", "id teams"]
     for row_idx in range(1, min(max_scan_rows, ws.max_row + 1)):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, min(50, ws.max_column + 1))]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, min(50, ws.max_column + 1))]
         valid_cols = [v for v in row_vals if v]
         if len(valid_cols) >= 2:
             row_str = " ".join(valid_cols).lower()
@@ -212,7 +260,15 @@ def _safe_set_cell(ws, row: int, column: int, value):
     columna donde el sistema necesita escribir (ej. el ID del equipo de
     Teams), openpyxl lanza AttributeError al intentar asignar `.value` en
     una MergedCell. Deshacemos el merge puntual para evitar el crash.
+
+    row/column < 1 no son posiciones válidas en una planilla real — pasa
+    si llega un row_idx sintético (negativo, de una fila "Agregar fila"
+    nunca guardada) por error desde el frontend. Se ignora en silencio en
+    vez de dejar que openpyxl tire ValueError y rompa todo el procesamiento.
     """
+    if row < 1 or column < 1:
+        logger.warning(f"_safe_set_cell: row={row} column={column} inválido, se ignora (fila sin guardar?)")
+        return None
     cell = ws.cell(row=row, column=column)
     if isinstance(cell, MergedCell):
         for merged_range in list(ws.merged_cells.ranges):
@@ -237,7 +293,7 @@ def _find_row1_title(ws, max_scan_cols: int = 30) -> str:
     sea, a su vez, el ID (GUID) del equipo de Teams.
     """
     for c in range(1, min(max_scan_cols, ws.max_column) + 1):
-        v = str(ws.cell(row=1, column=c).value or "").strip()
+        v = _cell_str(ws.cell(row=1, column=c).value)
         if v and not _UUID_RE.match(v):
             return v
     return ""
@@ -938,7 +994,265 @@ class DiplomadosUrlRequest(BaseModel):
     delete_account: bool = False
     cc: list[str] = []
     report_url: str | None = None
+    only_emails: list[str] | None = None
+    """Si viene seteado, solo en /send-credentials: limita el envío a estos
+    correos personales exactos (comparación case-insensitive), dejando el
+    resto de las filas pendientes intactas — para probar con una fila antes
+    de confirmar el envío masivo a todos."""
 
+
+class DiplomadosProcessEditedRequest(DiplomadosUrlRequest):
+    """Como DiplomadosUrlRequest, pero para procesar desde la tabla editable
+    del frontend: solo las filas tildadas, con los valores que el usuario
+    haya corregido ahí mismo (ver /excel/diplomados/process-edited)."""
+    overrides: list[dict] = []
+    """Cada dict: {"row_idx": int, y opcionalmente "nombre"/"cedula"/
+    "correo"/"telefono" — solo las claves que el usuario efectivamente
+    editó, comparadas contra lo que vino en /excel/diplomados/preview}."""
+    selected_rows: list[int] | None = None
+    """Índices de fila (row_idx, tal cual los devuelve /preview) tildados
+    para procesar. None = comportamiento viejo (procesa todas las
+    pendientes) — en la práctica este endpoint siempre debería recibir una
+    lista explícita desde la tabla editable."""
+
+
+class MasivoProcessEditedRequest(DiplomadosUrlRequest):
+    """Igual que DiplomadosProcessEditedRequest, para la tabla editable de
+    Carga Masiva (ver /excel/masivo). Incluye "plataforma" como campo
+    editable además de nombre/cedula/correo, porque acá cada fila puede
+    pedir canvas/teams/both por separado."""
+    overrides: list[dict] = []
+    selected_rows: list[int] | None = None
+
+
+class DocentesProcessEditedRequest(DiplomadosUrlRequest):
+    """Igual que MasivoProcessEditedRequest, para la tabla editable de Alta
+    Docentes (ver /excel/docentes-onedrive)."""
+    overrides: list[dict] = []
+    selected_rows: list[int] | None = None
+
+
+class EgresoOneDriveProcessRequest(DiplomadosUrlRequest):
+    """Para la tabla editable de Egreso Masivo (ver /excel/egreso) — acá no
+    hay overrides de valores (dar de baja no necesita "corregir" nombre/
+    correo, solo elegir a quién), solo selected_rows: qué filas tildó el
+    usuario para procesar. None = comportamiento viejo (todas las
+    pendientes)."""
+    selected_rows: list[int] | None = None
+
+
+class RowEditRequest(BaseModel):
+    """Edición de fila completa (ya procesada) desde la tabla editable de
+    Diplomados/Docentes/Masivo. A diferencia de los `overrides` de arriba
+    (que se aplican como parte de dar de alta una fila pendiente), esta
+    edita una fila que YA es una cuenta real — algunos campos sincronizan
+    con la cuenta viva (Nombre/Teléfono vía Graph), otros son SOLO del
+    registro en el Excel y nunca tocan el login real (Correo/Cédula), y
+    "estado" es un valor controlado (nunca texto libre) para no romper la
+    detección de "ya procesado" que usan varios endpoints."""
+    url: str
+    sheet_name: str
+    row_idx: int
+    nombre: str | None = None
+    cedula: str | None = None
+    correo: str | None = None
+    telefono: str | None = None
+    fecha: str | None = None
+    vendedor: str | None = None
+    """Fecha/Vendedor: solo existen en la planilla real de Diplomados — en
+    Docentes/Masivo estas columnas no se detectan y quedan sin efecto, igual
+    que cualquier otro campo cuya columna no exista en esa planilla."""
+    estado: Literal["procesado", "pendiente"] | None = None
+    upn: str | None = None
+    """UPN/usuario de la cuenta real en Teams, si la fila tiene una — se usa
+    para sincronizar Nombre/Teléfono en la cuenta viva vía Graph."""
+
+
+class AddRowRequest(BaseModel):
+    """Alta de una fila nueva, agregada a mano desde la tabla editable
+    (botón "Agregar fila nueva"), directo al final de la planilla real de
+    OneDrive. Nombre y Cédula son obligatorios porque son las dos columnas
+    mínimas que el resto del sistema exige para considerar una fila
+    válida (ver preview/proceso de Diplomados/Docentes/Masivo)."""
+    url: str
+    sheet_name: str
+    nombre: str
+    cedula: str
+    correo: str | None = None
+    telefono: str | None = None
+    fecha: str | None = None
+    vendedor: str | None = None
+
+
+def _row_edit_find_columns(headers: dict) -> dict:
+    return {
+        "nombre": _match_col_idx(headers, "nombre", "alumno", "estudiante"),
+        "cedula": _match_col_idx(headers, "cedula", "cédula", "ci"),
+        "correo": _match_col_idx(headers, "correo"),
+        "telefono": _match_col_idx(headers, "telefono", "teléfono", "celular"),
+        "fecha": _match_col_idx(headers, "fecha"),
+        "vendedor": _match_col_idx(headers, "vendedor"),
+        "usuario": _match_col_idx(headers, "usuario"),
+    }
+
+
+def _row_edit_find_estado_col(headers_raw: list) -> int | None:
+    col_estado = None
+    for i, h in enumerate(headers_raw):
+        if not h:
+            continue
+        h_lower = h.lower()
+        if "estado" in h_lower or ("canvas" in h_lower and "id" in h_lower):
+            col_estado = i + 1
+            break
+    if col_estado is None:
+        for i, h in enumerate(headers_raw):
+            if h and "enviado" in h.lower():
+                col_estado = i + 1
+                break
+    return col_estado
+
+
+@router.post("/excel/row/edit", summary="Editar una fila (pendiente o ya procesada) directo en la planilla de OneDrive")
+async def edit_excel_row(req: RowEditRequest) -> dict:
+    if not req.url or "http" not in req.url:
+        raise HTTPException(status_code=400, detail="URL inválida.")
+
+    encoded_url = _encode_share_url(req.url)
+    try:
+        contents = await graph.get_raw(f"/shares/{encoded_url}/driveItem/content")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo descargar el archivo. {e}")
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents))
+    except Exception:
+        raise HTTPException(status_code=400, detail="El archivo no es un Excel válido.")
+
+    if req.sheet_name not in wb.sheetnames:
+        raise HTTPException(status_code=400, detail=f"La pestaña '{req.sheet_name}' no existe.")
+
+    ws = wb[req.sheet_name]
+    header_row_idx, headers_dict, headers_raw = _find_header_row_and_headers(ws)
+    if not header_row_idx:
+        raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
+
+    cols = _row_edit_find_columns(headers_dict)
+    col_estado = _row_edit_find_estado_col(headers_raw)
+
+    if req.nombre is not None and cols["nombre"]:
+        _safe_set_cell(ws, req.row_idx, cols["nombre"], req.nombre)
+    if req.cedula is not None and cols["cedula"]:
+        _safe_set_cell(ws, req.row_idx, cols["cedula"], req.cedula)
+    if req.correo is not None and cols["correo"]:
+        _safe_set_cell(ws, req.row_idx, cols["correo"], req.correo)
+    if req.telefono is not None and cols["telefono"]:
+        _safe_set_cell(ws, req.row_idx, cols["telefono"], req.telefono)
+    if req.fecha is not None and cols["fecha"]:
+        _safe_set_cell(ws, req.row_idx, cols["fecha"], req.fecha)
+    if req.vendedor is not None and cols["vendedor"]:
+        _safe_set_cell(ws, req.row_idx, cols["vendedor"], req.vendedor)
+
+    if req.estado is not None and col_estado:
+        if req.estado == "pendiente":
+            # Vaciar SOLO el Estado no alcanza para volver a aparecer como
+            # pendiente: la condición real de "ya procesado" que usan todos
+            # los endpoints de lectura (ver preview_diplomados_onedrive,
+            # preview_docentes_onedrive, preview_masivo_onedrive) también se
+            # cumple si la columna "Usuario" tiene un correo con "@", sin
+            # importar lo que diga Estado. Por eso también se vacía esa
+            # columna acá — es lo único que realmente la vuelve reprocesable
+            # con la condición real, no una suposición. La cuenta REAL en
+            # Azure/Teams/Canvas no se toca: solo se borra la referencia en
+            # la planilla, y un reproceso posterior la vuelve a encontrar
+            # por cédula (generate_unique_credentials) en vez de duplicarla.
+            _safe_set_cell(ws, req.row_idx, col_estado, "")
+            if cols["usuario"]:
+                _safe_set_cell(ws, req.row_idx, cols["usuario"], "")
+        else:
+            cell = _safe_set_cell(ws, req.row_idx, col_estado, "✅ Procesado")
+            cell.font = Font(color="00B050", bold=True)
+
+    # Sincronizar con la cuenta real en Teams (Graph) — solo Nombre y
+    # Teléfono, nunca Correo/Cédula: esos dos son el login real y cambiarlos
+    # ahí podría dejar a la persona sin poder entrar a su propia cuenta, así
+    # que esos campos solo se corrigen en el registro del Excel.
+    synced_live_account = False
+    if req.upn and (req.nombre is not None or req.telefono is not None):
+        patch_payload = {}
+        if req.nombre is not None:
+            patch_payload["displayName"] = req.nombre
+        if req.telefono is not None:
+            patch_payload["mobilePhone"] = req.telefono
+        if patch_payload:
+            try:
+                await graph.patch(f"/users/{req.upn}", patch_payload)
+                synced_live_account = True
+            except Exception as e:
+                logger.warning(f"No se pudo sincronizar la cuenta viva de {req.upn}: {e}")
+
+    out_io = io.BytesIO()
+    wb.save(out_io)
+    out_io.seek(0)
+    try:
+        await graph.put_raw(f"/shares/{encoded_url}/driveItem/content", out_io.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar el archivo actualizado en OneDrive. {e}")
+
+    return {"status": "success", "synced_live_account": synced_live_account}
+
+
+@router.post("/excel/row/add", summary="Agregar una fila nueva al final de la planilla de OneDrive")
+async def add_excel_row(req: AddRowRequest) -> dict:
+    if not req.url or "http" not in req.url:
+        raise HTTPException(status_code=400, detail="URL inválida.")
+    if not req.nombre or not req.nombre.strip() or not req.cedula or not req.cedula.strip():
+        raise HTTPException(status_code=400, detail="Nombre y Cédula son obligatorios para agregar una fila nueva.")
+
+    encoded_url = _encode_share_url(req.url)
+    try:
+        contents = await graph.get_raw(f"/shares/{encoded_url}/driveItem/content")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo descargar el archivo. {e}")
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents))
+    except Exception:
+        raise HTTPException(status_code=400, detail="El archivo no es un Excel válido.")
+
+    if req.sheet_name not in wb.sheetnames:
+        raise HTTPException(status_code=400, detail=f"La pestaña '{req.sheet_name}' no existe.")
+
+    ws = wb[req.sheet_name]
+    header_row_idx, headers_dict, headers_raw = _find_header_row_and_headers(ws)
+    if not header_row_idx:
+        raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
+
+    cols = _row_edit_find_columns(headers_dict)
+    if not cols["nombre"] or not cols["cedula"]:
+        raise HTTPException(status_code=400, detail="La pestaña no tiene columnas de Nombre/Cédula detectables.")
+
+    new_row_idx = ws.max_row + 1
+    _safe_set_cell(ws, new_row_idx, cols["nombre"], req.nombre.strip())
+    _safe_set_cell(ws, new_row_idx, cols["cedula"], req.cedula.strip())
+    if req.correo and cols["correo"]:
+        _safe_set_cell(ws, new_row_idx, cols["correo"], req.correo.strip())
+    if req.telefono and cols["telefono"]:
+        _safe_set_cell(ws, new_row_idx, cols["telefono"], req.telefono.strip())
+    if req.fecha and cols["fecha"]:
+        _safe_set_cell(ws, new_row_idx, cols["fecha"], req.fecha.strip())
+    if req.vendedor and cols["vendedor"]:
+        _safe_set_cell(ws, new_row_idx, cols["vendedor"], req.vendedor.strip())
+
+    out_io = io.BytesIO()
+    wb.save(out_io)
+    out_io.seek(0)
+    try:
+        await graph.put_raw(f"/shares/{encoded_url}/driveItem/content", out_io.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar el archivo actualizado en OneDrive. {e}")
+
+    return {"status": "success", "row_idx": new_row_idx}
 
 
 class MatriculacionesPreviewResponse(BaseModel):
@@ -965,6 +1279,11 @@ class PreviewResponse(BaseModel):
     sample_rows: list[dict] = []
     student_details: list[dict] = []
     already_processed_details: list[dict] = []
+    team_id: str | None = None
+    """ID del Team/grupo M365 ya existente para este diplomado (resuelto por
+    el título de la fila 1, solo lectura — no se crea acá). None si todavía
+    no existe ningún Team con ese nombre; la tabla editable del frontend usa
+    esto para habilitar o no la acción "Quitar del grupo"."""
 
 
 class SendCredentialsPreviewResponse(BaseModel):
@@ -975,6 +1294,7 @@ class SendCredentialsPreviewResponse(BaseModel):
     already_sent_count: int = 0
     no_account_count: int = 0
     no_email_count: int = 0
+    program_type: str = "diplomado"
 
 def _encode_share_url(url: str) -> str:
     import base64
@@ -1024,6 +1344,65 @@ async def get_egreso_sheets(req: UrlOnlyRequest) -> list[str]:
         return sheets
     except Exception as e:
         raise HTTPException(status_code=400, detail="El archivo no es un Excel válido.")
+@router.post("/excel/check-duplicate-headers", summary="Diagnóstico: columnas con el mismo encabezado en cualquier pestaña del archivo")
+async def check_duplicate_headers(req: UrlOnlyRequest) -> dict:
+    """Escanea TODAS las pestañas de un archivo de OneDrive y reporta qué
+    encabezados se repiten dentro de la misma fila de encabezados — el
+    problema real que causó el envío de credenciales cruzadas en MBA
+    2026-02 (dos columnas "Usuario"/"Contraseña" en la misma pestaña, y el
+    sistema usaba la última en vez de la que el equipo mantenía a mano).
+
+    Esto NO modifica nada — es solo lectura, para chequear cualquier
+    planilla (Diplomados, MBA, Alta Docentes, etc.) antes de confiar en
+    ella para un envío real.
+    """
+    if not req.url or "http" not in req.url:
+        raise HTTPException(status_code=400, detail="URL inválida.")
+
+    encoded_url = _encode_share_url(req.url)
+    try:
+        contents = await graph.get_raw(f"/shares/{encoded_url}/driveItem/content")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo descargar el archivo. {e}")
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents), read_only=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="El archivo no es un Excel válido.")
+
+    results = []
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        header_row_idx, _, headers_raw = _find_header_row_and_headers(ws)
+        if not header_row_idx:
+            results.append({"sheet": sheet_name, "error": "No se encontró fila de encabezados."})
+            continue
+
+        seen: dict[str, list[int]] = {}
+        for i, h in enumerate(headers_raw, 1):
+            if not h:
+                continue
+            norm = _norm(h)
+            seen.setdefault(norm, []).append(i)
+
+        duplicates = [
+            {"header": h, "columns": cols, "column_letters": [openpyxl.utils.get_column_letter(c) for c in cols]}
+            for h, cols in seen.items() if len(cols) > 1
+        ]
+        results.append({
+            "sheet": sheet_name,
+            "duplicate_headers": duplicates,
+            "has_risk": len(duplicates) > 0,
+        })
+
+    wb.close()
+    return {
+        "total_sheets": len(results),
+        "sheets_with_risk": sum(1 for r in results if r.get("has_risk")),
+        "results": results,
+    }
+
+
 @router.post("/excel/diplomados/preview", summary="Pre-visualizar planilla de Diplomados")
 async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
     if not req.url or "http" not in req.url:
@@ -1064,10 +1443,38 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
             col_estado = i
         if "nombre" in h_lower:
             if col_nombre == -1: col_nombre = i
-        if "cedula" in h_lower or "cédula" in h_lower or "ci" in h_lower:
-            if col_cedula == -1: col_cedula = i
         if "usuario" in h_lower:
             if col_usuario == -1: col_usuario = i
+    # Cédula/CI aparte, con coincidencia EXACTA priorizada (ver _match_col_idx):
+    # "ci" como substring matchea cualquier palabra con "ci" adentro (ej. "Fecha
+    # Inscripción"), y si esa columna aparece antes que la real "CI" en la
+    # planilla, le gana — mostrando una fecha donde debería ir la cédula.
+    _cedula_idx = _match_col_idx(headers_dict, "cedula", "cédula", "ci")
+    if _cedula_idx:
+        col_cedula = _cedula_idx - 1
+    # Correo/Teléfono: mismo criterio flexible, solo necesarios para que la
+    # tabla editable del frontend pueda mostrarlos y permitir corregirlos
+    # (ver /excel/diplomados/process-edited) — no afectan la detección de
+    # "ya procesado" de acá abajo.
+    col_correo = -1
+    _correo_idx = _match_col_idx(headers_dict, "correo")
+    if _correo_idx:
+        col_correo = _correo_idx - 1
+    col_telefono = -1
+    _telefono_idx = _match_col_idx(headers_dict, "telefono", "teléfono", "celular")
+    if _telefono_idx:
+        col_telefono = _telefono_idx - 1
+    # Fecha/Vendedor: columnas propias de la planilla real de Diplomados
+    # (ver captura compartida por el usuario) — igual que Correo/Teléfono,
+    # son solo datos del registro, no afectan ninguna lógica de negocio.
+    col_fecha = -1
+    _fecha_idx = _match_col_idx(headers_dict, "fecha")
+    if _fecha_idx:
+        col_fecha = _fecha_idx - 1
+    col_vendedor = -1
+    _vendedor_idx = _match_col_idx(headers_dict, "vendedor")
+    if _vendedor_idx:
+        col_vendedor = _vendedor_idx - 1
     # Si no hay columna "Estado" propiamente dicha, "Enviado" cumple el mismo rol.
     if col_estado == -1:
         for i, h in enumerate(headers_raw):
@@ -1081,7 +1488,7 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
     already_processed_details = []
 
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
 
         # Check if the row has at least a name
         if not any(row_vals):
@@ -1091,6 +1498,11 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
         cedula_val = row_vals[col_cedula] if col_cedula >= 0 else ""
         if not nombre_val or not cedula_val:
             continue
+
+        correo_val = row_vals[col_correo] if col_correo >= 0 else ""
+        telefono_val = row_vals[col_telefono] if col_telefono >= 0 else ""
+        fecha_val = row_vals[col_fecha] if col_fecha >= 0 else ""
+        vendedor_val = row_vals[col_vendedor] if col_vendedor >= 0 else ""
 
         estado_val = row_vals[col_estado] if col_estado >= 0 else ""
         estado_lower = estado_val.lower()
@@ -1102,20 +1514,48 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
                 or (usuario_val and "@" in usuario_val)):
             students_already_processed += 1
             already_processed_details.append({
+                "row_idx": row_idx,
                 "nombre": nombre_val,
                 "cedula": cedula_val,
                 "usuario": usuario_val,
                 "estado": estado_val,
+                # Correo/Teléfono: estaban ausentes acá aunque el modal de
+                # edición de fila (ver /excel/row/edit) los lee de este
+                # mismo objeto para precargarlos — sin esto, el modal
+                # siempre los mostraba vacíos en una fila ya procesada,
+                # aunque la celda real tuviera dato.
+                "correo": correo_val,
+                "telefono": telefono_val,
+                "fecha": fecha_val,
+                "vendedor": vendedor_val,
             })
         else:
             students_to_process += 1
             student_details.append({
+                "row_idx": row_idx,
                 "nombre": nombre_val,
                 "cedula": cedula_val,
+                "correo": correo_val,
+                "telefono": telefono_val,
+                "fecha": fecha_val,
+                "vendedor": vendedor_val,
             })
 
         if len(sample_rows) < 10:
             sample_rows.append({h: v for h, v in zip(headers_raw, row_vals) if h})
+
+    # Resolución de solo lectura del Team ya existente para este diplomado
+    # (si lo hay) — mismo criterio de título que usa el procesamiento real
+    # (_find_row1_title + búsqueda exacta por nombre), pero sin crear nada
+    # acá: la tabla editable del frontend lo necesita para poder ofrecer
+    # "Quitar del grupo" en una fila ya procesada.
+    title_val = _find_row1_title(ws)
+    team_id = None
+    if title_val:
+        try:
+            team_id = await graph.search_group_by_name(title_val)
+        except Exception:
+            team_id = None
 
     wb.close()
     return PreviewResponse(
@@ -1126,11 +1566,12 @@ async def preview_diplomados_onedrive(req: DiplomadosUrlRequest) -> PreviewRespo
         sample_rows=sample_rows,
         student_details=student_details,
         already_processed_details=already_processed_details,
+        team_id=team_id,
     )
 
 
 @router.post("/excel/diplomados", summary="Procesar planilla de Diplomados directo en OneDrive")
-async def import_diplomados_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def import_diplomados_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     """Dispara la creación de Diplomados en segundo plano.
 
     Antes era una request HTTP síncrona con un límite artificial de 50
@@ -1161,12 +1602,60 @@ async def import_diplomados_onedrive(req: DiplomadosUrlRequest, bg_tasks: Backgr
     except Exception:
         raise HTTPException(status_code=400, detail="El archivo descargado no es un Excel válido.")
 
-    job_id = await jobs.create_job(job_type="diplomados_onedrive", operation="Alta de Diplomados", username="admin")
+    job_id = await jobs.create_job(job_type="diplomados_onedrive", operation="Alta de Diplomados", username=jobs.username_from_request(request))
     bg_tasks.add_task(_process_diplomados_bg, job_id, req, contents, encoded_url)
     return {"status": "success", "job_id": job_id, "message": "Alta de Diplomados iniciada en segundo plano."}
 
 
-async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, contents: bytes, encoded_url: str):
+@router.post("/excel/diplomados/process-edited", summary="Procesar filas seleccionadas de Diplomados, con correcciones hechas en la tabla editable")
+async def process_diplomados_edited(req: DiplomadosProcessEditedRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
+    """Igual que /excel/diplomados, pero en vez de procesar todas las filas
+    pendientes de la planilla tal cual está en OneDrive, procesa solo las
+    filas que el usuario tildó en la tabla editable del frontend, con los
+    valores que haya corregido ahí (ej. una cédula mal tipeada) — esos
+    valores se escriben en el archivo real de OneDrive como parte del
+    procesamiento normal (ver _process_diplomados_bg), no quedan solo en
+    esta request."""
+    if not req.url or "http" not in req.url:
+        raise HTTPException(status_code=400, detail="URL inválida.")
+
+    encoded_url = _encode_share_url(req.url)
+
+    try:
+        contents = await graph.get_raw(f"/shares/{encoded_url}/driveItem/content")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo descargar el archivo de OneDrive. Verifica la URL y los permisos. Detalle: {e}")
+
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(contents), read_only=True)
+        if req.sheet_name not in wb.sheetnames:
+            raise HTTPException(status_code=400, detail=f"La pestaña '{req.sheet_name}' no existe en el archivo. Las disponibles son: {', '.join(wb.sheetnames)}")
+        wb.close()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="El archivo descargado no es un Excel válido.")
+
+    overrides = {
+        o["row_idx"]: {k: v for k, v in o.items() if k != "row_idx"}
+        for o in req.overrides
+        if "row_idx" in o
+    }
+    selected_row_indices = set(req.selected_rows) if req.selected_rows is not None else None
+
+    job_id = await jobs.create_job(job_type="diplomados_onedrive", operation="Alta de Diplomados", username=jobs.username_from_request(request))
+    bg_tasks.add_task(_process_diplomados_bg, job_id, req, contents, encoded_url, overrides, selected_row_indices)
+    return {"status": "success", "job_id": job_id, "message": "Alta de Diplomados iniciada en segundo plano."}
+
+
+async def _process_diplomados_bg(
+    job_id: int,
+    req: DiplomadosUrlRequest,
+    contents: bytes,
+    encoded_url: str,
+    overrides: dict[int, dict] | None = None,
+    selected_row_indices: set[int] | None = None,
+):
     import json
     await jobs.start_job(job_id)
 
@@ -1194,16 +1683,14 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
             continue
 
         def get_col_idx(*keys):
-            for k in keys:
-                for h, idx in headers.items():
-                    if _norm(k) in h:
-                        return idx
-            return None
+            return _match_col_idx(headers, *keys)
 
         col_nombre = get_col_idx("nombre", "alumno", "estudiante")
         col_cedula = get_col_idx("cedula", "cédula", "ci")
         col_correo = get_col_idx("correo")
         col_telefono = get_col_idx("telefono", "teléfono", "celular")
+        col_fecha = get_col_idx("fecha")
+        col_vendedor = get_col_idx("vendedor")
         col_curso = get_col_idx("curso", "id curso", "canvas")
         col_equipo = get_col_idx("equipo", "id equipo", "teams")
         col_curso_nombre = get_col_idx("nombre del curso", "curso", "diplomado")
@@ -1211,7 +1698,10 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
         col_usuario = get_col_idx("usuario")
         col_contra = get_col_idx("contrasena", "contraseña", "clave")
         col_enviado = get_col_idx("estado", "enviado")
-    
+
+        title_val_early = _find_row1_title(ws)
+        is_mba_early = "mba" in req.sheet_name.lower() or "mba" in (title_val_early or "").lower()
+
         col_cc = get_col_idx("cc", "copia")
         sheet_cc_list = []
         if col_cc:
@@ -1228,8 +1718,37 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
             await jobs.fail_job(job_id, f"No se encontraron las columnas requeridas ('Nombre' y 'Cédula') en la pestaña seleccionada. Columnas detectadas: {detected}")
             return
 
+        # Correcciones hechas desde la tabla editable del frontend (ver
+        # /excel/diplomados/process-edited): se aplican directo sobre las
+        # celdas ANTES de que arranque cualquier lógica de negocio, que
+        # siempre lee de ws.cell(...) — así el resto de esta función (alta
+        # de cuentas, auto-reparo, guardado en OneDrive al final) no
+        # necesita saber que hubo una edición, simplemente ve el valor ya
+        # corregido como si viniera de la planilla original.
+        for r_idx, vals in (overrides or {}).items():
+            if "nombre" in vals and col_nombre:
+                _safe_set_cell(ws, r_idx, col_nombre, vals["nombre"])
+            if "cedula" in vals and col_cedula:
+                _safe_set_cell(ws, r_idx, col_cedula, vals["cedula"])
+            if "correo" in vals and col_correo:
+                _safe_set_cell(ws, r_idx, col_correo, vals["correo"])
+            if "telefono" in vals and col_telefono:
+                _safe_set_cell(ws, r_idx, col_telefono, vals["telefono"])
+            if "fecha" in vals and col_fecha:
+                _safe_set_cell(ws, r_idx, col_fecha, vals["fecha"])
+            if "vendedor" in vals and col_vendedor:
+                _safe_set_cell(ws, r_idx, col_vendedor, vals["vendedor"])
+
         next_col = ws.max_column + 1
-            
+
+        # MBA además crea la cuenta en Canvas (a diferencia de Diplomados,
+        # que hoy es solo Teams) — si la planilla no trae una columna de
+        # curso de Canvas, se crea una para dejar el ID asentado.
+        if is_mba_early and not col_curso:
+            col_curso = next_col
+            _safe_set_cell(ws, header_row_idx, col_curso, "ID Curso Canvas").font = Font(bold=True)
+            next_col += 1
+
         if not col_usuario:
             col_usuario = next_col
             _safe_set_cell(ws, header_row_idx, col_usuario, "Usuario").font = Font(bold=True)
@@ -1273,6 +1792,13 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
         global_team_id = ""
         title_val = _find_row1_title(ws)
         global_team_name = title_val
+
+        # Mismo criterio que en los endpoints de envío de credenciales: la
+        # pestaña/hora de MBA se identifica por su nombre o por el título de
+        # la fila 1 — se usa para sumar al propietario adicional de MBA en
+        # cualquier Team que se cree desde esta pestaña.
+        is_mba = "mba" in req.sheet_name.lower() or "mba" in (title_val or "").lower()
+        team_owner_ids = list(_DIPLOMADO_DEFAULT_OWNERS) + ([_MBA_EXTRA_OWNER] if is_mba else [])
         if global_team_name and col_usuario:
             team_id_from_header = str(ws.cell(row=1, column=col_usuario).value or "").strip()
             if _UUID_RE.match(team_id_from_header):
@@ -1285,7 +1811,7 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                     else:
                         nickname = _safe_mail_nickname(global_team_name)
 
-                        owner_ids = list(_DIPLOMADO_DEFAULT_OWNERS)
+                        owner_ids = list(team_owner_ids)
                         try:
                             admin_user = await graph.get(f"/users/resteche@usil.edu.py", params={"$select": "id"})
                             if admin_user and admin_user.get("id"):
@@ -1304,7 +1830,28 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                         _safe_set_cell(ws, 1, col_usuario, global_team_id).font = Font(bold=True)
                 except Exception as e:
                     print(f"Error pre-creando equipo: {e}")
-        
+
+        # Curso de Canvas global para MBA: mismo criterio que el Team de
+        # arriba — se crea (o reutiliza) una sola vez por pestaña, a partir
+        # del título de la fila 1, y el ID queda asentado en la fila 1 de la
+        # columna "ID Curso Canvas" para no recrearlo en corridas futuras.
+        global_course_id = ""
+        if is_mba and global_team_name and col_curso:
+            course_id_from_header = str(ws.cell(row=1, column=col_curso).value or "").strip()
+            if course_id_from_header.isdigit():
+                global_course_id = course_id_from_header
+            else:
+                try:
+                    existing_cid = await canvas.search_course_by_name(_ACCOUNT_LOCAL, global_team_name)
+                    if existing_cid:
+                        global_course_id = existing_cid
+                    else:
+                        global_course_id = await canvas.create_course(_ACCOUNT_LOCAL, global_team_name)
+                    if global_course_id:
+                        _safe_set_cell(ws, 1, col_curso, global_course_id).font = Font(bold=True)
+                except Exception as e:
+                    print(f"Error pre-creando curso Canvas (MBA): {e}")
+
         async def process_row(r_idx):
             nombre = str(ws.cell(row=r_idx, column=col_nombre).value or "").strip()
             cedula = _clean_cedula(str(ws.cell(row=r_idx, column=col_cedula).value or "").strip())
@@ -1332,6 +1879,16 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                 # y lo agregamos si falta — un run previo pudo haber creado la
                 # cuenta pero fallado al matricularla en el grupo.
                 if usuario_val and "@" in usuario_val:
+                    # Reparo de contraseña: la cuenta ya existe (hay Usuario)
+                    # pero la celda de Contraseña está vacía o quedó mal
+                    # generada (ej. por el bug de detección de columna ya
+                    # corregido) — se recalcula con la cédula de ESTA fila,
+                    # sin tocar la cuenta en Canvas/Teams (no hace falta,
+                    # solo había que dejar asentada la contraseña real).
+                    if col_contra and cedula:
+                        contra_val = str(ws.cell(row=r_idx, column=col_contra).value or "").strip()
+                        if not contra_val:
+                            ws.cell(row=r_idx, column=col_contra, value=generate_password(cedula, nombre))
                     try:
                         target_equipo = id_equipo if (id_equipo and id_equipo != "None") else global_team_id
                         if not target_equipo and curso_nombre:
@@ -1349,9 +1906,37 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                                     await graph.add_member_to_group(target_equipo, uid)
                     except Exception:
                         pass
+                    # Mismo auto-reparo para Canvas: un run previo pudo haber
+                    # creado la cuenta de Teams pero fallado al crear la de
+                    # Canvas o al matricularla en el curso.
+                    if is_mba and global_course_id:
+                        try:
+                            canvas_match = await canvas.find_user_exact(_ACCOUNT_LOCAL, usuario_val)
+                            if canvas_match:
+                                try:
+                                    await canvas.post(f"/courses/{global_course_id}/enrollments", {
+                                        "enrollment": {
+                                            "user_id": canvas_match["id"],
+                                            "type": "StudentEnrollment",
+                                            "enrollment_state": "active",
+                                            "notify": False,
+                                        },
+                                    })
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
                 return
 
-            creds, status = await user_service.generate_unique_credentials(nombre, cedula, "teams")
+            # platform="both" (no solo "teams"): si la persona ya tiene cuenta
+            # en Canvas (de este mismo flujo de MBA, de Alta Docentes, de
+            # Ingreso, etc.) se detecta por CÉDULA -el chequeo más confiable,
+            # porque es el SIS ID exacto- y se reutiliza su correo real, en
+            # vez de intentar adivinarlo de nuevo y terminar creando una
+            # cuenta duplicada cuando el correo real tiene otro formato
+            # (ej. por una colisión de nombre resuelta distinto la vez
+            # anterior).
+            creds, status = await user_service.generate_unique_credentials(nombre, cedula, "both")
             login_id = creds["email"]
             pwd = creds["password"]
             error = None
@@ -1406,10 +1991,10 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                                 mail_nickname=nickname,
                                 description=f"Grupo para {curso_nombre}",
                                 visibility="Private",
-                                owner_ids=list(_DIPLOMADO_DEFAULT_OWNERS)
+                                owner_ids=list(team_owner_ids)
                             )
                             target_equipo = new_team.get("id")
-                            
+
                     if target_equipo:
                         if col_equipo and target_equipo != id_equipo:
                             ws.cell(row=r_idx, column=col_equipo, value=target_equipo)
@@ -1436,7 +2021,58 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                 except Exception as e:
                     if "already exist" not in str(e).lower():
                         error = str(error) + f" | TeamsEnroll: {e}" if error else f"TeamsEnroll: {e}"
-            
+
+            # MBA: a diferencia de Diplomados (Teams-only), acá además se da
+            # de alta al alumno en Canvas y se lo matricula como estudiante
+            # en el curso global de la pestaña.
+            if is_mba and global_course_id:
+                canvas_id = None
+                try:
+                    cu = await canvas.post(f"/accounts/{_ACCOUNT_LOCAL}/users", {
+                        "user": {
+                            "name": creds["full_name"],
+                            "sortable_name": creds["full_name"],
+                            "short_name": parts[0] + " " + parts[-1] if len(parts) > 1 else creds["full_name"],
+                        },
+                        "pseudonym": {
+                            "unique_id": login_id,
+                            "sis_user_id": cedula,
+                            "password": pwd,
+                            "send_confirmation": False,
+                        },
+                        "communication_channel": {
+                            "type": "email", "address": login_id,
+                            "skip_confirmation": True,
+                        },
+                    })
+                    canvas_id = cu["id"]
+                except Exception as e:
+                    if "already exists" not in str(e).lower() and "sis_user_id" not in str(e).lower():
+                        error = str(error) + f" | Canvas: {e}" if error else f"Canvas: {e}"
+                    else:
+                        try:
+                            match = await canvas.find_user_exact(_ACCOUNT_LOCAL, login_id)
+                            if match:
+                                canvas_id = match["id"]
+                        except Exception:
+                            pass
+                        if not canvas_id:
+                            error = str(error) + f" | Canvas: {e}" if error else f"Canvas: {e}"
+
+                if canvas_id:
+                    try:
+                        await canvas.post(f"/courses/{global_course_id}/enrollments", {
+                            "enrollment": {
+                                "user_id": canvas_id,
+                                "type": "StudentEnrollment",
+                                "enrollment_state": "active",
+                                "notify": False,
+                            },
+                        })
+                    except Exception as e:
+                        if "already" not in str(e).lower():
+                            error = str(error) + f" | CanvasEnroll: {e}" if error else f"CanvasEnroll: {e}"
+
             if not error or "Creado OK" in str(error) or "Ya existía" in str(error):
                 ws.cell(row=r_idx, column=col_usuario, value=login_id)
                 ws.cell(row=r_idx, column=col_contra, value=pwd)
@@ -1452,7 +2088,16 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
                 _set_estado(r_idx, f"❌ Error: {error}", "FF0000")
                 result.failed.append({"input": {"cedula": cedula}, "error": error})
 
-        tasks = []
+        # Primero se recolectan los índices de fila y se calcula el límite de
+        # seguridad; recién después se crean las corrutinas de process_row().
+        # Antes se creaban acá mismo (tasks.append(process_row(r_idx))) y, si
+        # el chequeo de abajo cortaba el job por exceder el límite, esas
+        # corrutinas ya creadas quedaban sin awaitear al hacer return — Python
+        # las descarta con un "coroutine was never awaited" (no perdían
+        # trabajo real, porque una corrutina no ejecuta nada hasta que se la
+        # awaitea, pero sí era ruido/desperdicio y un warning confuso en los
+        # logs).
+        row_indices = []
         pending_count = 0
         empty_count = 0
         for r_idx in range(header_row_idx + 1, ws.max_row + 1):
@@ -1481,11 +2126,33 @@ async def _process_diplomados_bg(job_id: int, req: DiplomadosUrlRequest, content
             if not already_done:
                 pending_count += 1
 
-            tasks.append(process_row(r_idx))
+            row_indices.append(r_idx)
+
+        # Procesamiento selectivo desde la tabla editable: si el frontend
+        # mandó qué filas tildó, solo se procesan esas — se recalcula
+        # pending_count sobre el subconjunto filtrado para que el límite de
+        # seguridad de abajo siga siendo significativo (si no, quedaría
+        # contando filas que ni se van a tocar).
+        if selected_row_indices is not None:
+            row_indices = [r for r in row_indices if r in selected_row_indices]
+            pending_count = 0
+            for r_idx in row_indices:
+                enviado_check = str(ws.cell(row=r_idx, column=col_enviado).value or "").strip()
+                enviado_check_lower = enviado_check.lower()
+                usuario_check = str(ws.cell(row=r_idx, column=col_usuario).value or "").strip() if col_usuario else ""
+                already_done = (
+                    "✅" in enviado_check or enviado_check_lower in ["si", "yes", "true", "enviado", "ok"]
+                    or "creado ok" in enviado_check_lower or "ya exist" in enviado_check_lower
+                    or (usuario_check and "@" in usuario_check)
+                )
+                if not already_done:
+                    pending_count += 1
 
         if pending_count > 300:
             await jobs.fail_job(job_id, f"Límite de seguridad excedido: intentás crear {pending_count} cuentas nuevas a la vez (máximo 300 permitidas). Revisa el archivo para evitar accidentes.")
             return
+
+        tasks = [process_row(r_idx) for r_idx in row_indices]
 
         if len(tasks) > 0:
             try:
@@ -1559,11 +2226,7 @@ async def preview_send_diplomados_credentials(req: DiplomadosUrlRequest) -> Send
         raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo")
@@ -1580,6 +2243,9 @@ async def preview_send_diplomados_credentials(req: DiplomadosUrlRequest) -> Send
 
     col_correo_enviado = get_col_idx("correo enviado", "credenciales enviadas")
     col_enviado_legacy = headers.get("enviado")
+
+    title_val = _find_row1_title(ws)
+    is_mba = "mba" in req.sheet_name.lower() or "mba" in (title_val or "").lower()
 
     def _looks_sent(raw: str) -> bool:
         v = raw.strip().lower()
@@ -1613,6 +2279,7 @@ async def preview_send_diplomados_credentials(req: DiplomadosUrlRequest) -> Send
     return SendCredentialsPreviewResponse(
         pending=pending, already_sent_count=already_sent,
         no_account_count=no_account, no_email_count=no_email,
+        program_type="mba" if is_mba else "diplomado",
     )
 
 
@@ -1648,11 +2315,7 @@ async def send_diplomados_credentials(req: DiplomadosUrlRequest) -> BulkResult:
         raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo")
@@ -1684,6 +2347,13 @@ async def send_diplomados_credentials(req: DiplomadosUrlRequest) -> BulkResult:
 
     title_val = _find_row1_title(ws)
 
+    # El mismo enlace de "Diplomados" se usa también para MBA (pestaña/hora
+    # distinta del mismo Excel) — se distingue por el nombre de la pestaña o
+    # el título de la fila 1 ("MBA DUAL 2026", "MBA 2026-01", etc.) para
+    # elegir la plantilla de correo correcta (ver email_service._build_mba_message).
+    is_mba = "mba" in req.sheet_name.lower() or "mba" in (title_val or "").lower()
+    program_type = "mba" if is_mba else "diplomado"
+
     col_cc = get_col_idx("cc", "copia")
     sheet_cc_list: list[str] = []
     if col_cc:
@@ -1699,6 +2369,8 @@ async def send_diplomados_credentials(req: DiplomadosUrlRequest) -> BulkResult:
         v = raw.strip().lower()
         return bool(v) and ("✅" in raw or v in ("si", "yes", "true", "enviado"))
 
+    only_emails_norm = {e.strip().lower() for e in req.only_emails} if req.only_emails else None
+
     rows_to_send = []
     for r_idx in range(header_row_idx + 1, ws.max_row + 1):
         usuario_val = str(ws.cell(row=r_idx, column=col_usuario).value or "").strip()
@@ -1713,6 +2385,8 @@ async def send_diplomados_credentials(req: DiplomadosUrlRequest) -> BulkResult:
             continue  # sin correo personal para enviar
         if _looks_sent(ya_enviado) or _looks_sent(ya_enviado_legacy):
             continue  # ya se le envió (por este sistema o por el proceso anterior)
+        if only_emails_norm is not None and correo_val.strip().lower() not in only_emails_norm:
+            continue  # filtro de prueba: no está en la lista de correos a enviar ahora
 
         rows_to_send.append(r_idx)
 
@@ -1735,7 +2409,7 @@ async def send_diplomados_credentials(req: DiplomadosUrlRequest) -> BulkResult:
                 full_name=nombre or usuario_val,
                 login_id=usuario_val,
                 password=contra_val,
-                program_type="diplomado",
+                program_type=program_type,
                 program_name=curso_nombre or title_val,
                 extra_cc=sheet_cc_list,
             )
@@ -1798,11 +2472,7 @@ async def preview_send_docentes_credentials(req: DiplomadosUrlRequest) -> SendCr
         raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo", "email")
@@ -1888,11 +2558,7 @@ async def send_docentes_credentials(req: DiplomadosUrlRequest) -> BulkResult:
         raise HTTPException(status_code=400, detail="No se encontró la fila de encabezados.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo", "email")
@@ -2098,7 +2764,7 @@ async def preview_courses_onedrive(req: DiplomadosUrlRequest) -> CoursesPreviewR
     course_details = []
 
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
         
         # Check if the row has at least a course name (assuming column 0 or 1 is name)
         if not any(row_vals):
@@ -2208,7 +2874,7 @@ async def preview_fix_coordinador_role(req: DiplomadosUrlRequest):
 
     rows = []
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
         if not any(row_vals):
             continue
         sis_id = row_vals[col_sis] if 0 <= col_sis < len(row_vals) else ""
@@ -2497,7 +3163,7 @@ async def preview_fix_sis_id(req: DiplomadosUrlRequest) -> FixSisIdPreviewRespon
 
 
 @router.post("/excel/courses/fix-sis-id", summary="Corregir masivamente el SIS ID de cursos ya creados en Canvas")
-async def fix_sis_id_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def fix_sis_id_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
 
@@ -2520,7 +3186,7 @@ async def fix_sis_id_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTas
     job_id = await jobs.create_job(
         job_type="fix_sis_id_onedrive",
         operation="Corrección masiva de SIS ID",
-        username="admin",
+        username=jobs.username_from_request(request),
     )
     bg_tasks.add_task(_process_fix_sis_id_bg, job_id, req, contents, encoded_url)
 
@@ -2659,7 +3325,7 @@ async def append_report_onedrive(report_url: str, succeeded: list, failed: list)
         print(f"Error actualizando reporte maestro: {str(e)}")
 
 @router.post("/excel/courses", summary="Crear cursos en Canvas desde planilla OneDrive")
-async def import_courses_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def import_courses_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     """Descarga y valida la planilla, y dispara la creación de cursos en segundo plano.
 
     Crear cursos + equipos de Teams (con espera de replicación de Azure AD
@@ -2690,7 +3356,7 @@ async def import_courses_onedrive(req: DiplomadosUrlRequest, bg_tasks: Backgroun
     job_id = await jobs.create_job(
         job_type="creacion_cursos_onedrive",
         operation="Creación masiva de cursos",
-        username="admin",
+        username=jobs.username_from_request(request),
     )
     bg_tasks.add_task(_process_courses_bg, job_id, req, contents, encoded_url)
 
@@ -3121,6 +3787,17 @@ async def _process_courses_bg(job_id: int, req: DiplomadosUrlRequest, contents: 
     if req.report_url and (result.succeeded or result.failed):
         await append_report_onedrive(req.report_url, result.succeeded, result.failed)
 
+    await jobs.update_job_progress(
+        job_id,
+        len(result.succeeded),
+        len(result.failed),
+        data_json=json.dumps({
+            "total_to_process": total_rows,
+            "processed": len(result.succeeded) + len(result.failed),
+            "results": result.succeeded + result.failed,
+        }),
+    )
+
     await jobs.complete_job(
         job_id,
         len(result.succeeded),
@@ -3163,11 +3840,7 @@ async def preview_egreso_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
     headers = [h for h in headers_raw if h]
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers_dict.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers_dict, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo", "email")
@@ -3187,7 +3860,7 @@ async def preview_egreso_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
     student_details = []
 
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
 
         if not any(row_vals):
             continue
@@ -3207,7 +3880,7 @@ async def preview_egreso_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
             # Sin límite de muestra: esta acción da de baja/elimina cuentas de
             # forma permanente, así que conviene poder revisar la lista
             # completa antes de confirmar, no solo los primeros 3.
-            student_details.append({"nombre": nombre or cedula or correo, "correo": correo or cedula})
+            student_details.append({"row_idx": row_idx, "nombre": nombre or cedula or correo, "correo": correo or cedula})
             sample_rows.append({h: v for h, v in zip(headers_raw, row_vals) if h})
 
     return PreviewResponse(
@@ -3220,7 +3893,9 @@ async def preview_egreso_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
     )
 
 @router.post("/excel/egreso", summary="Procesar planilla de Egreso/Eliminación")
-async def import_egreso_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
+async def import_egreso_onedrive(req: EgresoOneDriveProcessRequest) -> BulkResult:
+    """Acepta `selected_rows` opcional desde la tabla editable del frontend
+    — si no viene, procesa todas las filas pendientes como antes."""
     try:
         return await _import_egreso_onedrive_inner(req)
     except HTTPException:
@@ -3231,7 +3906,7 @@ async def import_egreso_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
         print(tb)
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)} | Trace: {tb}")
 
-async def _import_egreso_onedrive_inner(req: DiplomadosUrlRequest) -> BulkResult:
+async def _import_egreso_onedrive_inner(req: EgresoOneDriveProcessRequest) -> BulkResult:
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
     
@@ -3263,11 +3938,7 @@ async def _import_egreso_onedrive_inner(req: DiplomadosUrlRequest) -> BulkResult
         raise HTTPException(status_code=400, detail="No se encontraron cabeceras.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_correo = get_col_idx("correo", "email")
@@ -3318,6 +3989,10 @@ async def _import_egreso_onedrive_inner(req: DiplomadosUrlRequest) -> BulkResult
             "nombre": nombre or cedula or correo,
             "cedula": cedula,
         })
+
+    if req.selected_rows is not None:
+        _selected = set(req.selected_rows)
+        users_to_process = [u for u in users_to_process if u["r_idx"] in _selected]
 
     if len(users_to_process) > 50:
         raise HTTPException(status_code=400, detail=f"Demasiados registros nuevos pendientes ({len(users_to_process)}). Máximo 50 por ejecución.")
@@ -3452,15 +4127,12 @@ async def preview_docentes_onedrive(req: DiplomadosUrlRequest) -> DocentesPrevie
         raise HTTPException(status_code=400, detail="No se encontraron las columnas de 'Nombre' y 'Cédula'.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_cedula = get_col_idx("cedula", "cdula", "ci")
     col_correo = get_col_idx("correo", "email")
+    col_telefono = get_col_idx("telefono", "teléfono", "celular")
     col_plat = get_col_idx("plataforma")
     col_curso = get_col_idx("curso", "id curso", "canvas")
     col_equipo = get_col_idx("equipo", "id equipo", "teams")
@@ -3489,6 +4161,7 @@ async def preview_docentes_onedrive(req: DiplomadosUrlRequest) -> DocentesPrevie
             continue
 
         correo = str(ws.cell(row=r_idx, column=col_correo).value or "").strip() if col_correo else ""
+        telefono = str(ws.cell(row=r_idx, column=col_telefono).value or "").strip() if col_telefono else ""
         plat = str(ws.cell(row=r_idx, column=col_plat).value or "both").strip().lower() if col_plat else "both"
         id_curso = str(ws.cell(row=r_idx, column=col_curso).value or "").strip() if col_curso else ""
         id_equipo = str(ws.cell(row=r_idx, column=col_equipo).value or "").strip() if col_equipo else ""
@@ -3500,14 +4173,21 @@ async def preview_docentes_onedrive(req: DiplomadosUrlRequest) -> DocentesPrevie
                 or "creado ok" in enviado_lower or "ya exist" in enviado_lower
                 or (usuario_preview and "@" in usuario_preview)):
             already_processed.append({
-                "nombre": nombre, "cedula": cedula, "usuario": usuario_preview, "estado": enviado,
+                "row_idx": r_idx, "nombre": nombre, "cedula": cedula, "usuario": usuario_preview, "estado": enviado,
+                # Antes faltaban acá: el modal de edición de fila (ver
+                # /excel/row/edit) los lee de este mismo objeto para
+                # precargarlos, y sin esto siempre los mostraba vacíos en
+                # una fila ya procesada aunque la celda real tuviera dato.
+                "correo": correo, "telefono": telefono,
             })
             continue
 
         rows.append({
+            "row_idx": r_idx,
             "nombre": nombre,
             "cedula": cedula,
             "correo": correo,
+            "telefono": telefono,
             "plataforma": plat,
             "curso": id_curso,
             "equipo": id_equipo
@@ -3522,7 +4202,9 @@ async def preview_docentes_onedrive(req: DiplomadosUrlRequest) -> DocentesPrevie
     )
 
 @router.post("/excel/docentes-onedrive", summary="Alta Docentes OneDrive")
-async def import_docentes_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
+async def import_docentes_onedrive(req: DocentesProcessEditedRequest) -> BulkResult:
+    """Acepta `overrides`/`selected_rows` opcionales desde la tabla editable
+    del frontend — si no vienen, procesa todo como antes."""
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
 
@@ -3552,15 +4234,12 @@ async def import_docentes_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
         raise HTTPException(status_code=400, detail="Columnas de Nombre y Cédula no encontradas.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_cedula = get_col_idx("cedula", "cdula", "ci")
     col_correo = get_col_idx("correo", "email")
+    col_telefono = get_col_idx("telefono", "teléfono", "celular")
     col_plat = get_col_idx("plataforma")
     col_curso = get_col_idx("curso", "id curso", "canvas")
     col_equipo = get_col_idx("equipo", "id equipo", "teams")
@@ -3574,6 +4253,15 @@ async def import_docentes_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
     col_usuario = get_col_idx("usuario")
     col_contra = get_col_idx("contrasena", "contrasea", "clave")
     col_enviado = get_col_idx("estado", "enviado")
+
+    # Correcciones hechas desde la tabla editable del frontend — mismo
+    # patrón aditivo que /excel/diplomados/process-edited.
+    for r_idx, vals in {o["row_idx"]: {k: v for k, v in o.items() if k != "row_idx"} for o in req.overrides if "row_idx" in o}.items():
+        if "nombre" in vals and col_nombre: _safe_set_cell(ws, r_idx, col_nombre, vals["nombre"])
+        if "cedula" in vals and col_cedula: _safe_set_cell(ws, r_idx, col_cedula, vals["cedula"])
+        if "correo" in vals and col_correo: _safe_set_cell(ws, r_idx, col_correo, vals["correo"])
+        if "telefono" in vals and col_telefono: _safe_set_cell(ws, r_idx, col_telefono, vals["telefono"])
+        if "plataforma" in vals and col_plat: _safe_set_cell(ws, r_idx, col_plat, vals["plataforma"])
 
     col_cc = get_col_idx("cc", "copia")
     sheet_cc_list = []
@@ -3619,10 +4307,15 @@ async def import_docentes_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
 
         users_to_process.append(r_idx)
 
+    if req.selected_rows is not None:
+        _selected = set(req.selected_rows)
+        users_to_process = [r for r in users_to_process if r in _selected]
+
     for r_idx in users_to_process:
         nombre = str(ws.cell(row=r_idx, column=col_nombre).value or "").strip()
         cedula = _clean_cedula(str(ws.cell(row=r_idx, column=col_cedula).value or "").strip())
         correo = str(ws.cell(row=r_idx, column=col_correo).value or "").strip() if col_correo else ""
+        telefono = str(ws.cell(row=r_idx, column=col_telefono).value or "").strip() if col_telefono else ""
         plat = str(ws.cell(row=r_idx, column=col_plat).value or default_plat).strip().lower() if col_plat else default_plat
         id_curso = str(ws.cell(row=r_idx, column=col_curso).value or "").strip() if col_curso else ""
         id_equipo = str(ws.cell(row=r_idx, column=col_equipo).value or "").strip() if col_equipo else ""
@@ -3664,6 +4357,8 @@ async def import_docentes_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
                 }
                 if cedula:
                     au_payload["postalCode"] = cedula
+                if telefono:
+                    au_payload["mobilePhone"] = telefono
                 au = await graph.post("/users", au_payload)
                 azure_id = au["id"]
                 await graph.assign_license(azure_id, settings.azure_sku_teachers)
@@ -3922,7 +4617,7 @@ async def preview_matriculaciones_onedrive(req: DiplomadosUrlRequest) -> Preview
     students_already_processed = 0
 
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
         if not any(row_vals):
             continue
             
@@ -4025,8 +4720,9 @@ async def _process_matriculaciones_bg(job_id: int, req: DiplomadosUrlRequest, co
     tasks = []
     success_count = 0
     error_count = 0
+    results_list = []
     total_to_process = ws.max_row - header_row_idx
-    
+
     # Pre-calcular tareas válidas (filas)
     valid_rows = []
     for r_idx in range(header_row_idx + 1, ws.max_row + 1):
@@ -4037,7 +4733,7 @@ async def _process_matriculaciones_bg(job_id: int, req: DiplomadosUrlRequest, co
         if estado_val == "ok" or "matriculado" in estado_val:
             continue
         valid_rows.append(r_idx)
-    
+
     if not valid_rows:
         await jobs.complete_job(job_id, 0, 0, "No hay filas nuevas para procesar.")
         return
@@ -4073,14 +4769,17 @@ async def _process_matriculaciones_bg(job_id: int, req: DiplomadosUrlRequest, co
             if enroll_res.get("status") == "success":
                 success_count += 1
                 ws.cell(row=r_idx, column=env_col, value="OK").fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+                results_list.append({"usuario": user_val, "curso": canvas_val, "equipo": teams_val, "status": "✅ OK"})
             else:
                 msg = enroll_res.get("message", "Error desconocido")
                 error_count += 1
                 ws.cell(row=r_idx, column=env_col, value=f"Error: {msg}").fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+                results_list.append({"usuario": user_val, "curso": canvas_val, "equipo": teams_val, "status": f"❌ {msg}"})
         except Exception as ex:
             msg = str(ex)
             error_count += 1
             ws.cell(row=r_idx, column=env_col, value=f"Error: {msg}").fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            results_list.append({"usuario": user_val, "curso": canvas_val, "equipo": teams_val, "status": f"❌ Error: {ex}"})
 
     # Process in chunks and update DB progress periodically
     batch_size = 5
@@ -4100,7 +4799,16 @@ async def _process_matriculaciones_bg(job_id: int, req: DiplomadosUrlRequest, co
     out_io = io.BytesIO()
     wb.save(out_io)
     out_io.seek(0)
-    
+
+    await jobs.update_job_progress(
+        job_id, success_count, error_count,
+        data_json=json.dumps({
+            "total_to_process": len(valid_rows),
+            "processed": success_count + error_count,
+            "results": results_list,
+        }),
+    )
+
     try:
         await graph.put_raw(f"/shares/{encoded_url}/driveItem/content", out_io.read())
         await jobs.complete_job(job_id, success_count, error_count, "Guardado en OneDrive correctamente.")
@@ -4108,7 +4816,7 @@ async def _process_matriculaciones_bg(job_id: int, req: DiplomadosUrlRequest, co
         await jobs.complete_job(job_id, success_count, error_count, f"Procesado, pero no se pudo guardar en OneDrive: {e}")
 
 @router.post("/excel/matriculaciones-onedrive")
-async def import_matriculaciones_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def import_matriculaciones_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
     
@@ -4121,7 +4829,7 @@ async def import_matriculaciones_onedrive(req: DiplomadosUrlRequest, bg_tasks: B
     job_id = await jobs.create_job(
         job_type="matriculacion_masiva_onedrive",
         operation="import",
-        username="admin" # Ideally from auth token
+        username=jobs.username_from_request(request)
     )
     
     bg_tasks.add_task(_process_matriculaciones_bg, job_id, req, contents, encoded_url)
@@ -4158,18 +4866,14 @@ async def _process_rollback_bg(job_id: int, req: DiplomadosUrlRequest, contents:
     header_row_idx = 1
     headers = {}
     for r in range(1, min(10, ws.max_row + 1)):
-        row_vals = [str(ws.cell(row=r, column=c).value or "").strip() for c in range(1, ws.max_column + 1)]
+        row_vals = [_cell_str(ws.cell(row=r, column=c).value) for c in range(1, ws.max_column + 1)]
         if any("nombre" in _norm(v) for v in row_vals):
             header_row_idx = r
             headers = {_norm(v): c for c, v in enumerate(row_vals, start=1) if v}
             break
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_usuario = get_col_idx("usuario")
     col_enviado = get_col_idx("estado", "enviado")
@@ -4260,7 +4964,7 @@ async def _process_rollback_bg(job_id: int, req: DiplomadosUrlRequest, contents:
 
 
 @router.post("/excel/rollback")
-async def rollback_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def rollback_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
 
@@ -4273,7 +4977,7 @@ async def rollback_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks
     job_id = await jobs.create_job(
         job_type="rollback_masivo_onedrive",
         operation="rollback",
-        username="admin"
+        username=jobs.username_from_request(request)
     )
     
     bg_tasks.add_task(_process_rollback_bg, job_id, req, contents, encoded_url)
@@ -4346,14 +5050,14 @@ async def _process_matriculaciones_json_bg(job_id: int, data: list[dict]):
     await jobs.complete_job(job_id, success_count, error_count, "Matriculación finalizada.")
 
 @router.post("/excel/matriculaciones/json")
-async def import_matriculaciones_json(req: JsonDataRequest, bg_tasks: BackgroundTasks) -> dict:
+async def import_matriculaciones_json(req: JsonDataRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.data:
         raise HTTPException(status_code=400, detail="No hay datos para procesar.")
         
     job_id = await jobs.create_job(
         job_type="matriculacion_masiva_json",
         operation="import",
-        username="admin"
+        username=jobs.username_from_request(request)
     )
     
     bg_tasks.add_task(_process_matriculaciones_json_bg, job_id, req.data)
@@ -4426,14 +5130,14 @@ async def _process_rollback_json_bg(job_id: int, data: list[dict]):
     await jobs.complete_job(job_id, success_count, error_count, "Reversión completada.")
 
 @router.post("/excel/rollback/json")
-async def rollback_json(req: JsonDataRequest, bg_tasks: BackgroundTasks) -> dict:
+async def rollback_json(req: JsonDataRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.data:
         raise HTTPException(status_code=400, detail="No hay datos para procesar.")
         
     job_id = await jobs.create_job(
         job_type="rollback_masivo_json",
         operation="rollback",
-        username="admin"
+        username=jobs.username_from_request(request)
     )
     
     bg_tasks.add_task(_process_rollback_json_bg, job_id, req.data)
@@ -4455,12 +5159,23 @@ async def import_diplomados_json(req: JsonDataRequest):
         nombre = str(row.get("nombre") or "").strip()
         cedula = _clean_cedula(str(row.get("cedula") or "").strip())
         curso_nombre = str(row.get("curso_nombre") or "").strip()
-        
+        row_team_owner_ids = list(_DIPLOMADO_DEFAULT_OWNERS) + (
+            [_MBA_EXTRA_OWNER] if "mba" in curso_nombre.lower() else []
+        )
+
         if not nombre or not cedula:
             continue
             
         try:
-            creds, status = await user_service.generate_unique_credentials(nombre, cedula, "teams")
+            # platform="both" (no solo "teams"): si la persona ya tiene cuenta
+            # en Canvas (de este mismo flujo de MBA, de Alta Docentes, de
+            # Ingreso, etc.) se detecta por CÉDULA -el chequeo más confiable,
+            # porque es el SIS ID exacto- y se reutiliza su correo real, en
+            # vez de intentar adivinarlo de nuevo y terminar creando una
+            # cuenta duplicada cuando el correo real tiene otro formato
+            # (ej. por una colisión de nombre resuelta distinto la vez
+            # anterior).
+            creds, status = await user_service.generate_unique_credentials(nombre, cedula, "both")
             login_id = creds["email"]
             pwd = creds["password"]
             
@@ -4512,7 +5227,7 @@ async def import_diplomados_json(req: JsonDataRequest):
                             mail_nickname=nickname,
                             description=f"Grupo para {curso_nombre}",
                             visibility="Private",
-                            owner_ids=list(_DIPLOMADO_DEFAULT_OWNERS)
+                            owner_ids=row_team_owner_ids
                         )
                         target_equipo = new_team.get("id")
                 
@@ -4605,10 +5320,27 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
             col_estado = i
         if "nombre" in h_lower:
             if col_nombre == -1: col_nombre = i
-        if "cedula" in h_lower or "cédula" in h_lower or "ci" in h_lower:
-            if col_cedula == -1: col_cedula = i
         if "usuario" in h_lower:
             if col_usuario == -1: col_usuario = i
+    # Cédula/CI aparte, con coincidencia EXACTA priorizada (ver _match_col_idx):
+    # "ci" como substring matchea cualquier palabra con "ci" adentro (ej. "Fecha
+    # Inscripción"), y si esa columna aparece antes que la real "CI" en la
+    # planilla, le gana — mostrando una fecha donde debería ir la cédula.
+    _cedula_idx = _match_col_idx(headers_dict, "cedula", "cédula", "ci")
+    if _cedula_idx:
+        col_cedula = _cedula_idx - 1
+    # Correo/Teléfono: el procesamiento real (import_masivo_onedrive) ya usa
+    # Correo para la creación de cuenta — acá se agregan también al preview
+    # para que la tabla editable los muestre y permita corregirlos, igual
+    # que Diplomados/Docentes.
+    col_correo = -1
+    _correo_idx = _match_col_idx(headers_dict, "correo", "email")
+    if _correo_idx:
+        col_correo = _correo_idx - 1
+    col_telefono = -1
+    _telefono_idx = _match_col_idx(headers_dict, "telefono", "teléfono", "celular")
+    if _telefono_idx:
+        col_telefono = _telefono_idx - 1
 
     students_to_process = 0
     students_already_processed = 0
@@ -4616,7 +5348,7 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
     already_processed_details = []
 
     for row_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=row_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=row_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
 
         if not any(row_vals):
             continue
@@ -4629,17 +5361,27 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
         estado_val = row_vals[col_estado] if col_estado >= 0 else ""
         estado_lower = estado_val.lower()
         usuario_val = row_vals[col_usuario] if col_usuario >= 0 else ""
+        correo_val = row_vals[col_correo] if col_correo >= 0 else ""
+        telefono_val = row_vals[col_telefono] if col_telefono >= 0 else ""
 
         if ("✅" in estado_val or estado_lower in ["si", "yes", "true", "enviado", "ok"]
                 or "creado ok" in estado_lower or "ya exist" in estado_lower
                 or (usuario_val and "@" in usuario_val)):
             students_already_processed += 1
             already_processed_details.append({
-                "nombre": nombre_val, "cedula": cedula_val, "usuario": usuario_val, "estado": estado_val,
+                "row_idx": row_idx, "nombre": nombre_val, "cedula": cedula_val, "usuario": usuario_val, "estado": estado_val,
+                # Antes faltaban acá: el modal de edición de fila (ver
+                # /excel/row/edit) los lee de este mismo objeto para
+                # precargarlos, y sin esto siempre los mostraba vacíos en
+                # una fila ya procesada aunque la celda real tuviera dato.
+                "correo": correo_val, "telefono": telefono_val,
             })
         else:
             students_to_process += 1
-            student_details.append({"nombre": nombre_val, "cedula": cedula_val})
+            student_details.append({
+                "row_idx": row_idx, "nombre": nombre_val, "cedula": cedula_val,
+                "correo": correo_val, "telefono": telefono_val,
+            })
 
         if len(sample_rows) < 10:
             sample_rows.append({h: v for h, v in zip(headers_raw, row_vals) if h})
@@ -4658,7 +5400,10 @@ async def preview_masivo_onedrive(req: DiplomadosUrlRequest) -> PreviewResponse:
 
 
 @router.post("/excel/masivo", summary="Importar Masivamente desde OneDrive (Sin Matriculación)", response_model=BulkResult)
-async def import_masivo_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
+async def import_masivo_onedrive(req: MasivoProcessEditedRequest) -> BulkResult:
+    """Acepta `overrides`/`selected_rows` opcionales desde la tabla editable
+    del frontend (ver _process_diplomados_bg en este mismo archivo para el
+    mismo patrón ya aplicado ahí) — si no vienen, procesa todo como antes."""
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
     
@@ -4688,20 +5433,29 @@ async def import_masivo_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
         raise HTTPException(status_code=400, detail="No se encontraron las columnas requeridas (Nombre, Cedula).")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_nombre = get_col_idx("nombre", "alumno", "estudiante")
     col_cedula = get_col_idx("cedula", "cédula", "ci", "documento", "dni")
     col_correo = get_col_idx("correo", "email")
+    col_telefono = get_col_idx("telefono", "teléfono", "celular")
     col_plataforma = get_col_idx("plataforma", "platform")
-    
+
     col_usuario = get_col_idx("usuario")
     col_contra = get_col_idx("contrasena", "contraseña", "clave")
     col_enviado = get_col_idx("estado", "enviado")
+
+    # Correcciones hechas desde la tabla editable del frontend (ver
+    # /excel/diplomados/process-edited para el mismo patrón): se aplican
+    # directo sobre las celdas ANTES de que arranque process_row(), que
+    # siempre lee de ws.cell(...) — el resto de esta función no necesita
+    # saber que hubo una edición.
+    for r_idx, vals in {o["row_idx"]: {k: v for k, v in o.items() if k != "row_idx"} for o in req.overrides if "row_idx" in o}.items():
+        if "nombre" in vals and col_nombre: _safe_set_cell(ws, r_idx, col_nombre, vals["nombre"])
+        if "cedula" in vals and col_cedula: _safe_set_cell(ws, r_idx, col_cedula, vals["cedula"])
+        if "correo" in vals and col_correo: _safe_set_cell(ws, r_idx, col_correo, vals["correo"])
+        if "telefono" in vals and col_telefono: _safe_set_cell(ws, r_idx, col_telefono, vals["telefono"])
+        if "plataforma" in vals and col_plataforma: _safe_set_cell(ws, r_idx, col_plataforma, vals["plataforma"])
 
     next_col = ws.max_column + 1
     if not col_usuario:
@@ -4727,6 +5481,7 @@ async def import_masivo_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
         nombre = str(ws.cell(row=r_idx, column=col_nombre).value or "").strip()
         cedula = _clean_cedula(str(ws.cell(row=r_idx, column=col_cedula).value or "").strip())
         correo = str(ws.cell(row=r_idx, column=col_correo).value or "").strip() if col_correo else ""
+        telefono = str(ws.cell(row=r_idx, column=col_telefono).value or "").strip() if col_telefono else ""
         plat_val = str(ws.cell(row=r_idx, column=col_plataforma).value or default_plat).strip().lower() if col_plataforma else default_plat
         
         enviado = str(ws.cell(row=r_idx, column=col_enviado).value or "").strip()
@@ -4775,6 +5530,8 @@ async def import_masivo_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
                 }
                 if cedula:
                     au_payload["postalCode"] = cedula
+                if telefono:
+                    au_payload["mobilePhone"] = telefono
                 au = await graph.post("/users", au_payload)
                 await graph.assign_license(au["id"], settings.azure_sku_students)
             except Exception as e:
@@ -4837,10 +5594,13 @@ async def import_masivo_onedrive(req: DiplomadosUrlRequest) -> BulkResult:
             ws.cell(row=r_idx, column=col_enviado).font = Font(color="FF0000", bold=True)
             result.failed.append({"nombre": nombre, "correo": login_id, "error": error_msg})
 
+    selected = set(req.selected_rows) if req.selected_rows is not None else None
     tasks = []
     for r_idx in range(header_row_idx + 1, ws.max_row + 1):
+        if selected is not None and r_idx not in selected:
+            continue
         tasks.append(process_row(r_idx))
-    
+
     batch_size = 5
     for i in range(0, len(tasks), batch_size):
         await asyncio.gather(*tasks[i:i+batch_size])
@@ -4882,11 +5642,7 @@ async def preview_delete_courses_onedrive(req: DiplomadosUrlRequest) -> PreviewR
         raise HTTPException(status_code=400, detail="No se encontraron cabeceras.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     col_sis = get_col_idx("sisid", "sis", "id")
     col_nombre = get_col_idx("nombre", "curso")
@@ -4955,11 +5711,7 @@ async def import_delete_courses_onedrive(req: DiplomadosUrlRequest) -> BulkResul
         raise HTTPException(status_code=400, detail="No se encontraron cabeceras.")
 
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers, *keys)
 
     # Sin fallback genérico "id": en un endpoint que ELIMINA cursos, si la
     # planilla no trae una columna de SIS ID reconocible, es más seguro
@@ -5085,11 +5837,7 @@ async def get_envio_credenciales_sheets(req: UrlOnlyRequest) -> list[str]:
 
 def _envio_credenciales_cols(headers_dict: dict):
     def get_col_idx(*keys):
-        for k in keys:
-            for h, idx in headers_dict.items():
-                if _norm(k) in h:
-                    return idx
-        return None
+        return _match_col_idx(headers_dict, *keys)
 
     return {
         "nombre": get_col_idx("nombre"),
@@ -5175,7 +5923,7 @@ async def preview_envio_credenciales(req: DiplomadosUrlRequest) -> EnvioCredenci
     sample_rows = []
 
     for r_idx in range(header_row_idx + 1, ws.max_row + 1):
-        row_vals = [str(ws.cell(row=r_idx, column=c).value or "").strip() for c in range(1, len(headers_raw) + 1)]
+        row_vals = [_cell_str(ws.cell(row=r_idx, column=c).value) for c in range(1, len(headers_raw) + 1)]
         if not any(row_vals):
             continue
         nombre = row_vals[cols["nombre"] - 1]
@@ -5211,7 +5959,7 @@ async def preview_envio_credenciales(req: DiplomadosUrlRequest) -> EnvioCredenci
 
 
 @router.post("/excel/envio-credenciales", summary="Enviar credenciales masivamente a altas nuevas desde OneDrive")
-async def envio_credenciales_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks) -> dict:
+async def envio_credenciales_onedrive(req: DiplomadosUrlRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.url or "http" not in req.url:
         raise HTTPException(status_code=400, detail="URL inválida.")
 
@@ -5274,7 +6022,7 @@ async def envio_credenciales_onedrive(req: DiplomadosUrlRequest, bg_tasks: Backg
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"El archivo Excel está abierto o el enlace es de Solo Lectura. Detalle real: {e}")
 
-    job_id = await jobs.create_job(job_type="envio_credenciales_altas_onedrive", operation="import", username="admin")
+    job_id = await jobs.create_job(job_type="envio_credenciales_altas_onedrive", operation="import", username=jobs.username_from_request(request))
     bg_tasks.add_task(_process_envio_credenciales_bg, job_id, wb, ws.title, encoded_url, col_correo_estado, rows_to_process, is_diplomado)
     return {"status": "success", "job_id": job_id, "message": "Envío de credenciales iniciado en segundo plano.", "to_process": len(rows_to_process)}
 

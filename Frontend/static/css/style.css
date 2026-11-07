@@ -4,14 +4,29 @@
 
 /* ── 1. Variables ── */
 :root {
-  /* Canvas brand colors */
+  /* Colores de marca. --canvas-blue es el acento dominante real (botones
+     primarios, links, acordeones, nav activo) — se cambió al azul
+     institucional exacto de la USIL (#1946B9, sacado del logo real), en
+     vez del azul genérico "Canvas LMS" que tenía antes (#0770A3). Los
+     demás quedan solo para sus usos semánticos puntuales (badges de
+     estado, íconos de tipo de archivo) — no son acento de marca, así que
+     no hace falta unificarlos: ya son de uso acotado, no dominante. */
   --canvas-orange:  #E66000;
-  --canvas-blue:    #0770A3;
+  --canvas-blue:    #1946B9;
   --canvas-green:   #0B874B;
   --canvas-red:     #C7003D;
   --canvas-purple:  #6064A3;
   --canvas-teal:    #0097A9;
   --canvas-yellow:  #C68A0A;
+
+  /* Paleta "monograma USIL" — blanco/azules/negro, estilo WinForms/WPF:
+     se usa en pantallas rediseñadas para reemplazar amarillo/rojo/verde
+     (ver .status-icon / .tab-bar más abajo). Los --canvas-* de arriba NO
+     se tocan — siguen existiendo para lo que todavía no se migró. */
+  --usil-blue-pale:  #EEF2FB; /* fondo muy claro, pestaña/fila inactiva */
+  --usil-blue-light: #4F7FD9; /* acento secundario, hover */
+  --usil-blue-dark:  #0F2D73; /* pestaña/botón activo */
+  --usil-ink:        #10141C; /* "negro" de marca — nunca #000 puro */
 
   /* Layout */
   --sidebar-w: 240px;
@@ -30,8 +45,8 @@
   --sidebar-text: rgba(255,255,255,.65);
   --sidebar-text-hover: #ffffff;
   --sidebar-hover-bg: rgba(255,255,255,.06);
-  --sidebar-active-bg: linear-gradient(90deg, rgba(230,96,0,.15) 0%, transparent 100%);
-  --sidebar-active-border: #E66000;
+  --sidebar-active-bg: linear-gradient(90deg, rgba(25,70,185,.15) 0%, transparent 100%);
+  --sidebar-active-border: #1946B9;
 
   /* Topbar */
   --topbar-bg: rgba(255, 255, 255, 0.8);
@@ -45,7 +60,10 @@
   /* Text */
   --text-primary: #1E293B;
   --text-muted: #64748B;
-  --text-light: #94A3B8;
+  /* #94A3B8 original daba 2.57:1 sobre blanco (no cumple AA 4.5:1) en
+     placeholders/estados vacíos/texto neutro. #6B7280 (el mismo valor que
+     ya usa modo oscuro) da 4.83:1 y mantiene la jerarquía visual. */
+  --text-light: #6B7280;
   --text-inverse: #ffffff;
 
   /* Inputs */
@@ -56,8 +74,8 @@
   --accent-light: rgba(7,112,163,.08);
 
   /* Aliases kept for backward compat */
-  --sidebar-accent: var(--canvas-orange);
-  --sidebar-accent-hover: rgba(230,96,0,.16);
+  --sidebar-accent: var(--canvas-blue);
+  --sidebar-accent-hover: rgba(25,70,185,.16);
 }
 
 /* ── 2. Dark mode ── */
@@ -137,12 +155,28 @@ html.dark-mode {
 }
 
 /* Utilidades de Bootstrap con color fijo (no ligado a las variables de
-   arriba) — sin esto, cualquier .bg-white/.bg-light/.text-dark/.table-light
-   queda blanco/gris claro fijo aunque el resto de la UI esté en modo
-   oscuro (tablas de previsualización, acordeones, thead de tablas). */
+   arriba) — sin esto, cualquier .bg-white/.bg-light/.table-light queda
+   blanco/gris claro fijo aunque el resto de la UI esté en modo oscuro
+   (tablas de previsualización, acordeones, thead de tablas).
+   .text-dark NO se remapea acá en general: sobre un fondo claro FIJO
+   (bg-warning, bg-info, btn-warning sólido, etc., que no cambia con el
+   tema) el texto debe quedar oscuro en ambos modos — remapearlo a
+   --text-primary (casi blanco en modo oscuro) rompía ESE contraste
+   (ej. badge "Owner" con texto casi invisible sobre amarillo). */
 html.dark-mode .bg-white       { background-color: var(--card-bg) !important; }
 html.dark-mode .bg-light       { background-color: var(--header-bg) !important; }
-html.dark-mode .text-dark      { color: var(--text-primary) !important; }
+/* Excepciones: estos dos SÍ necesitan texto que siga al tema, porque su
+   fondo no es un color fijo:
+   - .bg-light se remapea arriba a un fondo oscuro en modo oscuro.
+   - accordion-button con el gradiente inline rgba(...,0.1) usado en toda
+     la app (Alta Docentes/Diplomados/Masivo/Individual, Matriculación,
+     Creación de Cursos) es translúcido al 5-10% — lo que se ve de fondo es
+     básicamente el fondo real de la tarjeta por detrás, que SÍ cambia con
+     el tema. Quedó texto oscuro fijo sobre ese fondo vuelto oscuro en modo
+     oscuro = headers de acordeón con el texto invisible (bug real visto en
+     producción, pantalla Alta Unificada). */
+html.dark-mode .bg-light.text-dark,
+html.dark-mode .accordion-button.text-dark { color: var(--text-primary) !important; }
 html.dark-mode .table-light,
 html.dark-mode .table-light > * { --bs-table-bg: var(--header-bg); --bs-table-color: var(--text-primary); }
 
@@ -183,8 +217,12 @@ body {
 }
 .sidebar-brand:hover { background: rgba(255,255,255,.05); }
 
-.sidebar-brand-logo { height: 28px; max-width: 156px; object-fit: contain; }
-html:not(.dark-mode) .sidebar-brand-logo { filter: brightness(0) invert(1); }
+/* Isotipo real de la USIL (antes un placeholder SVG abstracto) — ya viene
+   blanco de origen (recortado de la sesión de los afiches/folletos), no
+   hace falta el filtro de inversión que forzaba el SVG anterior a blanco.
+   Más alto que antes (36px vs 28px) porque este logo es más compacto/
+   cuadrado que el wordmark ancho que reemplaza. */
+.sidebar-brand-logo { height: 36px; max-width: 156px; object-fit: contain; }
 
 /* Section labels — ahora son botones que despliegan/colapsan su grupo
    (acordeón por zona/departamento), no solo etiquetas estáticas. */
@@ -207,7 +245,7 @@ html:not(.dark-mode) .sidebar-brand-logo { filter: brightness(0) invert(1); }
 }
 .sidebar-section-btn[aria-expanded="false"] i { transform: rotate(-90deg); }
 .sidebar-section-btn:focus-visible {
-  outline: 2px solid var(--canvas-orange); outline-offset: -2px;
+  outline: 2px solid var(--canvas-blue); outline-offset: -2px;
 }
 /* El collapse envuelve los links de la sección — necesita ser flex-column
    como el propio #sidebar para que sus hijos (.sidebar-link, etc.) sigan
@@ -215,6 +253,13 @@ html:not(.dark-mode) .sidebar-brand-logo { filter: brightness(0) invert(1); }
 .sidebar-group.collapse.show,
 .sidebar-group.collapsing { display: flex; flex-direction: column; }
 .sidebar-group.collapse:not(.show):not(.collapsing) { display: none; }
+
+/* "Modo simple" del sidebar: oculta por defecto las herramientas técnicas
+   (Sincronización, Actas de Equipos IT, Auditoría) que la mayoría de los
+   académicos nunca necesita — se revelan con el switch "Herramientas
+   técnicas" del pie del sidebar (ver base.html), guardado en localStorage. */
+.sidebar-link[data-advanced="true"] { display: none; }
+html.sidebar-advanced .sidebar-link[data-advanced="true"] { display: flex; }
 
 /* Nav links */
 .sidebar-link {
@@ -235,19 +280,19 @@ html:not(.dark-mode) .sidebar-brand-logo { filter: brightness(0) invert(1); }
 .sidebar-link:hover {
   background: var(--sidebar-hover-bg);
   color: var(--sidebar-text-hover);
-  border-left-color: rgba(230,96,0,.45);
+  border-left-color: rgba(25,70,185,.45);
 }
 .sidebar-link:hover i { opacity: 1; }
 .sidebar-link.active {
   background: var(--sidebar-active-bg);
   color: #fff; font-weight: 600;
-  border-left-color: var(--canvas-orange);
+  border-left-color: var(--canvas-blue);
 }
 .sidebar-link.active i { opacity: 1; }
 /* Anillo de foco visible para navegación por teclado — el outline por
    defecto del navegador es poco visible contra el fondo oscuro del sidebar. */
 .sidebar-link:focus-visible {
-  outline: 2px solid var(--canvas-orange);
+  outline: 2px solid var(--canvas-blue);
   outline-offset: -2px;
   background: var(--sidebar-hover-bg);
   color: var(--sidebar-text-hover);
@@ -262,7 +307,7 @@ html:not(.dark-mode) .sidebar-brand-logo { filter: brightness(0) invert(1); }
 }
 .sidebar-caret-btn:hover { background: var(--sidebar-hover-bg); color: var(--sidebar-text-hover); }
 .sidebar-caret-btn:focus-visible {
-  outline: 2px solid var(--canvas-orange); outline-offset: -2px;
+  outline: 2px solid var(--canvas-blue); outline-offset: -2px;
 }
 .sidebar-caret-btn i { font-size: .8rem; transition: transform .2s; display: block; }
 .sidebar-caret-btn[aria-expanded="true"] i { transform: rotate(180deg); }
@@ -278,12 +323,20 @@ html:not(.dark-mode) .sidebar-brand-logo { filter: brightness(0) invert(1); }
 .sidebar-sublink:hover { background: var(--sidebar-hover-bg); color: var(--sidebar-text-hover); }
 .sidebar-sublink.active {
   background: var(--sidebar-active-bg); color: #fff; font-weight: 600;
-  border-left-color: var(--canvas-orange);
+  border-left-color: var(--canvas-blue);
 }
 .sidebar-sublink:focus-visible {
-  outline: 2px solid var(--canvas-orange); outline-offset: -2px;
+  outline: 2px solid var(--canvas-blue); outline-offset: -2px;
   background: var(--sidebar-hover-bg); color: var(--sidebar-text-hover);
 }
+/* Separador + color de ícono para distinguir, dentro de un mismo submenú,
+   una acción segura de una destructiva/irreversible (mismo criterio que
+   las tabs de canvas/courses.html) — sin esto todo el submenú de Cursos
+   se veía como una lista plana sin indicar qué es de uso diario y qué es
+   de alto riesgo. */
+.sidebar-sublink-divider { height: 1px; background: var(--sidebar-border); margin: 4px 18px 4px 48px; }
+.sidebar-sublink.risk-high i   { color: var(--canvas-red); }
+.sidebar-sublink.risk-medium i { color: var(--canvas-yellow); }
 
 /* Sidebar footer */
 .sidebar-footer {
@@ -342,7 +395,7 @@ html.dark-mode .topbar { background: var(--topbar-bg); }
 .topbar-user:hover { background: var(--table-hover-bg); }
 .topbar-avatar {
   width: 32px; height: 32px; border-radius: 50%;
-  background: var(--canvas-orange);
+  background: var(--canvas-blue);
   color: #fff; font-weight: 700; font-size: .8rem;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -387,18 +440,19 @@ html.dark-mode .topbar { background: var(--topbar-bg); }
 
 /* ── 9. Canvas Tile component ── */
 .canvas-tile {
+  /* Plano: sin sombra ni blur, solo borde fino — mismo criterio que
+     .canvas-panel, para dejar de depender de tarjetas "muy marcadas". */
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
+  box-shadow: none;
   overflow: hidden;
   display: flex; flex-direction: column;
   height: 100%;
-  transition: box-shadow .25s cubic-bezier(0.4, 0, 0.2, 1), transform .25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color .2s ease;
 }
 .canvas-tile:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-4px) scale(1.01);
+  border-color: var(--canvas-blue);
 }
 
 .canvas-tile-header {
@@ -463,15 +517,18 @@ html.dark-mode .topbar { background: var(--topbar-bg); }
 }
 html.dark-mode .canvas-tile-footer .tile-link { color: #5BBDE8; }
 
-/* Tile header color variants */
-.tile-header-blue   { background: linear-gradient(135deg, #0A7FC4 0%, #055E97 100%); }
-.tile-header-purple { background: linear-gradient(135deg, #6B6FBD 0%, #4C5099 100%); }
-.tile-header-orange { background: linear-gradient(135deg, #F27020 0%, #CC5000 100%); }
-.tile-header-green  { background: linear-gradient(135deg, #0FA05A 0%, #0A7A42 100%); }
-.tile-header-teal   { background: linear-gradient(135deg, #00AEC4 0%, #00889A 100%); }
-.tile-header-red    { background: linear-gradient(135deg, #D91553 0%, #A5003A 100%); }
-.tile-header-slate  { background: linear-gradient(135deg, #4A6070 0%, #2D3B45 100%); }
-.tile-header-yellow { background: linear-gradient(135deg, #E8A820 0%, #C48610 100%); }
+/* Tile header color variants — color sólido en vez de degradado diagonal,
+   para evitar el uso excesivo de colores llamativos; se apoyan en las
+   variables de marca (--canvas-*) en vez de hex independientes más
+   saturados. */
+.tile-header-blue   { background: var(--canvas-blue); }
+.tile-header-purple { background: var(--canvas-purple); }
+.tile-header-orange { background: var(--canvas-orange); }
+.tile-header-green  { background: var(--canvas-green); }
+.tile-header-teal   { background: var(--canvas-teal); }
+.tile-header-red    { background: var(--canvas-red); }
+.tile-header-slate  { background: #4A5A68; }
+.tile-header-yellow { background: var(--canvas-yellow); }
 
 /* ── 10. Stat cards ── */
 .stat-card {
@@ -572,6 +629,43 @@ html.dark-mode .canvas-panel { background: var(--card-bg); --panel-line: rgba(25
 /* ── 13. Search box ── */
 .search-box { max-width: 280px; position: relative; }
 
+/* ── 13b. Toolbar en píldora — buscador + filtros + botones de acción
+   redondeados, patrón de referencia tipo "planilla" (Rapifac): una fila
+   compacta arriba de la tabla en vez de controles sueltos. Reusa el único
+   azul de marca (--canvas-blue), sin agregar colores nuevos. */
+.toolbar-pill {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-bottom: 14px;
+}
+.toolbar-pill .form-control,
+.toolbar-pill .form-select {
+  border-radius: 999px;
+}
+.toolbar-pill .search-box { max-width: 260px; }
+.toolbar-pill .search-box .form-control { padding-left: 34px; }
+.toolbar-pill .search-box i.bi-search {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); font-size: .85rem; pointer-events: none;
+}
+.btn-pill {
+  border-radius: 999px; padding: 6px 18px; font-size: .82rem; font-weight: 600;
+  border: 1px solid transparent; white-space: nowrap;
+  background: var(--canvas-blue); color: #fff;
+  transition: background .15s, box-shadow .15s;
+}
+.btn-pill:hover { background: #15399A; color: #fff; }
+.btn-pill:focus-visible { outline: 2px solid var(--canvas-blue); outline-offset: 2px; }
+.btn-pill-outline {
+  border-radius: 999px; padding: 6px 18px; font-size: .82rem; font-weight: 600;
+  border: 1px solid var(--card-border); white-space: nowrap;
+  background: transparent; color: var(--text-primary);
+  transition: border-color .15s, color .15s, background .15s;
+}
+.btn-pill-outline:hover {
+  border-color: var(--canvas-blue); color: var(--canvas-blue); background: var(--accent-light);
+}
+.toolbar-pill .btn-group-end { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
 /* ── 14. Badges & status ── */
 .badge-role { font-size: .7rem; font-weight: 600; }
 .status-dot {
@@ -620,16 +714,99 @@ html.dark-mode .canvas-panel { background: var(--card-bg); --panel-line: rgba(25
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 1rem .75rem; border-radius: var(--radius);
   border: 1px solid var(--card-border); cursor: pointer;
-  transition: all .15s; text-decoration: none; color: inherit;
+  transition: border-color .15s, background .15s; text-decoration: none; color: inherit;
   background: var(--card-bg); min-height: 86px;
 }
 .quick-action:hover {
   border-color: var(--canvas-blue); background: var(--accent-light);
-  transform: translateY(-4px) scale(1.02); box-shadow: 0 8px 16px rgba(7,112,163,.14);
   color: var(--canvas-blue);
 }
 .quick-action i    { font-size: 1.55rem; margin-bottom: .4rem; }
 .quick-action span { font-size: .74rem; font-weight: 600; text-align: center; line-height: 1.3; }
+
+/* ── 21b. Side panel — panel de resumen con barra de header de color
+   sólido (patrón "BILLING OVERVIEW" de referencia). Un único color de
+   marca (--canvas-blue), sin degradado, para no sumar colores nuevos. */
+.side-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+  overflow: hidden;
+}
+.side-panel-header {
+  background: var(--canvas-blue);
+  color: #fff;
+  font-weight: 700;
+  font-size: .76rem;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 11px 16px;
+}
+.side-panel-body { padding: 14px 16px; }
+.side-panel-body + .side-panel-body { border-top: 1px solid var(--card-border); }
+.side-panel-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; font-size: .85rem; gap: 12px;
+}
+.side-panel-row + .side-panel-row { border-top: 1px solid var(--card-border); }
+.side-panel-row .spr-label { color: var(--text-muted); }
+.side-panel-row .spr-value { font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.side-panel-row.total { padding-top: 10px; }
+.side-panel-row.total .spr-value { font-size: 1.15rem; color: var(--canvas-blue); font-weight: 700; }
+
+/* ── 21c. Stat strip — misma idea que .side-panel (header de marca sólido)
+   pero horizontal, para un resumen arriba/abajo de una tabla ancha en vez
+   de una columna lateral que deja espacio vacío cuando la tabla es alta. */
+.stat-strip {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  overflow: hidden;
+}
+.stat-strip-label {
+  background: var(--canvas-blue);
+  color: #fff;
+  font-weight: 700;
+  font-size: .76rem;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.stat-strip-items { display: flex; flex-wrap: wrap; flex: 1; }
+.stat-strip-item {
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 120px;
+  border-left: 1px solid var(--card-border);
+}
+.stat-strip-item:first-child { border-left: none; }
+.stat-strip-item .ssi-label { font-size: .72rem; color: var(--text-muted); white-space: nowrap; }
+.stat-strip-item .ssi-value { font-weight: 700; color: var(--text-primary); font-size: 1rem; }
+.stat-strip-item.total .ssi-value { color: var(--canvas-blue); }
+
+/* Subtítulo de sección dentro de un panel plano — texto de marca en
+   mayúsculas, sin barra de fondo (segundo nivel, para no repetir el
+   mismo bloque de color varias veces en una misma columna). */
+.panel-subtitle {
+  color: var(--canvas-blue);
+  font-size: .72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em;
+  margin-bottom: 10px;
+}
+
+/* ── 21c. Action tile grid — grilla de botones de ícono cuadrados
+   (patrón "Print Bill / View Statement" de referencia); reusa el mismo
+   tratamiento plano que .quick-action. */
+.action-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 10px; }
 
 /* ── 22. Skeleton loading ── */
 .skeleton {
@@ -1444,6 +1621,96 @@ select.ss-cell { cursor: pointer; }
 .autocomplete-title { font-size: 0.85rem; font-weight: 600; }
 .autocomplete-sub { font-size: 0.72rem; color: var(--text-muted); }
 .autocomplete-loading { padding: 8px 12px; font-size: 0.8rem; color: var(--text-muted); text-align: center; }
+
+/* ── 45. Tab-bar — pestañas siempre visibles, estilo WinForms/WPF ──
+   Reemplaza tanto los acordeones (que ocultan los demás paneles al abrir
+   uno) como los <select> desplegables: todos los botones quedan a la
+   vista permanentemente, uno queda "presionado" (activo) y el panel de
+   abajo cambia — sin nada que desplegar/plegar. Monocromático a
+   propósito (blanco/azules/negro), nada de colores de estado acá. */
+.tab-bar {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding: 4px; margin-bottom: 18px;
+  background: var(--usil-blue-pale);
+  border-radius: var(--radius);
+}
+html.dark-mode .tab-bar { background: rgba(255,255,255,.05); }
+.tab-bar-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-primary);
+  font-size: .85rem; font-weight: 600; white-space: nowrap;
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.tab-bar-btn i { font-size: .95rem; opacity: .75; }
+.tab-bar-btn:hover { background: rgba(25,70,185,.08); }
+.tab-bar-btn.active {
+  background: var(--usil-blue-dark); color: #fff;
+}
+.tab-bar-btn.active i { opacity: 1; }
+.tab-bar-btn:focus-visible { outline: 2px solid var(--usil-blue-dark); outline-offset: 2px; }
+
+/* Variantes de riesgo — mismo criterio que .sidebar-sublink.risk-high/
+   risk-medium: la pestaña sigue siendo monocromática en su contenedor,
+   pero el texto/ícono de acciones destructivas o irreversibles se marca
+   en color para que no se confundan con una acción segura a simple
+   vista. Al quedar "active" (fondo azul sólido) el texto pasa a blanco
+   igual que cualquier otra pestaña — el color de riesgo solo importa
+   en reposo, que es cuando hay que decidir cuál tocar. */
+.tab-bar-btn.risk-safe    { color: var(--canvas-green); }
+.tab-bar-btn.risk-high    { color: var(--canvas-red); }
+.tab-bar-btn.risk-medium  { color: var(--canvas-yellow); }
+.tab-bar-btn.active.risk-safe,
+.tab-bar-btn.active.risk-high,
+.tab-bar-btn.active.risk-medium { color: #fff; }
+.tab-bar-sep { width: 1px; align-self: stretch; margin: 4px 2px; background: var(--card-border); }
+
+/* ── 46. Status icon — estados sin amarillo/rojo/verde ──
+   Pendiente/Procesado/Error se distinguen por ÍCONO y peso tipográfico,
+   no por color de fondo. Un único acento (azul) para "activo/hecho";
+   el resto queda en texto neutro — para que la ausencia de color no
+   signifique ausencia de información, hay que leer el ícono. */
+.status-icon {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .78rem; font-weight: 600;
+}
+.status-icon.status-pending { color: var(--text-muted); font-weight: 500; }
+.status-icon.status-pending i { opacity: .7; }
+.status-icon.status-ok { color: var(--usil-blue-dark); }
+html.dark-mode .status-icon.status-ok { color: #8FB0ED; }
+.status-icon.status-error { color: var(--usil-ink); font-weight: 700; }
+.status-icon.status-error i { color: var(--usil-blue-dark); }
+html.dark-mode .status-icon.status-error { color: #F3F4F6; }
+html.dark-mode .status-icon.status-error i { color: #8FB0ED; }
+
+/* ── 47. Flow step label — agrupar visualmente un flujo largo en fases
+   claras (ej. "1. Fuente de datos" / "2. Revisar y procesar" en Alta
+   Unificada) sin reestructurar el markup existente: es solo un separador
+   visual que se agrega antes de cada bloque, cada bloque sigue siendo el
+   mismo HTML/ids de siempre. Monocromático, mismo criterio que .tab-bar. */
+.flow-step-label {
+  display: flex; align-items: center; gap: 10px;
+  margin: 28px 0 14px;
+  font-size: .8rem; font-weight: 700; letter-spacing: .02em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+.flow-step-label:first-child { margin-top: 0; }
+.flow-step-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--usil-blue-dark); color: #fff;
+  font-size: .75rem; font-weight: 700;
+}
+html.dark-mode .flow-step-num { background: #8FB0ED; color: #0F2D73; }
+
+/* ── 48. Border de atención — reemplaza border-warning/border-success en
+   tarjetas que necesitan destacar "esto necesita que lo revises" sin usar
+   amarillo/verde (ej. acordeón de alumnos por materia en Matriculaciones:
+   cada tarjeta que tiene materias sin match automático se resalta así). */
+.border-attention { border-color: var(--usil-blue-dark) !important; border-width: 2px !important; }
+html.dark-mode .border-attention { border-color: #8FB0ED !important; }
 
 /* ── Respeta la preferencia de sistema "reducir movimiento" ── */
 @media (prefers-reduced-motion: reduce) {

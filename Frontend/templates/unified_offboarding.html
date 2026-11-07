@@ -12,16 +12,25 @@
   </div>
 </div>
 
-<!-- Tabs -->
+<!-- Tabs: Individual/Masivo son destructivas (dan de baja cuentas reales) y
+     se marcan en rojo con ⚠. Diagnóstico de Duplicados es de solo lectura
+     (no borra ni modifica nada) — antes tenía el mismo rojo que las otras
+     dos, lo cual sugería un riesgo que no tiene; se distingue en azul. -->
 <ul class="nav nav-tabs mb-4" id="offboardingTabs" role="tablist">
   <li class="nav-item" role="presentation">
-    <button class="nav-link active text-danger" id="individual-tab" data-bs-toggle="tab" data-bs-target="#individual" type="button" role="tab" aria-controls="individual" aria-selected="true">
-      <i class="bi bi-person-dash me-2"></i>Egreso Individual
+    <button class="nav-link active text-danger" id="individual-tab" data-bs-toggle="tab" data-bs-target="#individual" type="button" role="tab" aria-controls="individual" aria-selected="true" title="Acción destructiva: da de baja la cuenta">
+      <i class="bi bi-exclamation-triangle-fill me-1"></i><i class="bi bi-person-dash me-2"></i>Egreso Individual
     </button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link text-danger" id="masivo-tab" data-bs-toggle="tab" data-bs-target="#masivo" type="button" role="tab" aria-controls="masivo" aria-selected="false">
-      <i class="bi bi-cloud-arrow-down-fill me-2"></i>Egreso Masivo (Enlace OneDrive)
+    <button class="nav-link text-danger" id="masivo-tab" data-bs-toggle="tab" data-bs-target="#masivo" type="button" role="tab" aria-controls="masivo" aria-selected="false" title="Acción destructiva: da de baja cuentas en forma masiva">
+      <i class="bi bi-exclamation-triangle-fill me-1"></i><i class="bi bi-cloud-arrow-down-fill me-2"></i>Egreso Masivo (Enlace OneDrive)
+    </button>
+  </li>
+  <li class="nav-item d-flex align-items-center px-2" aria-hidden="true"><span class="vr" style="height:1.5rem"></span></li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link text-primary" id="duplicados-tab" data-bs-toggle="tab" data-bs-target="#duplicados" type="button" role="tab" aria-controls="duplicados" aria-selected="false" title="Solo lectura: no borra ni modifica nada">
+      <i class="bi bi-search me-2"></i>Diagnóstico de Duplicados
     </button>
   </li>
 </ul>
@@ -29,39 +38,76 @@
 <div class="tab-content" id="offboardingTabsContent">
   <!-- Tab: Individual -->
   <div class="tab-pane fade show active" id="individual" role="tabpanel" aria-labelledby="individual-tab">
-    <div class="row">
-      <div class="col-md-6">
-        <div class="card shadow-sm border-danger mb-4">
+    <div class="row g-4">
+      <div class="col-lg-7">
+        <div class="card shadow-sm border-danger mb-4 h-100">
           <div class="card-header bg-danger text-white">
             <h5 class="mb-0"><i class="bi bi-search me-2"></i>Buscar Usuario a Desvincular</h5>
           </div>
           <div class="card-body">
             <div class="mb-3">
-              <label class="form-label text-danger fw-bold">Nombre del Docente o Alumno</label>
-              <input type="text" class="form-control border-danger" id="searchInput" placeholder="Escriba para buscar en Canvas..." autocomplete="off">
+              <label class="form-label text-danger fw-bold">Nombre, correo institucional o SIS / Cédula</label>
+              <input type="text" class="form-control border-danger" id="searchInput" placeholder="Escriba un nombre, correo o SIS para buscar en Canvas..." autocomplete="off">
               <div id="searchSpinner" class="spinner-border spinner-border-sm text-danger mt-2" style="display:none;" role="status"></div>
             </div>
-            
-            <div class="mb-3 row">
-              <div class="col">
-                <label class="form-label text-muted">ID SIS / Cédula</label>
-                <input type="text" class="form-control" id="sysInput" readonly>
-              </div>
-              <div class="col">
-                <label class="form-label text-muted">Email Institucional</label>
-                <input type="email" class="form-control" id="emailInput" readonly>
+            <!-- sysInput/emailInput: ya no se muestran como campos propios acá
+                 (se duplicaban con la tarjeta "Usuario a dar de baja" de al
+                 lado) — siguen existiendo porque executeOffboarding() lee su
+                 .value, solo que ocultos. -->
+            <input type="hidden" id="sysInput">
+            <input type="hidden" id="emailInput">
+
+            <div class="mb-3">
+              <label class="form-label text-danger fw-bold">Plataforma</label>
+              <div class="btn-group w-100" role="group" aria-label="Plataforma a dar de baja">
+                <input type="radio" class="btn-check" name="egresoPlatform" id="platformBoth" value="both" checked>
+                <label class="btn btn-outline-danger" for="platformBoth">Canvas + Teams</label>
+
+                <input type="radio" class="btn-check" name="egresoPlatform" id="platformCanvas" value="canvas">
+                <label class="btn btn-outline-danger" for="platformCanvas">Solo Canvas</label>
+
+                <input type="radio" class="btn-check" name="egresoPlatform" id="platformTeams" value="teams">
+                <label class="btn btn-outline-danger" for="platformTeams">Solo Teams</label>
               </div>
             </div>
-            
+
             <div class="alert alert-warning">
                 <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                Esta acción <strong>suspenderá</strong> la cuenta en Canvas y <strong>deshabilitará</strong> el inicio de sesión en Microsoft Teams. No se borrarán los historiales de calificaciones.
+                En Canvas esta acción <strong>elimina</strong> la cuenta. En Microsoft Teams <strong>deshabilita</strong> el inicio de sesión y quita las licencias (no borra la cuenta de Azure AD). No se borrarán los historiales de calificaciones.
             </div>
 
             <div class="d-grid mt-4">
                 <button class="btn btn-danger btn-lg" id="btnExecute" onclick="executeOffboarding()" disabled>
                     <i class="bi bi-person-x-fill me-2"></i>Ejecutar Desvinculación
                 </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="card shadow-sm h-100">
+          <div class="card-header bg-light">
+            <h6 class="mb-0 text-secondary"><i class="bi bi-person-badge me-2"></i>Usuario a dar de baja</h6>
+          </div>
+          <div class="card-body d-flex flex-column justify-content-center">
+            <div id="egresoFoundEmpty" class="text-center text-muted py-5">
+              <i class="bi bi-search fs-1 d-block mb-2"></i>
+              Buscá un usuario a la izquierda para ver acá quién va a quedar afectado, antes de confirmar.
+            </div>
+            <div id="egresoFoundInfo" style="display:none;">
+              <div class="d-flex align-items-center mb-3">
+                <div class="bg-danger-subtle text-danger rounded-circle d-flex align-items-center justify-content-center me-3" style="width:48px;height:48px;flex-shrink:0;">
+                  <i class="bi bi-person-fill fs-4"></i>
+                </div>
+                <div>
+                  <div class="fw-bold" id="egresoFoundName">-</div>
+                  <div class="small text-muted">Esta es la cuenta que se va a dar de baja</div>
+                </div>
+              </div>
+              <dl class="row small mb-0">
+                <dt class="col-5 text-muted">SIS / Cédula</dt><dd class="col-7" id="egresoFoundSis">-</dd>
+                <dt class="col-5 text-muted">Correo</dt><dd class="col-7" id="egresoFoundEmail">-</dd>
+              </dl>
             </div>
           </div>
         </div>
@@ -87,7 +133,7 @@
         </div>
         
         <div class="row">
-          <div class="col-md-8">
+          <div class="col-lg-9 col-xl-8">
             <div class="mb-3">
               <label class="form-label fw-bold">Enlace del Excel en OneDrive</label>
               <div class="input-group mb-3">
@@ -95,6 +141,15 @@
                 <input type="url" class="form-control border-danger" id="urlEgresoOneDrive" placeholder="https://usilparaguay-my.sharepoint.com/:x:/g/personal/...">
                 <button class="btn btn-danger" type="button" id="btnLoadSheetsEgreso" onclick="fetchSheetsEgreso()">Cargar Pestañas</button>
               </div>
+              <details class="small text-muted mt-1">
+                <summary style="cursor:pointer;" class="d-inline">¿Cómo consigo este link?</summary>
+                <div class="mt-1">
+                  1. Abrí el archivo en OneDrive.<br>
+                  2. Clic en "Compartir" (arriba, o clic derecho sobre el archivo).<br>
+                  3. Elegí "Cualquier persona con el vínculo" → "Puede editar".<br>
+                  4. Copiá el link y pegalo acá.
+                </div>
+              </details>
             </div>
             <div class="mb-3">
               <label class="form-label fw-bold">Nombre de la Pestaña (Requerido)</label>
@@ -109,10 +164,45 @@
               </label>
             </div>
           </div>
-          <div class="col-md-4 d-flex align-items-end mb-3">
-            <button class="btn btn-danger w-100 p-3" id="btnConfirmEgresoOneDrive" onclick="confirmEgresoOneDrive()" disabled>
-              <i class="bi bi-check-circle me-1"></i>Confirmar y Procesar
-            </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: Diagnóstico de Duplicados -->
+  <div class="tab-pane fade" id="duplicados" role="tabpanel" aria-labelledby="duplicados-tab">
+    <div class="card shadow-sm mb-4 border-danger">
+      <div class="card-header bg-danger text-white">
+        <h5 class="mb-0"><i class="bi bi-search me-2"></i>Diagnóstico: cuentas duplicadas en Teams/Azure AD</h5>
+      </div>
+      <div class="card-body">
+        <div class="alert alert-info border-info">
+          <i class="bi bi-info-circle-fill me-2"></i>
+          Pegá una cédula por línea (o separadas por coma). Por cada una, se busca en Canvas (referencia) y en
+          Teams/Azure AD cuántas cuentas tienen esa cédula guardada — si hay más de una en Teams, es una cuenta
+          duplicada real de la misma persona. <strong>Esto no borra ni modifica nada</strong>, solo arma la lista
+          para revisar antes de usar "Egreso Individual" con la cuenta vieja o la duplicada, según corresponda.
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">Cédulas a revisar</label>
+          <textarea class="form-control" id="dupCedulasInput" rows="6" placeholder="9303751&#10;6258346&#10;6707968&#10;..."></textarea>
+        </div>
+        <button class="btn btn-danger" id="btnFindDuplicates" onclick="findDuplicates()">
+          <i class="bi bi-search me-1"></i>Buscar duplicados
+        </button>
+        <div id="dupResultWrap" class="mt-4" style="display:none;">
+          <h6 class="fw-bold" id="dupSummary"></h6>
+          <div class="table-responsive border rounded bg-white">
+            <table class="table table-sm table-striped mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Cédula</th>
+                  <th>Canvas</th>
+                  <th>Cuentas en Teams/Azure AD</th>
+                </tr>
+              </thead>
+              <tbody id="dupResultBody"></tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -121,13 +211,16 @@
 </div>
 
 
-<!-- Inline Preview Egreso -->
+<!-- Inline Preview Egreso — con selección por fila: una acción destructiva
+     (baja/eliminación de cuentas) se beneficia especialmente de poder
+     elegir exactamente a quién, en vez de todo-o-nada. -->
 <div id="egresoPreviewWrap" style="display:none;" class="mb-4">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-    <label class="form-label fw-semibold mb-0">Previsualización (Muestra)</label>
-    <div>
-      <span class="badge bg-danger me-2" id="egresoToProcess">0 a procesar</span>
-      <span class="badge bg-secondary" id="egresoAlreadyProcessed">0 ignorados</span>
+  <div class="toolbar-pill">
+    <span class="text-muted small"><strong id="egresoToProcess">0</strong> a procesar · <strong id="egresoAlreadyProcessed">0</strong> ignorados</span>
+    <div class="btn-group-end">
+      <button type="button" class="btn-pill" id="btnConfirmEgresoOneDrive" onclick="confirmEgresoOneDrive()" disabled>
+        <i class="bi bi-check-circle me-1"></i>Confirmar baja (<span id="egresoSelectedCount">0</span>)
+      </button>
     </div>
   </div>
   <div class="table-responsive border rounded bg-white">
@@ -152,12 +245,28 @@ document.getElementById('searchInput').addEventListener('input', function(e) {
     document.getElementById('btnExecute').disabled = true;
     document.getElementById('sysInput').value = '';
     document.getElementById('emailInput').value = '';
+    showEgresoFound(null);
 
     if (q.length < 3) return;
     
     document.getElementById('searchSpinner').style.display = 'inline-block';
     searchTimeout = setTimeout(() => fetchUser(q), 500);
 });
+
+function showEgresoFound(data) {
+    const empty = document.getElementById('egresoFoundEmpty');
+    const info = document.getElementById('egresoFoundInfo');
+    if (!data) {
+        empty.style.display = '';
+        info.style.display = 'none';
+        return;
+    }
+    document.getElementById('egresoFoundName').textContent = data.name || '(sin nombre)';
+    document.getElementById('egresoFoundSis').textContent = data.sis_user_id || '-';
+    document.getElementById('egresoFoundEmail').textContent = data.email || '-';
+    empty.style.display = 'none';
+    info.style.display = '';
+}
 
 async function fetchUser(query) {
     const spinner = document.getElementById('searchSpinner');
@@ -174,6 +283,7 @@ async function fetchUser(query) {
                 document.getElementById('sysInput').value = data.sis_user_id;
                 document.getElementById('emailInput').value = data.email || '';
                 input.value = data.name;
+                showEgresoFound(data);
                 if (data.fuzzy_match) {
                     toast("⚠️ No hubo coincidencia exacta — este es el resultado más parecido: " + data.name + ". Verificá que sea la persona correcta antes de confirmar la baja.", 'warning');
                 } else {
@@ -200,27 +310,34 @@ async function fetchUser(query) {
 async function executeOffboarding() {
     const sysId = document.getElementById('sysInput').value;
     const emailStr = document.getElementById('emailInput').value;
+    const platform = document.querySelector('input[name="egresoPlatform"]:checked').value;
     const btn = document.getElementById('btnExecute');
-    
+
     if (!sysId) {
         toast("Busque y seleccione un usuario primero.", "warning");
         return;
     }
-    
-    if (!confirm("¿Está absolutamente seguro de suspender este usuario en Teams y Canvas?")) {
+
+    const platformLabel = platform === 'both' ? 'Canvas y Teams' : (platform === 'canvas' ? 'Canvas' : 'Teams');
+    if (!confirm(`¿Está absolutamente seguro de dar de baja a este usuario en ${platformLabel}?`)) {
         return;
     }
-    
+
     btn.innerText = "Procesando...";
     btn.disabled = true;
-    
+
     try {
-        const queryParams = `sys_user_id=${encodeURIComponent(sysId)}` + (emailStr ? `&email=${encodeURIComponent(emailStr)}` : '');
-        const res = await fetch('/egreso/suspend?' + queryParams, {
-            method: 'POST'
+        // Preferimos el correo institucional como identificador: sirve
+        // para resolver la cuenta tanto en Canvas como en Teams. Si no hay
+        // correo (solo pasó por Canvas), cae al SIS/cédula.
+        const identifier = emailStr || sysId;
+        const res = await fetch('/egreso/delete-account', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, platform }),
         });
         const data = await res.json();
-        
+
         if (res.ok) {
             let msg = `Canvas: ${data.canvas} | Teams: ${data.teams}`;
             toast("Proceso finalizado. " + msg, "success");
@@ -228,6 +345,7 @@ async function executeOffboarding() {
             document.getElementById('searchInput').value = '';
             document.getElementById('sysInput').value = '';
             document.getElementById('emailInput').value = '';
+            showEgresoFound(null);
         } else {
             toast(data.detail || "Error en el servidor", "danger");
             btn.disabled = false;
@@ -237,6 +355,63 @@ async function executeOffboarding() {
         btn.disabled = false;
     } finally {
         btn.innerHTML = '<i class="bi bi-person-x-fill me-2"></i>Ejecutar Desvinculación';
+    }
+}
+
+
+// --- Diagnóstico de Duplicados ---
+async function findDuplicates() {
+    const raw = document.getElementById('dupCedulasInput').value;
+    const cedulas = raw.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+    const btn = document.getElementById('btnFindDuplicates');
+
+    if (cedulas.length === 0) {
+        toast("Pegá al menos una cédula.", "warning");
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Buscando...';
+
+    try {
+        const res = await fetch('/egreso/find-duplicates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cedulas }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+            toast(data.detail || "Error en el servidor", "danger");
+            return;
+        }
+
+        document.getElementById('dupResultWrap').style.display = 'block';
+        const summaryEl = document.getElementById('dupSummary');
+        if (data.duplicates_found > 0) {
+            summaryEl.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>${data.duplicates_found} cédula(s) con cuentas duplicadas en Teams, de ${data.total} revisadas.</span>`;
+        } else {
+            summaryEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>Sin duplicados en Teams, de ${data.total} cédulas revisadas.</span>`;
+        }
+
+        const tbody = document.getElementById('dupResultBody');
+        tbody.innerHTML = data.results.map(r => {
+            const canvasCell = r.canvas
+                ? `<span class="text-muted">${r.canvas.email || r.canvas.id}</span>`
+                : '<span class="text-muted">— sin cuenta —</span>';
+            const teamsCell = (r.teams && r.teams.length > 0)
+                ? '<ul class="mb-0 ps-3">' + r.teams.map(u =>
+                    `<li>${u.userPrincipalName} ${u.accountEnabled === false ? '<span class="badge bg-secondary">deshabilitada</span>' : ''} <small class="text-muted">(creada: ${u.createdDateTime || '?'})</small></li>`
+                  ).join('') + '</ul>'
+                : (r.error ? `<span class="text-danger">Error: ${r.error}</span>` : '<span class="text-muted">— sin cuenta —</span>');
+            const rowClass = r.duplicate ? 'table-danger' : '';
+            return `<tr class="${rowClass}"><td>${r.cedula}</td><td>${canvasCell}</td><td>${teamsCell}</td></tr>`;
+        }).join('');
+    } catch (err) {
+        toast("Error de red: " + err.message, "danger");
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-search me-1"></i>Buscar duplicados';
     }
 }
 
@@ -302,35 +477,41 @@ async function openEgresoOneDrive() {
         if (res.ok) {
             const data = await res.json();
             
-            document.getElementById('egresoToProcess').innerText = `${data.students_to_process} a procesar`;
-            document.getElementById('egresoAlreadyProcessed').innerText = `${data.students_already_processed} ignorados`;
-            
+            document.getElementById('egresoToProcess').innerText = data.students_to_process;
+            document.getElementById('egresoAlreadyProcessed').innerText = data.students_already_processed;
+
             const thead = document.getElementById('egresoPreviewHeaders');
-            thead.innerHTML = '<tr>' + data.headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
-            
+            thead.innerHTML = '<th style="width:36px;"><input type="checkbox" id="egresoSelectAll" onchange="toggleAllEgresoRows(this)" title="Seleccionar todos"></th>'
+                + data.headers.map(h => `<th>${h}</th>`).join('');
+
             const tbody = document.getElementById('egresoPreviewBody');
             let bodyHTML = '';
-            data.sample_rows.forEach(r => {
-                let rowHtml = '';
+            // student_details y sample_rows se arman en el mismo loop del
+            // backend, en el mismo orden — student_details[i].row_idx es el
+            // identificador real de la fila para sample_rows[i].
+            data.sample_rows.forEach((r, i) => {
+                const rowIdx = (data.student_details[i] || {}).row_idx;
+                let rowHtml = `<td><input type="checkbox" class="egreso-row-check" data-row-idx="${rowIdx}" onchange="updateEgresoSelectedCount()" checked></td>`;
                 data.headers.forEach(h => {
                     let cellVal = r[h] || '';
                     if (h.toLowerCase().includes('estado') || h.toLowerCase().includes('enviado') || h.toLowerCase().includes('desvinculado')) {
                         if (cellVal.toLowerCase() === 'ok' || cellVal.toLowerCase().includes('eliminado') || cellVal.toLowerCase().includes('baja')) {
-                            cellVal = `<span class="badge bg-warning text-dark">${cellVal}</span>`;
+                            cellVal = `<span class="status-icon status-pending"><i class="bi bi-circle"></i>${cellVal}</span>`;
                         } else if (cellVal.toLowerCase().includes('error')) {
-                            cellVal = `<span class="badge bg-danger">${cellVal}</span><span class="badge bg-success ms-1">Reintento</span>`;
+                            cellVal = `<span class="status-icon status-error"><i class="bi bi-x-circle-fill"></i>${cellVal}</span><span class="status-icon status-pending ms-1"><i class="bi bi-arrow-clockwise"></i>Reintento</span>`;
                         } else {
-                            cellVal = `<span class="badge bg-success">A procesar</span>`;
+                            cellVal = `<span class="status-icon status-error"><i class="bi bi-exclamation-triangle-fill"></i>A procesar</span>`;
                         }
                     }
                     rowHtml += `<td>${cellVal}</td>`;
                 });
-                bodyHTML += `<tr>${rowHtml}</tr>`;
+                bodyHTML += `<tr data-row-idx="${rowIdx}">${rowHtml}</tr>`;
             });
             tbody.innerHTML = bodyHTML;
-            
+
             document.getElementById('egresoPreviewWrap').style.display = 'block';
-            document.getElementById('btnConfirmEgresoOneDrive').disabled = false;
+            document.getElementById('egresoSelectAll').checked = true;
+            updateEgresoSelectedCount();
         } else {
             const err = await res.json();
             toast(err.detail || "Error al generar vista previa", "danger");
@@ -343,12 +524,29 @@ async function openEgresoOneDrive() {
     }
 }
 
+function toggleAllEgresoRows(checkbox) {
+    document.querySelectorAll('#egresoPreviewBody .egreso-row-check').forEach(cb => { cb.checked = checkbox.checked; });
+    updateEgresoSelectedCount();
+}
+
+function updateEgresoSelectedCount() {
+    const count = document.querySelectorAll('#egresoPreviewBody .egreso-row-check:checked').length;
+    document.getElementById('egresoSelectedCount').innerText = count;
+    document.getElementById('btnConfirmEgresoOneDrive').disabled = count === 0;
+}
+
 async function confirmEgresoOneDrive() {
     const url = document.getElementById('urlEgresoOneDrive').value.trim();
     const sheet = document.getElementById('sheetEgresoOneDrive').value;
     const deleteAccount = document.getElementById('chkDeleteAccountEgreso').checked;
-    
+
+    const selected_rows = Array.from(document.querySelectorAll('#egresoPreviewBody .egreso-row-check:checked'))
+        .map(cb => parseInt(cb.dataset.rowIdx, 10));
+    if (selected_rows.length === 0) return;
+    if (!confirm(`¿Dar de baja a ${selected_rows.length} usuario(s) seleccionado(s)? Esta acción ${deleteAccount ? 'elimina las cuentas permanentemente' : 'deshabilita las cuentas'} y no se puede deshacer fácilmente.`)) return;
+
     const btn = document.getElementById('btnConfirmEgresoOneDrive');
+    const originalBtnHTML = btn.innerHTML;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Procesando...';
     btn.disabled = true;
 
@@ -356,13 +554,14 @@ async function confirmEgresoOneDrive() {
         const res = await fetch('/excel/egreso', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ 
-                url: url, 
+            body: JSON.stringify({
+                url: url,
                 sheet_name: sheet,
-                delete_account: deleteAccount
+                delete_account: deleteAccount,
+                selected_rows: selected_rows,
             })
         });
-        
+
         if (res.ok) {
             const data = await res.json();
             document.getElementById('egresoPreviewWrap').style.display = 'none';
@@ -374,7 +573,7 @@ async function confirmEgresoOneDrive() {
     } catch (e) {
         toast("Error de conexión al procesar", "danger");
     } finally {
-        btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Confirmar y Procesar';
+        btn.innerHTML = originalBtnHTML;
         btn.disabled = false;
     }
 }

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Accesos al Sistema{% endblock %}
+{% block breadcrumb %}Administración › Accesos al Sistema{% endblock %}
+{% block nav_admusr %}active{% endblock %}
+
+{% block content %}
+  <h1 class="page-title"><i class="bi bi-person-badge-fill me-2"></i>Accesos al Sistema</h1>
+  <p class="page-subtitle">Quién puede iniciar sesión en esta herramienta (no tiene relación con las cuentas de Canvas/Teams de alumnos o docentes).</p>
+
+  <div class="alert alert-info border-info mb-4">
+    <i class="bi bi-info-circle-fill me-2"></i>
+    Agregar un correo acá no crea ninguna cuenta ni contraseña nueva: esa persona entra con su
+    <strong>cuenta institucional de Microsoft</strong> de siempre (el mismo botón "Iniciar sesión" de esta web).
+    Solo le da permiso para entrar a esta herramienta.
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-header">
+      <h5 class="mb-0"><i class="bi bi-person-plus-fill me-2"></i>Agregar un nuevo perfil</h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label fw-bold">Correo institucional</label>
+          <input type="email" class="form-control" id="newAdminEmail" placeholder="nombre.apellido@usil.edu.py">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-bold">Nombre <small class="text-muted">(opcional)</small></label>
+          <input type="text" class="form-control" id="newAdminName" placeholder="Para identificarlo en la lista">
+        </div>
+        <div class="col-md-2 d-grid">
+          <button class="btn btn-primary" id="btnAddAdmin" onclick="addAdminUser()">
+            <i class="bi bi-plus-lg me-1"></i>Agregar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="card-header">
+      <h5 style="margin: 0;">Perfiles con acceso</h5>
+    </div>
+    <div class="table-scroll">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Correo</th>
+            <th>Nombre</th>
+            <th>Tipo</th>
+            <th>Agregado por</th>
+            <th>Fecha</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="adminUsersBody">
+          <tr><td colspan="6" style="text-align: center; padding: 40px;"><span class="spinner-border spinner-border-sm me-2"></span>Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function _fmtDate(iso) {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString('es-PY');
+}
+
+async function loadAdminUsers() {
+    const tbody = document.getElementById('adminUsersBody');
+    try {
+        const data = await api.get('/admin/users');
+        let rows = '';
+        (data.fixed || []).forEach(u => {
+            rows += `<tr>
+                <td>${u.email}</td>
+                <td class="text-muted">-</td>
+                <td><span class="badge bg-secondary">Permanente</span></td>
+                <td class="text-muted">Configuración del servidor</td>
+                <td class="text-muted">-</td>
+                <td class="text-muted small">No se puede quitar acá</td>
+            </tr>`;
+        });
+        (data.added || []).forEach(u => {
+            rows += `<tr>
+                <td>${u.email}</td>
+                <td>${u.name || '-'}</td>
+                <td><span class="badge bg-primary-subtle text-primary-emphasis">Agregado</span></td>
+                <td class="text-muted">${u.added_by || '-'}</td>
+                <td class="text-muted">${_fmtDate(u.created_at)}</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeAdminUser('${u.email}')">
+                        <i class="bi bi-trash3 me-1"></i>Quitar
+                    </button>
+                </td>
+            </tr>`;
+        });
+        tbody.innerHTML = rows || `<tr><td colspan="6" class="text-center text-muted p-3">Sin perfiles agregados todavía.</td></tr>`;
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger p-3">Error al cargar: ${e.message || e}</td></tr>`;
+    }
+}
+
+async function addAdminUser() {
+    const email = document.getElementById('newAdminEmail').value.trim();
+    const name = document.getElementById('newAdminName').value.trim();
+    if (!email) return toast('Ingresá un correo.', 'warning');
+
+    const btn = document.getElementById('btnAddAdmin');
+    setLoading(btn, true);
+    try {
+        await api.post('/admin/users', { email, name });
+        document.getElementById('newAdminEmail').value = '';
+        document.getElementById('newAdminName').value = '';
+        toast(`Acceso agregado para ${email}.`, 'success');
+        loadAdminUsers();
+    } catch (e) {
+        toast('Error: ' + (e.message || e), 'danger');
+    } finally {
+        setLoading(btn, false);
+    }
+}
+
+function removeAdminUser(email) {
+    confirmAction(
+        `¿Quitar el acceso de ${email}? Esa persona ya no va a poder iniciar sesión en esta herramienta.`,
+        () => _removeAdminUserConfirmed(email),
+        '¿Quitar acceso?',
+        true
+    );
+}
+
+async function _removeAdminUserConfirmed(email) {
+    try {
+        await api.del('/admin/users/' + encodeURIComponent(email));
+        toast(`Acceso de ${email} quitado.`, 'success');
+        loadAdminUsers();
+    } catch (e) {
+        toast('Error: ' + (e.message || e), 'danger');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadAdminUsers);
+</script>
+{% endblock %}

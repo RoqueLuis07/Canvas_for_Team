@@ -1,4 +1,5 @@
 """Canvas for Teams - Main FastAPI Application"""
+import asyncio
 import logging
 import sys
 from pathlib import Path
@@ -34,6 +35,7 @@ logger = logging.getLogger(__name__)
 from app.services import auth as auth_service
 from app.core import database, cache as _cache
 from app.routers import (
+    admin_users,
     audit,
     auth,
     canvas,
@@ -71,16 +73,21 @@ async def lifespan(app: FastAPI):
         await asyncio.to_thread(init_audit_db)
         await asyncio.to_thread(init_jobs_db)
         await asyncio.to_thread(init_actas_db)
+        await auth_service.refresh_admin_users_cache()
     except Exception as e:
         logger.error(f"Failed to initialize databases: {e}")
-        
+
     yield
     from app.services import canvas_client, teams_client
     from app.core import database as db
+    from app.core import audit_log, jobs as jobs_db, actas_db
     try:
         await canvas_client.close_client()
         await teams_client.close_client()
         await db.close_db()
+        await audit_log.close_audit_db()
+        await jobs_db.close_jobs_db()
+        await actas_db.close_actas_db()
     except Exception as e:
         logger.error(f"Failed to close connections cleanly: {e}")
 
@@ -141,13 +148,25 @@ if STATIC_DIR.exists():
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # Health check endpoints
+#
+# Timeout de respaldo: la capa de DB (app/core/database.py) ya tiene su
+# propio timeout por consulta, pero estos dos endpoints los consume
+# directamente el dashboard — un backstop acá evita que vuelvan a quedar
+# colgados aunque se agregue en el futuro una llamada sin timeout propio.
+_STATS_TIMEOUT = 12
+
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Basic health check."""
+    # get_stats() ya se autolimita con _STATS_TIMEOUT y nunca lanza
+    # (devuelve un dict con "error" en vez de propagar) — no hace falta
+    # envolverla en otro wait_for acá, sería una carrera con el mismo plazo.
     try:
         stats = await get_stats()
+        status = "degraded" if stats.get("error") else "ok"
         return {
-            "status": "ok",
+            "status": status,
             "environment": settings.environment,
             **stats
         }
@@ -163,12 +182,15 @@ async def health_check():
 async def get_stats():
     """Get application statistics."""
     try:
-        courses = await database.count_courses()
+        return await asyncio.wait_for(_get_stats_inner(), timeout=_STATS_TIMEOUT)
+    except asyncio.TimeoutError:
+        logger.error(f"Stats timed out after {_STATS_TIMEOUT}s")
         return {
-            "courses": courses,
-            "canvas_courses": courses,
-            "canvas_users": await database.count_canvas_users(),
-            "azure_users": await database.count_azure_users(),
+            "courses": 0,
+            "canvas_courses": 0,
+            "canvas_users": 0,
+            "azure_users": 0,
+            "error": "timeout"
         }
     except Exception as e:
         logger.error(f"Stats error: {e}", exc_info=True)
@@ -179,6 +201,16 @@ async def get_stats():
             "azure_users": 0,
             "error": str(e)
         }
+
+
+async def _get_stats_inner():
+    courses = await database.count_courses()
+    return {
+        "courses": courses,
+        "canvas_courses": courses,
+        "canvas_users": await database.count_canvas_users(),
+        "azure_users": await database.count_azure_users(),
+    }
 
 
 @app.get("/ping", tags=["Health"])
@@ -197,6 +229,7 @@ async def clear_cache():
 # Include routers with error handling
 routers_to_load = [
     ("Auth", auth.router),
+    ("AdminUsers", admin_users.router),
     ("Canvas", canvas.router),
     ("Excel", excel.router),
     ("Ingreso", ingreso.router),

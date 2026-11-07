@@ -77,13 +77,32 @@ function initSidebarGroups() {
   });
 }
 
+/* ── Modo simple del sidebar (oculta Sincronización/Actas/Auditoría) ──
+   El <html class="sidebar-advanced"> ya se aplicó en <head> (base.html,
+   script bloqueante) si estaba guardado, para que no haya parpadeo — acá
+   solo se sincroniza el estado visual del switch con esa clase. */
+function initSidebarAdvancedToggle() {
+  const toggle = document.getElementById('sidebarAdvancedToggle');
+  if (!toggle) return;
+  try {
+    toggle.checked = document.documentElement.classList.contains('sidebar-advanced');
+  } catch (e) { /* no-op */ }
+}
+
+function toggleSidebarAdvanced(advanced) {
+  document.documentElement.classList.toggle('sidebar-advanced', advanced);
+  try { localStorage.setItem('sidebar_advanced', advanced ? '1' : '0'); } catch (e) { /* no-op */ }
+}
+
 // Init on DOM ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initThemeToggle);
   document.addEventListener('DOMContentLoaded', initSidebarGroups);
+  document.addEventListener('DOMContentLoaded', initSidebarAdvancedToggle);
 } else {
   initThemeToggle();
   initSidebarGroups();
+  initSidebarAdvancedToggle();
 }
 
 /* ── Copy to clipboard ── */
@@ -143,15 +162,32 @@ async function onGlobalSearch(q) {
 }
 
 /* ── API helpers ── */
+// Timeout del lado del cliente para toda llamada a la API: el backend ya
+// tiene sus propios timeouts (10-12s en /stats, /health y la capa de DB),
+// pero sin esto cualquier endpoint que no pase por ahí (o un corte de red)
+// deja la pantalla en spinner/skeleton indefinido en vez de mostrar un
+// error reintentable. 15s le da margen a que el backend resuelva solo
+// primero con su propio mensaje de error.
+const API_TIMEOUT_MS = 15000;
+
 async function apiCall(method, url, data = null) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if (data) opts.body = JSON.stringify(data);
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  opts.signal = controller.signal;
+
   let r;
   try {
     r = await fetch(url, opts);
-  } catch {
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      throw new Error('Tiempo de espera agotado. Reintentá en unos segundos.');
+    }
     throw new Error('Error de conexión. Verificá que el servicio está activo.');
+  } finally {
+    clearTimeout(timer);
   }
 
   if (!r.ok) {
@@ -1272,33 +1308,144 @@ function openExcelDiplomados() {
 
 
 
-// Restore OneDrive URL across pages with defaults
+// Restore OneDrive URL across pages with defaults, y disparar "Cargar
+// Pestañas" solo una vez para ese campo ya quedó resuelto (restaurado o
+// default) — antes este bloque solo rellenaba el <input>, pero el usuario
+// seguía teniendo que clickear "Cargar Pestañas" a mano en cada sesión aunque
+// el link ya estuviera ahí. `btn` empareja cada campo con el botón que ya
+// dispara su propio fetchXSheets()/manejo de errores existente — no se
+// duplica esa lógica acá, solo se simula el click una vez resuelto el valor.
+// Se agregaron acá (sin `url` default, solo persistencia+auto-click) los
+// campos de envio_credenciales.html y los de canvas/courses.html que no
+// tenían NINGÚN tipo de persistencia antes (urlEnvio, fixCoordRoleUrl,
+// fixSisIdUrl, deleteOdUrl).
+//
+// `sheet` (nuevo) empareja cada campo con el <select> de pestañas que
+// fetchXSheets() termina llenando — además de recordar la URL, ahora también
+// se recuerda qué pestaña/hoja se eligió la última vez, y una vez que esas
+// opciones reales llegan (vía fetchXSheets(), disparado arriba por el
+// auto-click) se la vuelve a seleccionar sola y se dispara su evento
+// `change` — el mismo que ya dispara cada preview/habilitación de botón
+// existente (onchange="previewX()" etc.), así no hace falta duplicar esa
+// lógica por panel. Un MutationObserver sobre el <select> detecta el
+// momento en que sus <option> reales llegan (cada fetchXSheets() puebla el
+// select en algún momento después del fetch, ya sea con appendChild o con
+// innerHTML) sin tener que tocar ninguna de esas funciones existentes.
 document.addEventListener('DOMContentLoaded', () => {
     const defaultUrls = {
-        'coursesOdUrl': 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQARA_HJhg00QKcvL8bD1WvnATEbShmJ6jbq6qzgbWLzqIc?e=BayIS2',
-        'diplomadoUrl': 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQBjeh0nYFG7QbZx21y-3U-8AfhP2B9akxz7fo_LK_sKyGo?e=tXi91Q',
-        'mat_url': 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQCHMuoLYGs9T4NDeid5n9A7AZvphg9oml_g9dt-GYD5tY0?e=d4RKCr',
-        'masivoUrl': 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQA4gwZnz09sSIwlVtQ5bZlmAblW8XRtsRBXTTPnz6UTXjU?e=AlIYI6',
-        'doc_url': 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQAXcMN-cm4oQL3gRm2urNcTAeH-gSDKwUwleXVrjyAFcZY?e=GhWnCj',
-        'urlEgresoOneDrive': ''
+        'coursesOdUrl':       { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQARA_HJhg00QKcvL8bD1WvnATEbShmJ6jbq6qzgbWLzqIc?e=BayIS2', btn: 'btnLoadCoursesSheets', sheet: 'coursesOdSheet' },
+        'diplomadoUrl':       { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQBjeh0nYFG7QbZx21y-3U-8AfhP2B9akxz7fo_LK_sKyGo?e=tXi91Q', btn: 'btnLoadDiplomadoSheets', sheet: 'diplomadoSheet' },
+        'mat_url':            { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQCHMuoLYGs9T4NDeid5n9A7AZvphg9oml_g9dt-GYD5tY0?e=d4RKCr', btn: 'btnLoadMatSheets', sheet: 'mat_sheet' },
+        'masivoUrl':          { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQA4gwZnz09sSIwlVtQ5bZlmAblW8XRtsRBXTTPnz6UTXjU?e=AlIYI6', btn: 'btnLoadMasivoSheets', sheet: 'masivoSheet' },
+        'doc_url':            { url: 'https://usilparaguay-my.sharepoint.com/:x:/g/personal/resteche_usil_edu_py/IQAXcMN-cm4oQL3gRm2urNcTAeH-gSDKwUwleXVrjyAFcZY?e=GhWnCj', btn: 'btnLoadDocSheets', sheet: 'doc_sheet' },
+        'urlEgresoOneDrive':  { url: '', btn: 'btnLoadSheetsEgreso', sheet: 'sheetEgresoOneDrive' },
+        'urlEnvio':           { url: '', btn: 'btnLoadSheetsEnvio', sheet: 'sheetEnvio' },
+        'fixCoordRoleUrl':    { url: '', btn: 'btnLoadFixCoordRoleSheets', sheet: 'fixCoordRoleSheet' },
+        'fixSisIdUrl':        { url: '', btn: 'btnLoadFixSisIdSheets', sheet: 'fixSisIdSheet' },
+        'deleteOdUrl':        { url: '', btn: 'btnLoadDeleteSheets', sheet: 'deleteOdSheet' },
     };
-    
+
     Object.keys(defaultUrls).forEach(id => {
         const el = document.getElementById(id);
-        if (el) {
-            const savedUrl = localStorage.getItem(`onedrive_excel_url_${id}`);
-            if (savedUrl) {
-                el.value = savedUrl;
-            } else if (defaultUrls[id]) {
-                el.value = defaultUrls[id];
+        if (!el) return;
+        const cfg = defaultUrls[id];
+
+        let savedUrl = '';
+        try { savedUrl = localStorage.getItem(`onedrive_excel_url_${id}`) || ''; } catch (e) { /* localStorage puede fallar (ventana privada, etc.) — seguir sin persistencia */ }
+
+        const resolvedUrl = savedUrl || cfg.url;
+        if (resolvedUrl) el.value = resolvedUrl;
+
+        const persistIfValid = () => {
+            if (el.value && el.value.includes('http')) {
+                try { localStorage.setItem(`onedrive_excel_url_${id}`, el.value); } catch (e2) { /* idem */ }
             }
-            
-            el.addEventListener('change', (e) => {
-                if (e.target.value && e.target.value.includes('http')) {
-                    localStorage.setItem(`onedrive_excel_url_${id}`, e.target.value);
+        };
+        el.addEventListener('change', persistIfValid);
+
+        const btn = cfg.btn ? document.getElementById(cfg.btn) : null;
+        // También guardar al clickear el botón (no solo en `change`, que
+        // depende de blur): pegar un link nuevo y clickear "Cargar Pestañas"
+        // sin salir antes del campo no debe perderse para la próxima sesión.
+        // Esto debe valer siempre, no solo cuando ya había un valor al
+        // cargar la página — es justo el caso de un link pegado por primera
+        // vez el que más necesita quedar guardado.
+        if (btn) btn.addEventListener('click', persistIfValid);
+
+        // Recordar + auto-seleccionar la hoja/pestaña elegida la última vez
+        // para este campo, en cuanto fetchXSheets() la termine de poblar con
+        // opciones reales. Independiente del auto-click de arriba: corre
+        // siempre que exista el <select> emparejado, haya o no `btn`.
+        const sheetEl = cfg.sheet ? document.getElementById(cfg.sheet) : null;
+        if (sheetEl) {
+            let savedSheet = '';
+            try { savedSheet = localStorage.getItem(`onedrive_excel_sheet_${cfg.sheet}`) || ''; } catch (e3) { /* idem */ }
+
+            sheetEl.addEventListener('change', () => {
+                if (sheetEl.value) {
+                    try { localStorage.setItem(`onedrive_excel_sheet_${cfg.sheet}`, sheetEl.value); } catch (e4) { /* idem */ }
                 }
             });
+
+            if (savedSheet) {
+                let sheetFired = false;
+                const sheetObserver = new MutationObserver(() => {
+                    if (sheetFired) return;
+                    // Recién actuar cuando la opción recordada ya está entre
+                    // las opciones reales — mientras tanto puede haber
+                    // placeholders intermedios ("Cargando...", "Error al
+                    // cargar") que nunca van a matchear, y eso está bien: el
+                    // select se queda en su placeholder por defecto, como
+                    // pide la validación de esta tarea.
+                    const hasOption = Array.from(sheetEl.options).some(o => o.value === savedSheet);
+                    if (!hasOption) return;
+                    sheetFired = true;
+                    sheetEl.value = savedSheet;
+                    // Disparar `change` (no llamar previewX() directo) para
+                    // reusar exactamente el mismo onchange="..." que ya
+                    // dispara cada panel al elegir la pestaña a mano.
+                    sheetEl.dispatchEvent(new Event('change', { bubbles: true }));
+                    sheetObserver.disconnect();
+                });
+                sheetObserver.observe(sheetEl, { childList: true });
+            }
         }
+
+        // Auto-cargar pestañas: si el campo ya quedó con un valor (restaurado
+        // o default) al entrar a la página, simular el click en su botón de
+        // "Cargar Pestañas" para no obligar a un click manual cada sesión.
+        // Varios de estos campos viven dentro de una pestaña (.tab-pane) o
+        // acordeón (.accordion-collapse) oculto por defecto — diplomadoUrl/
+        // doc_url/masivoUrl en ingreso.html, por ejemplo, están los 3 detrás
+        // de pestañas que no están activas al cargar la página. Si se
+        // disparara el auto-click ahí mismo, cada carga de esa página
+        // bajaría 3-4 Excels de OneDrive de una sola vez aunque el usuario
+        // solo vaya a mirar uno — en vez de eso, se espera a que esa pestaña/
+        // acordeón se abra por primera vez para recién ahí cargar, y solo
+        // una vez por carga de página (no en cada apertura).
+        if (!resolvedUrl || !btn) return;
+
+        if (el.offsetParent !== null) {
+            btn.click();
+            return;
+        }
+
+        const pane = el.closest('.tab-pane, .accordion-collapse');
+        if (!pane) { btn.click(); return; } // no se encontró contenedor conocido — más seguro cargar ya que asumir
+
+        let fired = false;
+        const tryFire = () => {
+            if (fired || el.offsetParent === null) return;
+            fired = true;
+            btn.click();
+        };
+        // shown.bs.tab / shown.bs.collapse se emiten burbujeando hasta
+        // document (eventos custom de Bootstrap 5) — un solo listener acá
+        // cubre tanto pestañas (.tab-pane) como acordeones
+        // (.accordion-collapse) sin tener que ubicar el botón disparador
+        // exacto de cada uno.
+        document.addEventListener('shown.bs.tab', tryFire);
+        document.addEventListener('shown.bs.collapse', tryFire);
     });
 });
 

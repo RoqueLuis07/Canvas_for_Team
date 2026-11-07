@@ -10,6 +10,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/audit", tags=["Audit Logs"])
 
 
+def _map_action(method: str, endpoint: str) -> str:
+    """Traduce método HTTP + endpoint a una acción legible (create/delete/...).
+    Compartida entre /audit/recent (actividad del dashboard) y /audit/logs
+    (Registro de Auditoría), para que ambas vistas usen la misma categoría
+    de acción por fila en vez de que cada una la recalcule por su cuenta."""
+    ep = (endpoint or "").lower()
+    if "/auth/" in ep:           return "login"
+    if "/excel/" in ep:          return "import_bulk"
+    if method == "POST":         return "create"
+    if method in ("PUT", "PATCH"): return "update"
+    if method == "DELETE":       return "delete"
+    return "update"
+
+
 @router.get("/recent", summary="Actividad reciente para el dashboard")
 async def get_recent_activity(
     limit: Annotated[int, Query(ge=1, le=200)] = 30,
@@ -17,15 +31,6 @@ async def get_recent_activity(
     """Returns recent audit entries in the format expected by the dashboard."""
     import time as _time
     from datetime import datetime
-
-    def _map_action(method: str, endpoint: str) -> str:
-        ep = (endpoint or "").lower()
-        if "/auth/" in ep:           return "login"
-        if "/excel/" in ep:          return "import_bulk"
-        if method == "POST":         return "create"
-        if method in ("PUT", "PATCH"): return "update"
-        if method == "DELETE":       return "delete"
-        return "update"
 
     def _to_ts(timestamp_str: str) -> int:
         try:
@@ -55,14 +60,25 @@ async def get_recent_activity(
 
 @router.get("/logs", summary="Obtener logs de auditoría")
 async def get_audit_logs(
-    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+    limit: Annotated[int, Query(ge=1, le=5000)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     username: Annotated[str | None, Query()] = None,
     endpoint: Annotated[str | None, Query()] = None,
+    date_from: Annotated[str | None, Query(description="Fecha mínima, formato YYYY-MM-DD")] = None,
+    date_to: Annotated[str | None, Query(description="Fecha máxima, formato YYYY-MM-DD")] = None,
 ):
-    """Get audit logs with pagination, optionally filtered by username/endpoint."""
+    """Get audit logs with pagination, optionally filtered by username/endpoint/fecha.
+
+    Cada fila trae además `action` (ver _map_action) — la misma categoría
+    legible que ya usa /audit/recent para el dashboard, así el Registro de
+    Auditoría puede mostrar "Eliminar" en vez de solo "DELETE /canvas/..."."""
     try:
-        result = await audit_log.get_audit_logs(limit=limit, offset=offset, username=username, endpoint=endpoint)
+        result = await audit_log.get_audit_logs(
+            limit=limit, offset=offset, username=username, endpoint=endpoint,
+            date_from=date_from, date_to=date_to,
+        )
+        for log in result.get("logs", []):
+            log["action"] = _map_action(log.get("method", ""), log.get("endpoint", ""))
         return result
     except Exception as exc:
         logger.error(f"Error retrieving audit logs: {exc}")

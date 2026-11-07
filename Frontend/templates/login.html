@@ -130,133 +130,6 @@
       font-weight: 400;
     }
 
-    /* ── Input Fields (Modern Floating Label Style) ── */
-    .input-group {
-      position: relative;
-      margin-bottom: 24px;
-    }
-
-    .input-icon {
-      position: absolute;
-      left: 18px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #8c94ab;
-      font-size: 1.1rem;
-      transition: color 0.3s ease;
-      z-index: 2;
-    }
-
-    .modern-input {
-      width: 100%;
-      padding: 16px 16px 16px 48px;
-      border: 2px solid #e2e8f0;
-      border-radius: 14px;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.95rem;
-      color: #1a202c;
-      background: rgba(255, 255, 255, 0.7);
-      outline: none;
-      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    }
-
-    .modern-input::placeholder {
-      color: transparent; /* Hidden for floating label effect, or kept light */
-    }
-
-    .modern-input:focus, .modern-input:not(:placeholder-shown) {
-      border-color: #6a45ae;
-      background: #ffffff;
-      box-shadow: 0 4px 15px rgba(106, 69, 174, 0.1);
-    }
-
-    .modern-input:focus ~ .input-icon {
-      color: #6a45ae;
-    }
-
-    /* Floating label */
-    .floating-label {
-      position: absolute;
-      left: 48px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #8c94ab;
-      font-size: 0.95rem;
-      pointer-events: none;
-      transition: all 0.3s ease;
-    }
-
-    .modern-input:focus ~ .floating-label,
-    .modern-input:not(:placeholder-shown) ~ .floating-label {
-      top: 0;
-      left: 16px;
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: #6a45ae;
-      background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 50%, rgba(255,255,255,0) 100%);
-      padding: 0 6px;
-    }
-
-    .eye-btn {
-      position: absolute;
-      right: 16px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: #8c94ab;
-      font-size: 1.1rem;
-      cursor: pointer;
-      padding: 4px;
-      transition: color 0.2s;
-      z-index: 2;
-    }
-    
-    .eye-btn:hover { color: #6a45ae; }
-
-    /* ── Remember Me ── */
-    .remember-wrapper {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 32px;
-      cursor: pointer;
-      user-select: none;
-    }
-    
-    .custom-checkbox {
-      appearance: none;
-      width: 20px;
-      height: 20px;
-      border: 2px solid #cbd5e1;
-      border-radius: 6px;
-      background: #f8fafc;
-      position: relative;
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    
-    .custom-checkbox:checked {
-      background: #6a45ae;
-      border-color: #6a45ae;
-    }
-    
-    .custom-checkbox:checked::after {
-      content: '';
-      position: absolute;
-      left: 6px; top: 2px;
-      width: 5px; height: 10px;
-      border: solid white;
-      border-width: 0 2px 2px 0;
-      transform: rotate(45deg);
-    }
-    
-    .remember-text {
-      font-size: 0.9rem;
-      color: #475569;
-      font-weight: 500;
-    }
-
     /* ── Primary SSO Button (Azure AD) ── */
     .btn-sso {
       display: flex;
@@ -311,26 +184,6 @@
       color: #00a4ef; /* Microsoft Blue */
     }
 
-    /* Divider */
-    .divider {
-      display: flex;
-      align-items: center;
-      text-align: center;
-      margin: 28px 0;
-      color: #94a3b8;
-      font-size: 0.85rem;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      border-bottom: 1px solid #cbd5e1;
-    }
-    .divider::before { margin-right: 15px; }
-    .divider::after { margin-left: 15px; }
-
     /* ── Hint/Footer ── */
     .login-hint {
       margin-top: 24px;
@@ -384,7 +237,7 @@
   <div class="glass-container">
     
     <div class="logo-container stagger-1">
-      <img src="/static/img/usil-logo.svg" alt="USIL" class="logo-img">
+      <img src="/static/img/usil-wordmark.png" alt="USIL" class="logo-img">
     </div>
 
     <h1 class="title stagger-1">¡Bienvenido!</h1>
@@ -393,7 +246,7 @@
     {% if request.query_params.get('error') == 'forbidden' %}
     <div class="stagger-2" style="background:#fee2e2; color:#991b1b; border-radius:14px; padding:14px 18px; margin-bottom:20px; font-size:0.85rem; line-height:1.5; display:flex; gap:10px; align-items:flex-start;">
       <i class="bi bi-exclamation-triangle-fill" style="margin-top:2px;"></i>
-      <span>Tu cuenta no tiene permiso para acceder a este sistema. El acceso está reservado al equipo de TI administrador. Si creés que esto es un error, contactá al administrador.</span>
+      <span>Tu cuenta no tiene permiso para acceder a este sistema. Si creés que deberías tener acceso, pedile a un administrador que te lo agregue en "Accesos al Sistema".</span>
     </div>
     {% endif %}
 

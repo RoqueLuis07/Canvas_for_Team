@@ -17,12 +17,12 @@
   <!-- Search and filters -->
   <div class="table-card" style="margin-bottom: 24px; padding: 16px;">
     <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-      <input type="search" id="courseSearch" placeholder="Buscar curso..." class="form-control" style="max-width: 300px;">
-      <button class="btn btn-primary" onclick="refreshData()" title="Cargar datos más recientes">
+      <input type="search" id="courseSearch" placeholder="Buscá un curso por nombre (mín. 3 letras)..." class="form-control" style="max-width: 360px;" autocomplete="off">
+      <button class="btn btn-primary" onclick="refreshData()" title="Repetir la búsqueda actual">
         <i class="bi bi-arrow-clockwise"></i> Refrescar
       </button>
       <small style="color: var(--text-muted); margin-left: auto;">
-        <span id="lastUpdate">Cargando...</span>
+        <span id="lastUpdate"></span>
       </small>
     </div>
   </div>
@@ -33,6 +33,16 @@
       <span class="visually-hidden">Cargando...</span>
     </div>
     <p class="text-muted">Cargando cursos...</p>
+  </div>
+
+  <!-- Prompt state: antes de buscar nada. La institución tiene ~2000 cursos
+       — traer la asistencia de todos de una (como hacía esta página antes)
+       tarda minutos y satura la API de Canvas. Se busca por nombre primero
+       (Canvas filtra del lado del servidor, server_term), y recién ahí se
+       piden las asistencias de los pocos cursos que matchean. -->
+  <div id="promptState" style="text-align: center; padding: 60px 20px;">
+    <i class="bi bi-search" style="font-size: 2.5rem; color: var(--text-muted);"></i>
+    <p class="text-muted mt-2">Escribí el nombre de un curso para ver su asistencia.<br>La institución tiene más de 1900 cursos — buscar por nombre evita traerlos todos de una.</p>
   </div>
 
   <!-- Courses grid -->
@@ -77,46 +87,65 @@ let currentReport = null;
 
 function updateTimestamp() {
   const now = new Date();
-  const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const dateStr = now.toLocaleDateString('es-ES');
-  document.getElementById('lastUpdate').textContent = `Última actualización: ${dateStr} ${timeStr}`;
+  document.getElementById('lastUpdate').textContent = `Última actualización: ${dateStr}`;
 }
+
+let _lastSearchTerm = '';
 
 function refreshData() {
-  loadAttendanceReports();
+  if (_lastSearchTerm) loadAttendanceReports(_lastSearchTerm);
 }
 
-async function loadAttendanceReports() {
+// La institución tiene ~1900 cursos. Antes esta página traía TODOS con
+// /canvas/courses?per_page=100 (el backend ignora per_page acá adrede, ver
+// _fetch_all_courses en courses.py — devuelve todos los estados sin límite)
+// y pedía la asistencia de cada uno: eso tardaba varios minutos y saturaba
+// la API de Canvas (429 Too Many Requests, visto en logs de producción).
+// Ahora se busca por nombre primero — /canvas/courses?search_term=... usa
+// el buscador de Canvas del lado del servidor (máx. 100 resultados) — y
+// solo se piden asistencias para esos pocos cursos, en lotes de 5.
+async function loadAttendanceReports(searchTerm) {
   const loadingState = document.getElementById('loadingState');
   const coursesContainer = document.getElementById('coursesContainer');
   const emptyState = document.getElementById('emptyState');
+  const promptState = document.getElementById('promptState');
 
+  if (!searchTerm || searchTerm.trim().length < 3) {
+    loadingState.style.display = 'none';
+    coursesContainer.innerHTML = '';
+    emptyState.style.display = 'none';
+    promptState.style.display = 'block';
+    return;
+  }
+
+  _lastSearchTerm = searchTerm.trim();
+  promptState.style.display = 'none';
   loadingState.style.display = 'block';
   coursesContainer.innerHTML = '';
   emptyState.style.display = 'none';
 
   try {
-    // Obtener lista de cursos
-    const coursesRes = await fetch('/canvas/courses?per_page=100');
-    const courses = await coursesRes.json();
+    const courses = await api.get('/canvas/courses?search_term=' + encodeURIComponent(_lastSearchTerm));
 
     allReports = [];
 
-    // Cargar reportes de asistencia para cada curso
-    const reportPromises = courses.map(async (course) => {
+    const loadOne = async (course) => {
       try {
-        const res = await fetch(`/canvas/attendance/from-csv/${course.id}`);
-        if (res.ok) {
-          const report = await res.json();
-          return { ...report, courseId: course.id };
-        }
+        const report = await api.get(`/canvas/attendance/from-csv/${course.id}`);
+        return { ...report, courseId: course.id };
       } catch (e) {
-        // Ignorar cursos sin reporte
+        return null; // Ignorar cursos sin reporte
       }
-      return null;
-    });
+    };
 
-    const results = await Promise.all(reportPromises);
+    const results = [];
+    const batchSize = 5;
+    for (let i = 0; i < courses.length; i += batchSize) {
+      const batch = courses.slice(i, i + batchSize);
+      const batchResults = await Promise.all(batch.map(loadOne));
+      results.push(...batchResults);
+    }
     allReports = results.filter(r => r !== null);
 
     if (allReports.length === 0) {
@@ -127,7 +156,14 @@ async function loadAttendanceReports() {
     updateTimestamp();
   } catch (error) {
     console.error('Error cargando reportes:', error);
-    toast('Error cargando reportes', 'danger');
+    document.getElementById('lastUpdate').textContent = 'No se pudo cargar';
+    coursesContainer.innerHTML = `
+      <div class="text-center py-5 text-muted" style="grid-column: 1 / -1;">
+        <i class="bi bi-exclamation-triangle fs-1 d-block mb-2 text-warning"></i>
+        <div class="mb-3">${error.message || 'Error cargando reportes'}</div>
+        <button class="btn btn-sm btn-outline-primary" onclick="loadAttendanceReports(_lastSearchTerm)"><i class="bi bi-arrow-clockwise me-1"></i>Reintentar</button>
+      </div>`;
+    toast('Error cargando reportes: ' + (error.message || ''), 'danger');
   } finally {
     loadingState.style.display = 'none';
   }
@@ -135,21 +171,15 @@ async function loadAttendanceReports() {
 
 function renderCourseCards() {
   const coursesContainer = document.getElementById('coursesContainer');
-  const searchTerm = document.getElementById('courseSearch').value.toLowerCase();
 
-  const filtered = allReports.filter(r =>
-    r.course.name.toLowerCase().includes(searchTerm) ||
-    r.course.instructor.toLowerCase().includes(searchTerm)
-  );
-
-  if (filtered.length === 0) {
+  if (allReports.length === 0) {
     document.getElementById('emptyState').style.display = 'block';
     coursesContainer.innerHTML = '';
     return;
   }
 
   document.getElementById('emptyState').style.display = 'none';
-  coursesContainer.innerHTML = filtered.map(report => {
+  coursesContainer.innerHTML = allReports.map(report => {
     const hasData = report.summary.total_dates > 0;
     const sourceLabel = report.summary.source === 'CSV' ? 'CSV' : 'API';
     const sourceColor = report.summary.source === 'CSV' ? '#1cc88a' : '#4e73df';
@@ -297,11 +327,19 @@ async function downloadAsExcel() {
   await downloadReportExcel(currentReport.courseId);
 }
 
-// Event listeners
-document.getElementById('courseSearch').addEventListener('input', renderCourseCards);
+// Event listeners — debounce de 400ms, no un request por cada tecla.
+let _searchDebounce = null;
+document.getElementById('courseSearch').addEventListener('input', (e) => {
+  clearTimeout(_searchDebounce);
+  const val = e.target.value;
+  _searchDebounce = setTimeout(() => loadAttendanceReports(val), 400);
+});
 
-// Cargar reportes al iniciar
-loadAttendanceReports();
+// Al cargar la página se queda en el estado "prompt" (no se trae nada
+// todavía) hasta que el usuario busque un curso — ver loadAttendanceReports.
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('promptState').style.display = 'block';
+});
 </script>
 
 <style>

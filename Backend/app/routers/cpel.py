@@ -23,7 +23,7 @@ import logging
 import re
 import unicodedata
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -187,7 +187,7 @@ MAX_CPEL_ENROLL = 500  # tope de seguridad sobre alumnos × materias combinado
 
 
 @router.post("/enroll", summary="Matricular un lote de alumnos de una carrera en las materias CPEL seleccionadas")
-async def enroll_cpel(req: CPELEnrollRequest, bg_tasks: BackgroundTasks) -> dict:
+async def enroll_cpel(req: CPELEnrollRequest, bg_tasks: BackgroundTasks, request: Request) -> dict:
     if not req.materias:
         raise HTTPException(status_code=400, detail="No seleccionaste ninguna materia.")
     if not req.alumnos:
@@ -200,7 +200,7 @@ async def enroll_cpel(req: CPELEnrollRequest, bg_tasks: BackgroundTasks) -> dict
             detail=f"Demasiadas matrículas a la vez ({len(req.alumnos)} alumnos × {len(req.materias)} materias = {total_ops}). Máximo {MAX_CPEL_ENROLL}. Dividí en tandas más chicas.",
         )
 
-    job_id = await jobs.create_job(job_type="cpel_carrera_masivo", operation="import", username="admin")
+    job_id = await jobs.create_job(job_type="cpel_carrera_masivo", operation="import", username=jobs.username_from_request(request))
     bg_tasks.add_task(_process_cpel_enroll_bg, job_id, req)
     return {"status": "success", "job_id": job_id, "message": "Matriculación CPEL iniciada en segundo plano."}
 

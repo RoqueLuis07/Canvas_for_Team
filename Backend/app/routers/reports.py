@@ -314,3 +314,84 @@ async def unused_accounts():
         "total_unused": len(unused),
         "accounts": unused,
     }
+
+
+@router.get(
+    "/single-platform-accounts",
+    summary="Diagnóstico: cuentas que solo existen en Canvas o solo en Teams/Azure AD",
+)
+async def single_platform_accounts():
+    """Solo lectura — no crea, modifica ni elimina nada.
+
+    Cruza TODOS los usuarios de Canvas y de Azure AD/Teams por correo
+    institucional y cuenta cuántos existen en una sola de las dos
+    plataformas (vs. en ambas). Es el chequeo de la precondición que el
+    equipo dejó pendiente en BACKLOG.md para "Reconciliación automática
+    Canvas ↔ Teams" y "Detección de drift": esas automatizaciones asumen
+    hoy que todo el mundo necesita cuenta en ambas plataformas, y antes de
+    tocar esa lógica hace falta confirmar si institucionalmente ya existen
+    casos de una sola plataforma (y en qué volumen).
+
+    No recorre cursos ni equipos (a diferencia de /unused-accounts), así
+    que es más rápido — solo lista de usuarios de cada plataforma.
+    """
+    try:
+        canvas_users, azure_result = await asyncio.gather(
+            canvas.paginate(f"/accounts/{_ACCOUNT}/users", {"per_page": 100}),
+            _azure_users_with_signin(),
+        )
+        azure_users, signin_available = azure_result
+    except Exception as e:
+        logger.error(f"Error cruzando cuentas por plataforma: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al cruzar cuentas: {e}")
+
+    combined: dict[str, dict] = {}
+
+    for u in canvas_users:
+        key = (u.get("login_id") or u.get("email") or "").strip().lower()
+        if not key:
+            continue
+        combined.setdefault(key, {})["canvas"] = {
+            "id": u.get("id"),
+            "name": u.get("name") or u.get("short_name"),
+            "login_id": u.get("login_id"),
+            "sis_user_id": u.get("sis_user_id"),
+        }
+
+    for u in azure_users:
+        key = (u.get("userPrincipalName") or u.get("mail") or "").strip().lower()
+        if not key:
+            continue
+        combined.setdefault(key, {})["azure"] = {
+            "id": u.get("id"),
+            "name": u.get("displayName"),
+            "upn": u.get("userPrincipalName"),
+            "account_enabled": u.get("accountEnabled"),
+        }
+
+    only_canvas, only_azure = [], []
+    both_count = 0
+    for email, entry in combined.items():
+        c, a = entry.get("canvas"), entry.get("azure")
+        if c and not a:
+            only_canvas.append({"email": email, **c})
+        elif a and not c:
+            only_azure.append({"email": email, **a})
+        else:
+            both_count += 1
+
+    only_canvas.sort(key=lambda x: x["email"])
+    only_azure.sort(key=lambda x: x["email"])
+
+    return {
+        "total_canvas_users": len(canvas_users),
+        "total_azure_users": len(azure_users),
+        "total_both_platforms": both_count,
+        "total_only_canvas": len(only_canvas),
+        "total_only_azure": len(only_azure),
+        # Muestra acotada para no devolver un payload gigante en tenants
+        # grandes — los totales de arriba ya responden la pregunta de
+        # "¿existe el caso?"; esto es para poder mirar ejemplos concretos.
+        "only_canvas_sample": only_canvas[:100],
+        "only_azure_sample": only_azure[:100],
+    }

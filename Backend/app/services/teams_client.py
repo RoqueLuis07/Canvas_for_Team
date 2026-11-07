@@ -21,6 +21,15 @@ _TIMEOUT = httpx.Timeout(30.0)
 _token_cache: dict = {"access_token": None, "expires_at": 0}
 _sku_cache: dict[str, str] = {}
 
+# Campos por defecto al listar/buscar usuarios del directorio (Buscar
+# Usuarios, listados de Teams) — centralizado acá para que list_users()
+# (teams/users.py), search_users() y get_user_by_upn_exact() (este archivo)
+# pidan siempre el mismo set y no se desincronicen a mano. mobilePhone se
+# agregó porque antes ninguna de estas tres funciones lo pedía, así que el
+# teléfono de la cuenta nunca llegaba al frontend sin importar qué tabla lo
+# mostrara.
+DEFAULT_USER_SELECT_FIELDS = "id,displayName,userPrincipalName,mail,department,jobTitle,accountEnabled,mobilePhone"
+
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 _TRANSIENT = (
@@ -177,8 +186,11 @@ async def close_client() -> None:
         _client_instance = None
 
 @_retry
-async def get(path: str, params: dict | None = None) -> Any:
-    r = await _client().get(f"{_GRAPH}{path}", headers=_headers(), params=params)
+async def get(path: str, params: dict | None = None, extra_headers: dict | None = None) -> Any:
+    headers = _headers()
+    if extra_headers:
+        headers.update(extra_headers)
+    r = await _client().get(f"{_GRAPH}{path}", headers=headers, params=params)
     _raise(r)
     return r.json()
 
@@ -333,7 +345,7 @@ async def get_user_by_upn_exact(upn_or_id: str, select: str | None = None) -> di
     y la intención sea recuperar esa cuenta puntual (ej. tras un "already
     exists" al crearla), no buscar por texto."""
     try:
-        return await get(f"/users/{upn_or_id}", params={"$select": select or "id,displayName,userPrincipalName,mail"})
+        return await get(f"/users/{upn_or_id}", params={"$select": select or DEFAULT_USER_SELECT_FIELDS})
     except Exception:
         return None
 
@@ -343,7 +355,7 @@ async def search_users(query: str, select: str | None = None) -> list[Any]:
     params: dict = {
         "$search": f'"displayName:{query}" OR "userPrincipalName:{query}" OR "mail:{query}"',
         "$top": 50,
-        "$select": select or "id,displayName,userPrincipalName,mail,department,jobTitle,accountEnabled",
+        "$select": select or DEFAULT_USER_SELECT_FIELDS,
         "$orderby": "displayName",
     }
     return await paginate_limited(
@@ -578,6 +590,27 @@ async def send_mail(
     await post(f"/users/{mailbox}/sendMail", {"message": message, "saveToSentItems": True})
 
 
+async def create_draft_email(
+    mailbox: str, subject: str, html_body: str, to_email: str,
+    cc: list[str] | None = None,
+) -> dict:
+    """Crea un borrador (sin enviarlo) en la bandeja de Borradores de
+    `mailbox`, vía Microsoft Graph (POST /users/{mailbox}/messages) — mismo
+    endpoint que ya usa `send_mail_with_attachments` como primer paso antes
+    de subir adjuntos y enviar, acá simplemente no se llama a .../send al
+    final. Requiere el mismo permiso de aplicación 'Mail.Send' + acceso de
+    escritura a mensajes (Mail.ReadWrite) con consentimiento de
+    administrador. Devuelve el mensaje creado (incluye "id" y "webLink")."""
+    message: dict = {
+        "subject": subject,
+        "body": {"contentType": "HTML", "content": html_body},
+        "toRecipients": [{"emailAddress": {"address": to_email}}],
+    }
+    if cc:
+        message["ccRecipients"] = [{"emailAddress": {"address": addr}} for addr in cc]
+    return await post(f"/users/{mailbox}/messages", message)
+
+
 # Tamaño de trozo recomendado por la documentación de Graph para
 # uploadSession: debe ser múltiplo de 320 KiB.
 _UPLOAD_CHUNK_SIZE = 4 * 320 * 1024  # 1.25 MB
@@ -611,21 +644,53 @@ _upload_retry = retry(
 )
 
 
+async def _upload_attachment_to_draft(mailbox: str, message_id: str, name: str, content: bytes) -> None:
+    """Sube UN adjunto a un borrador ya creado, vía upload session en trozos
+    (ver `send_mail_with_attachments` para el porqué de este flujo)."""
+    session = await post(
+        f"/users/{mailbox}/messages/{message_id}/attachments/createUploadSession",
+        {"AttachmentItem": {"attachmentType": "file", "name": name, "size": len(content)}},
+    )
+    upload_url = session["uploadUrl"]
+
+    total = len(content)
+    client = _client(timeout=httpx.Timeout(120.0))
+    start = 0
+    while start < total:
+        end = min(start + _UPLOAD_CHUNK_SIZE, total)
+        chunk = content[start:end]
+        # La uploadUrl ya trae su propia autenticación embebida — Graph
+        # documenta explícitamente NO mandar el header Authorization acá.
+        r = await client.put(
+            upload_url,
+            content=chunk,
+            headers={
+                "Content-Length": str(len(chunk)),
+                "Content-Range": f"bytes {start}-{end - 1}/{total}",
+            },
+        )
+        if r.is_error:
+            raise HTTPException(status_code=r.status_code, detail=f"Error subiendo adjunto grande ({name}): {r.text[:300]}")
+        start = end
+
+
 @_upload_retry
-async def send_mail_with_large_attachment(
+async def send_mail_with_attachments(
     mailbox: str, subject: str, html_body: str, to_email: str,
-    attachment_name: str, attachment_bytes: bytes, attachment_content_type: str,
+    attachments: list[tuple[str, bytes, str]],
     cc: list[str] | None = None,
 ) -> None:
-    """Envía un correo con UN adjunto grande vía Microsoft Graph.
+    """Envía un correo con uno o más adjuntos "grandes" vía Microsoft Graph.
 
     `sendMail` (ver `send_mail`) solo admite adjuntos "simples" de hasta
-    ~3MB porque van codificados en base64 dentro del mismo cuerpo JSON. Para
-    adjuntos más grandes, Graph exige un flujo de 3 pasos: crear el mensaje
-    como borrador, subirle el adjunto en trozos vía una "upload session", y
-    recién ahí enviarlo (POST .../send). Si algún paso falla después de
-    crear el borrador, se intenta borrarlo para no dejar basura en Borradores
-    — incluyendo entre reintentos, así cada intento parte de un borrador
+    ~3MB en total porque van codificados en base64 dentro del mismo cuerpo
+    JSON. Para adjuntos más grandes (o varios adjuntos cuya suma supera ese
+    límite — p. ej. los dos instructivos de MBA, ~4MB juntos), Graph exige
+    un flujo de 3 pasos: crear el mensaje como borrador, subirle cada
+    adjunto en trozos vía una "upload session" propia, y recién ahí
+    enviarlo (POST .../send). Si algún paso falla después de crear el
+    borrador, se intenta borrarlo para no dejar basura en Borradores —
+    incluyendo entre reintentos, así cada intento parte de un borrador
     nuevo en vez de acumular basura.
     """
     message: dict = {
@@ -645,37 +710,8 @@ async def send_mail_with_large_attachment(
         # llamada, sobre todo con varias filas en paralelo.
         await asyncio.sleep(0.3)
 
-        session = await post(
-            f"/users/{mailbox}/messages/{message_id}/attachments/createUploadSession",
-            {
-                "AttachmentItem": {
-                    "attachmentType": "file",
-                    "name": attachment_name,
-                    "size": len(attachment_bytes),
-                }
-            },
-        )
-        upload_url = session["uploadUrl"]
-
-        total = len(attachment_bytes)
-        client = _client(timeout=httpx.Timeout(120.0))
-        start = 0
-        while start < total:
-            end = min(start + _UPLOAD_CHUNK_SIZE, total)
-            chunk = attachment_bytes[start:end]
-            # La uploadUrl ya trae su propia autenticación embebida — Graph
-            # documenta explícitamente NO mandar el header Authorization acá.
-            r = await client.put(
-                upload_url,
-                content=chunk,
-                headers={
-                    "Content-Length": str(len(chunk)),
-                    "Content-Range": f"bytes {start}-{end - 1}/{total}",
-                },
-            )
-            if r.is_error:
-                raise HTTPException(status_code=r.status_code, detail=f"Error subiendo adjunto grande: {r.text[:300]}")
-            start = end
+        for name, content, _content_type in attachments:
+            await _upload_attachment_to_draft(mailbox, message_id, name, content)
 
         await post(f"/users/{mailbox}/messages/{message_id}/send", {})
     except Exception:
@@ -684,6 +720,19 @@ async def send_mail_with_large_attachment(
         except Exception:
             pass
         raise
+
+
+async def send_mail_with_large_attachment(
+    mailbox: str, subject: str, html_body: str, to_email: str,
+    attachment_name: str, attachment_bytes: bytes, attachment_content_type: str,
+    cc: list[str] | None = None,
+) -> None:
+    """Compatibilidad: envío con UN solo adjunto grande (ver `send_mail_with_attachments`)."""
+    await send_mail_with_attachments(
+        mailbox, subject, html_body, to_email,
+        attachments=[(attachment_name, attachment_bytes, attachment_content_type)],
+        cc=cc,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -752,10 +801,10 @@ async def get_teams_activity_report(period: str = "D90") -> list[dict]:
     de los últimos `period` (D7/D30/D90/D180).
 
     Requiere el permiso de aplicación 'Reports.Read.All' con consentimiento de
-    administrador — NO está incluido en el scope actual. Además, si el tenant
-    tiene activado el "ocultamiento de datos de reportes" (Reports concealment)
-    en el Admin Center, los nombres/UPN vienen anonimizados y hay que
-    desactivar esa opción para poder identificar a los usuarios.
+    administrador — ya concedido en Azure Portal. Si el tenant tiene activado
+    el "ocultamiento de datos de reportes" (Reports concealment) en el Admin
+    Center, los nombres/UPN vienen anonimizados y hay que desactivar esa
+    opción para poder identificar a los usuarios.
     """
     import csv
     import io as _io
@@ -776,8 +825,11 @@ async def search_sent_email(to_email: str, since_iso: str) -> bool:
     realmente salió del buzón.
 
     Requiere el permiso de aplicación 'Mail.Read' (o 'Mail.ReadBasic.All') con
-    consentimiento de administrador, con acceso al buzón SMTP_FROM — NO está
-    incluido en el scope actual.
+    consentimiento de administrador, con acceso al buzón SMTP_FROM. No está
+    concedido explícitamente, pero 'Mail.ReadWrite' sí lo está (se agregó para
+    los adjuntos grandes de Alumnos de Grado) y, como permiso de aplicación,
+    ya incluye lectura — en la práctica esta función debería funcionar sin
+    pedir nada nuevo.
     """
     mailbox = settings.smtp_from
     if not mailbox:
