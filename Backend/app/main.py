@@ -77,6 +77,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize databases: {e}")
 
+    # Precalienta el caché de cursos en segundo plano (no bloquea el
+    # arranque/health check) — evita que el primer tráfico real tras un
+    # deploy dispare la traída completa de los ~1900 cursos y la estampida
+    # de requests concurrentes que eso generaba (ver courses.py).
+    from app.routers.canvas.courses import warm_courses_cache
+    asyncio.create_task(warm_courses_cache())
+
     yield
     from app.services import canvas_client, teams_client
     from app.core import database as db

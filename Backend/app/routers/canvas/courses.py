@@ -30,6 +30,18 @@ _COURSES_STALE_TTL = 1800
 
 _CACHE_KEY = "canvas:courses:all"
 
+# La cuenta tiene ~1900 cursos, así que la traída completa (sin
+# search_term) tarda varios segundos reales contra Canvas. Sin esta
+# traba, cada request concurrente que encuentra el caché frío (justo
+# después de un deploy, por ejemplo) dispara su propia traída completa
+# en simultáneo — eso fue lo que generó los "Tiempo de espera agotado"
+# en cascada vistos en producción: N requests a la vez multiplicaban la
+# carga contra la API de Canvas (429 Too Many Requests) y contra la
+# conexión compartida a la base de datos. Un lock por clave de caché
+# hace que solo UNA traída esté en vuelo por vez; el resto espera esa
+# misma traída en lugar de iniciar la suya.
+_fetch_locks: dict[str, asyncio.Lock] = {}
+
 
 def _course_cache_key(search_term: str | None) -> str:
     return f"{_CACHE_KEY}:{search_term or ''}"
@@ -43,26 +55,50 @@ async def _fetch_all_courses(search_term: str | None = None) -> list:
     - Sin límite de registros (paginate completo)
     """
     cache_key = _course_cache_key(search_term)
+    lock = _fetch_locks.setdefault(cache_key, asyncio.Lock())
+
+    async with lock:
+        # Otro request pudo haber completado la traída mientras esperábamos
+        # el lock — si ya está en caché, no hace falta repetirla.
+        cached = _cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        try:
+            params: dict = {
+                "per_page": 100,
+                "include[]": "term",
+                "state[]": _ALL_STATES,
+            }
+            if search_term:
+                params["search_term"] = search_term
+                result = await canvas.paginate_limited(f"/accounts/{_ACCOUNT}/courses", params, max_records=100)
+            else:
+                result = await canvas.paginate(f"/accounts/{_ACCOUNT}/courses", params)
+
+            await database.upsert_courses(result)
+            await database.mark_synced("canvas_courses")
+            _cache.set(cache_key, result, ttl=_COURSES_STALE_TTL)
+            logger.info(f"Cursos cargados: {len(result)} (todos los estados)")
+            return result
+        except Exception as exc:
+            logger.error(f"Error cargando cursos: {exc}")
+            return []
+
+
+async def warm_courses_cache() -> None:
+    """Precalienta el caché de cursos al arrancar el contenedor.
+
+    Se llama en el lifespan de la app, sin bloquear el arranque (fire and
+    forget) — para que el primer tráfico real después de un deploy ya
+    encuentre el caché tibio en vez de disparar la traída completa (y la
+    estampida de requests concurrentes que eso generaba) sobre el primer
+    usuario que entra.
+    """
     try:
-        params: dict = {
-            "per_page": 100,
-            "include[]": "term",
-            "state[]": _ALL_STATES,
-        }
-        if search_term:
-            params["search_term"] = search_term
-            result = await canvas.paginate_limited(f"/accounts/{_ACCOUNT}/courses", params, max_records=100)
-        else:
-            result = await canvas.paginate(f"/accounts/{_ACCOUNT}/courses", params)
-            
-        await database.upsert_courses(result)
-        await database.mark_synced("canvas_courses")
-        _cache.set(cache_key, result, ttl=_COURSES_STALE_TTL)
-        logger.info(f"Cursos cargados: {len(result)} (todos los estados)")
-        return result
+        await _fetch_all_courses()
     except Exception as exc:
-        logger.error(f"Error cargando cursos: {exc}")
-        return []
+        logger.warning(f"No se pudo precalentar el caché de cursos: {exc}")
 
 
 @router.get("", summary="Listar todos los cursos de la cuenta (todos los estados)")
