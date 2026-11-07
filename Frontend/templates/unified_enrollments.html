@@ -127,54 +127,49 @@
             <hr class="my-5">
 
             <h5 class="fw-bold mb-3"><i class="bi bi-clock-history me-2"></i>Historial Reciente</h5>
-            <div class="row g-3">
-              <div class="col-lg-9">
-                <div class="toolbar-pill">
-                  <div class="search-box">
-                    <i class="bi bi-search"></i>
-                    <input type="text" id="mi_hist_search" class="form-control" placeholder="Buscar por correo o programa..." oninput="mi_filterHistory()">
-                  </div>
-                  <select id="mi_hist_estado" class="form-select filter-select-sm" onchange="mi_filterHistory()">
-                    <option value="">Todos los estados</option>
-                    <option value="ok">Sin errores</option>
-                    <option value="error">Con errores</option>
-                  </select>
-                  <div class="btn-group-end">
-                    <button type="button" class="btn-pill" onclick="mi_loadHistory()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
-                  </div>
-                </div>
-                <div class="table-responsive bg-white border rounded">
-                    <table class="table table-sm table-hover mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Correo / SYS</th>
-                                <th>Programa</th>
-                                <th>Materias Procesadas</th>
-                                <th>Estado Canvas</th>
-                                <th>Estado Teams</th>
-                            </tr>
-                        </thead>
-                        <tbody id="mi_history_body">
-                            <tr><td colspan="6" class="text-center text-muted py-3">No hay registros recientes</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+
+            <div class="stat-strip mb-3">
+              <div class="stat-strip-label"><i class="bi bi-bar-chart-fill me-1"></i>Resumen</div>
+              <div class="stat-strip-items">
+                <div class="stat-strip-item total"><span class="ssi-label">Registros recientes</span><span class="ssi-value" id="mi_hist_total">0</span></div>
+                <div class="stat-strip-item"><span class="ssi-label">Sin errores</span><span class="ssi-value" id="mi_hist_ok">0</span></div>
+                <div class="stat-strip-item"><span class="ssi-label">Con errores</span><span class="ssi-value" id="mi_hist_err">0</span></div>
+                <div class="stat-strip-item"><span class="ssi-label">Materias matriculadas</span><span class="ssi-value" id="mi_hist_materias">0</span></div>
+                <div class="stat-strip-item"><span class="ssi-label">Programas distintos</span><span class="ssi-value" id="mi_hist_programas">0</span></div>
+                <div class="stat-strip-item"><span class="ssi-label">Último registro</span><span class="ssi-value small" id="mi_hist_last">—</span></div>
               </div>
-              <div class="col-lg-3">
-                <div class="side-panel h-100">
-                  <div class="side-panel-header"><i class="bi bi-bar-chart-fill me-1"></i>Resumen</div>
-                  <div class="side-panel-body">
-                    <div class="side-panel-row total"><span class="spr-label">Registros recientes</span><span class="spr-value" id="mi_hist_total">0</span></div>
-                    <div class="side-panel-row"><span class="spr-label">Sin errores</span><span class="spr-value" id="mi_hist_ok">0</span></div>
-                    <div class="side-panel-row"><span class="spr-label">Con errores</span><span class="spr-value" id="mi_hist_err">0</span></div>
-                    <hr class="my-2">
-                    <div class="side-panel-row"><span class="spr-label">Materias matriculadas</span><span class="spr-value" id="mi_hist_materias">0</span></div>
-                    <div class="side-panel-row"><span class="spr-label">Programas distintos</span><span class="spr-value" id="mi_hist_programas">0</span></div>
-                    <div class="side-panel-row"><span class="spr-label">Último registro</span><span class="spr-value small" id="mi_hist_last">—</span></div>
-                  </div>
-                </div>
+            </div>
+
+            <div class="toolbar-pill">
+              <div class="search-box">
+                <i class="bi bi-search"></i>
+                <input type="text" id="mi_hist_search" class="form-control" placeholder="Buscar por correo o programa..." oninput="mi_filterHistory()">
               </div>
+              <select id="mi_hist_estado" class="form-select filter-select-sm" onchange="mi_filterHistory()">
+                <option value="">Todos los estados</option>
+                <option value="ok">Sin errores</option>
+                <option value="error">Con errores</option>
+              </select>
+              <div class="btn-group-end">
+                <button type="button" class="btn-pill" onclick="mi_loadHistory()"><i class="bi bi-arrow-clockwise me-1"></i>Actualizar</button>
+              </div>
+            </div>
+            <div class="table-responsive bg-white border rounded">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Correo / SYS</th>
+                            <th>Programa</th>
+                            <th>Materias Procesadas</th>
+                            <th>Estado Canvas</th>
+                            <th>Estado Teams</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mi_history_body">
+                        <tr><td colspan="6" class="text-center text-muted py-3">No hay registros recientes</td></tr>
+                    </tbody>
+                </table>
             </div>
 
     </div>
